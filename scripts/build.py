@@ -36,6 +36,12 @@ SAIDA = os.path.join(RAIZ, "index.html")
 
 PLAYLIST = "PLSnrz0oA5cB49hSu2rMMCCtbXZOK6l9hq"
 
+# Nos três primeiros jogos ninguém anotou gol nem assistência por jogador, só
+# quem foi campeão. Decisão do grupo: esses jogos contam título e nada mais.
+# É o que faz cada um ter 10 jogos válidos e 13 presenças.
+# Esvaziar este conjunto devolve a contagem antiga de 13.
+SO_TITULO = {"2020-12", "2021-07", "2021-12"}
+
 EXTS = (".jpg", ".jpeg", ".png", ".webp")
 AVISOS = []
 
@@ -231,6 +237,7 @@ def main():
             "numero": num(r.get("numero_camisa"), 0),
             "foto": foto_de(pid),
             "jogos": 0, "gols": 0, "assist": 0, "titulos": 0, "contra": 0,
+            "presencas": 0,
         })
     porId = {p["id"]: p for p in jogadores}
 
@@ -382,29 +389,27 @@ def main():
     if completo:
         for e in escalacoes:
             p = porId[e["jogador"]]
-            p["jogos"] += 1
-            p["gols"] += e["gols"]
-            p["assist"] += e["assist"]
-            p["contra"] += e["contra"]
+            # presença é toda escalação; jogo válido exclui os três primeiros,
+            # em que só o título conta
+            p["presencas"] += 1
+            if e["jogo"] not in SO_TITULO:
+                p["jogos"] += 1
+                p["gols"] += e["gols"]
+                p["assist"] += e["assist"]
+                p["contra"] += e["contra"]
             if e["campeao"]:
                 p["titulos"] += 1
 
-        # gols e assistências não foram anotados por jogador nos jogos mais antigos;
-        # nesses casos o total individual vem do ranking, que é maior e mais correto
-        if jogos_sem_gol:
-            legado = {slug(x["id"]): x for x in json.load(open(LEGADO, encoding="utf-8"))}
-            corrigidos = 0
-            for p in jogadores:
-                l = legado.get(slug(p["id"]))
-                if l and (l["gols"] > p["gols"] or l["assist"] > p["assist"]):
-                    p["gols"] = max(p["gols"], l["gols"])
-                    p["assist"] = max(p["assist"], l["assist"])
-                    corrigidos += 1
-            aviso(f"Sem gol por jogador em {', '.join(jogos_sem_gol)} — "
-                  f"o total de gols e assistências de {corrigidos} jogadores veio do ranking. "
-                  "Lançando esses gols na aba ESCALACOES, tudo passa a sair de uma fonte só.")
-        print(f"  totais calculados de {len(escalacoes)} escalacoes "
-              f"em {len(cobertos)}/{len(jogos)} jogos")
+        validos = [g["id"] for g in jogos if g["id"] not in SO_TITULO]
+        print(f"  totais de {len(escalacoes)} escalacoes — {len(validos)} jogos valem "
+              f"estatistica, {len(SO_TITULO)} valem so titulo")
+        # depois da regra dos três primeiros, o ranking antigo deixa de ser
+        # necessário como fonte: os gols saem inteiros das escalações
+        ainda_sem = sorted(set(jogos_sem_gol) - SO_TITULO - set(sem_nenhum))
+        if ainda_sem:
+            aviso("Jogos que valem estatística e ainda têm célula de gol em branco: "
+                  + ", ".join(ainda_sem) + ". O placar bate, então provavelmente a "
+                  "célula vazia quer dizer zero — mas confirme.")
         leg = {slug(x["id"]): x for x in json.load(open(LEGADO, encoding="utf-8"))}
         difs = []
         for p in jogadores:
@@ -412,16 +417,15 @@ def main():
             if l and l["jogos"] and abs(l["jogos"] - p["jogos"]) > 2:
                 difs.append(f"{p['apelido']} {p['jogos']}x{l['jogos']}")
         if difs:
-            aviso("Contagem de jogos diverge do ranking antigo (escalações x ranking): "
-                  + ", ".join(difs) + ". As escalações são a fonte mais detalhada, "
-                  "mas vale conferir se algum jogo não foi lançado a mais.")
+            aviso("Contagem de jogos ainda diverge do ranking antigo mesmo depois da "
+                  "regra dos três primeiros (site x ranking): " + ", ".join(difs) + ".")
     else:
         legado = {slug(x["id"]): x for x in json.load(open(LEGADO, encoding="utf-8"))}
         achou = 0
         for p in jogadores:
             l = legado.get(slug(p["id"]))
             if l:
-                p.update(jogos=l["jogos"], gols=l["gols"],
+                p.update(jogos=l["jogos"], gols=l["gols"], presencas=l["jogos"],
                          assist=l["assist"], titulos=l["titulos"])
                 achou += 1
         print(f"  totais vindos do ranking antigo ({achou} jogadores) — "

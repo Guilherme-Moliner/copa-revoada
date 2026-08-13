@@ -652,7 +652,9 @@ function perfil(id){
     </div>
   </div>
   <div class="kpis">
-    <div class="kpi"><b class="num">${p.jogos}</b><span>Jogos</span></div>
+    <div class="kpi"><b class="num">${p.jogos}</b><span>${p.presencas>p.jogos?'Jogos válidos':'Jogos'}</span></div>
+    ${p.presencas>p.jogos?`<div class="kpi" title="Inclui 2020 e 2021, em que só o título conta">
+      <b class="num" style="color:var(--chalk)">${p.presencas}</b><span>Presenças</span></div>`:''}
     <div class="kpi"><b class="num">${p.gols}</b><span>Gols</span></div>
     <div class="kpi"><b class="num">${p.assist}</b><span>Assistências</span></div>
     <div class="kpi"><b class="num">${p.gols+p.assist}</b><span>Participações</span></div>

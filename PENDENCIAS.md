@@ -76,9 +76,21 @@ oficial e confirmação de que existem mesmo:
 > "Contei os títulos, não adicionei número de jogos porque não tem gols e assist
 > também. No caso fica 10 jogos mesmo, sendo que jogamos 13 no total."
 
-Ou seja: os três jogos de 2020–2021 entram só para título. **Ainda não apliquei
-esta regra no build** — ela muda o número de todo mundo na home, então está
-esperando confirmação. A tabela abaixo é o estado de hoje.
+Ou seja: os três jogos de 2020–2021 entram só para título. ✅ **Aplicado.** O site
+mostra os dois números: *Jogos válidos* (10) e *Presenças* (13).
+
+A regra mora na constante `SO_TITULO` no topo do `scripts/build.py`. Esvaziar o
+conjunto devolve a contagem antiga.
+
+A aplicação praticamente zerou a divergência: dos 12 nomes da tabela abaixo,
+**11 passaram a bater exatamente com o ranking antigo**. Sobra um só:
+
+| Jogador | Site | Ranking |
+|---|---|---|
+| Vitor | 0 | 3 |
+
+E esse é o mesmo caso de identidade não resolvida da Prioridade 3 — o Vitor não
+tem escalação nenhuma lançada. A tabela original ficou aqui embaixo por histórico.
 
 
 
