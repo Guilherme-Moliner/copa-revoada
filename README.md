@@ -10,10 +10,17 @@ Site estático, sem servidor e sem banco. Toda a informação sai de uma planilh
 ```
 dados/COPA_REVOADA_planilha.xlsx   ← onde a informação é digitada
 fotos/<id>.jpg                     ← uma foto por jogador
+assets/<id>.jpg                    ← idem; também escudo e foto de time
 assets/logo.png                    ← logo oficial
         ↓  python3 scripts/build.py
 index.html                         ← o site inteiro num arquivo só
+img/                               ← derivadas leves das imagens, geradas no build
 ```
+
+As imagens grandes ficam em `assets/` do jeito que vieram. O build gera versões
+leves em `img/` (retrato quadrado de 420px, escudo de 320px, foto de time de
+1100px) e é isso que o site carrega — 16 MB de original viram 2,6 MB no ar.
+`img/` não é versionado: o build refaz.
 
 O `index.html` é gerado, não editado à mão. Quem mexe no visual mexe em
 `src/app.template.html` e roda o build de novo.
@@ -69,13 +76,33 @@ os 13 jogos. Os totais individuais só passam a sair inteiramente daí quando to
 os jogos tiverem gol lançado por jogador — hoje faltam os de 2020 e 2021, e nesses
 casos o total de gols vem do ranking antigo. Veja `PENDENCIAS.md`.
 
-A coluna `nota_1a5` vira o rostinho de condição do jogador naquele jogo:
-1 apagado, 2 abaixo, 3 normal, 4 bom, 5 inspirado.
+Duas colunas cuidam dos casos que não são gol normal:
+
+- `gols_contra` — gol contra. Conta pro adversário, não entra no total de quem fez.
+- `conta_no_placar` — `NAO` para gol anulado ou dado pelo VAR fora do resultado.
+
+O build confere placar contra gols lançados a cada rodada e reclama se não bater.
+
+## A aba do rostinho
+
+`DESEMPENHO` — uma linha por jogador por time. A coluna `nota_1a5` é o julgamento
+de como a pessoa foi **naquele time** (1 apagado, 2 abaixo, 3 normal, 4 bom,
+5 inspirado) e vira o rostinho na página do time. Enquanto estiver vazia, o site
+mostra um rosto deduzido da produção, apagado, com aviso no hover.
+
+O rostinho não aparece na tela de Jogadores de propósito: julgar performance só
+faz sentido dentro de um time, não na média da vida inteira.
 
 ## Estúdio
 
-Sete artes: gol em barra inferior, gol em tela cheia, replay, escalação animada,
-substituição, ficha do jogador e cartão. Cada uma exporta de três formas:
+Treze artes, em quatro grupos:
+
+- **Gol** — barra inferior, tela cheia, artilheiro do dia.
+- **Arbitragem** — falta, checagem do VAR, pênalti, cartão.
+- **Partida** — placar de abertura, fim de jogo, escalação animada, substituição.
+- **Outros** — replay, ficha do jogador.
+
+Cada uma exporta de três formas:
 
 - **PNG** — quadro parado, fundo transparente.
 - **Sequência PNG (.zip)** — 30 fps com alpha de verdade. No DaVinci Resolve,

@@ -30,12 +30,42 @@ LEGADO = os.path.join(RAIZ, "dados", "ranking-legado.json")
 TEMPLATE = os.path.join(RAIZ, "src", "app.template.html")
 LOGO = os.path.join(RAIZ, "assets", "logo.png")
 FOTOS = os.path.join(RAIZ, "fotos")
+ASSETS = os.path.join(RAIZ, "assets")
+IMG = os.path.join(RAIZ, "img")
 SAIDA = os.path.join(RAIZ, "index.html")
 
 PLAYLIST = "PLSnrz0oA5cB49hSu2rMMCCtbXZOK6l9hq"
 
 EXTS = (".jpg", ".jpeg", ".png", ".webp")
 AVISOS = []
+
+# Arquivos de assets/ cujo nome não bate com o id da planilha. Só entram aqui
+# os casos em que a correspondência é evidente (erro de digitação ou apelido do
+# time). Nome duvidoso não é chutado: vira aviso no fim do build.
+APELIDO_JOGADOR = {
+    "danilin": "danilim",
+    "leobittencour": "leobittencourt",
+}
+ESCUDO_TIME = {
+    "borussetalogo": "borussia22",
+    "dentrofclogo": "dentro26",
+    "ferroviagralogo": "ferroviagra26",
+    "jumentuslogo": "jumentus25",
+    "liverpoollogo": "liverpool22",
+    "milanblogo": "milanbe25",
+}
+FOTO_TIME = {
+    "borusseta": "borussia22",
+    "citifodo": "city23",
+    "dentofc2026": "dentro26",
+    "ferroviagra2026": "ferroviagra26",
+    "jumentos": "jumentus25",
+    "liverpool": "liverpool22",
+    "milanb": "milanbe25",
+}
+# Não são foto de jogador nem de time; ficam de fora do site até alguém dizer
+# o que são. Listados aqui só para não aparecerem como "arquivo sem uso".
+IGNORAR_ASSET = {"logo", "logo-azul", "logo-branco"}
 
 
 def aviso(msg):
@@ -76,12 +106,98 @@ def sim(v):
     return str(v).strip().upper() in ("SIM", "S", "1", "TRUE", "X")
 
 
-def foto_de(pid):
-    for ext in EXTS:
-        caminho = os.path.join(FOTOS, pid + ext)
-        if os.path.exists(caminho):
-            return "fotos/" + pid + ext
+USADOS = set()
+
+
+def acha_origem(base, pastas=(FOTOS, ASSETS)):
+    """Procura <base>.<ext> nas pastas dadas, na ordem."""
+    for pasta in pastas:
+        for ext in EXTS:
+            caminho = os.path.join(pasta, base + ext)
+            if os.path.exists(caminho):
+                USADOS.add(base.lower())
+                return caminho
     return ""
+
+
+def _destino(sub):
+    caminho = os.path.join(IMG, sub)
+    os.makedirs(caminho, exist_ok=True)
+    return caminho
+
+
+def deriva_retrato(origem, nome):
+    """Recorta quadrado e grava JPEG leve. O rosto costuma estar acima do meio,
+    então o corte puxa para cima em vez de centralizar."""
+    saida = os.path.join(_destino("jogadores"), nome + ".jpg")
+    im = Image.open(origem).convert("RGB")
+    lado = min(im.size)
+    x = (im.width - lado) // 2
+    y = max(0, min(int((im.height - lado) * .18), im.height - lado))
+    im = im.crop((x, y, x + lado, y + lado))
+    im.thumbnail((420, 420), Image.LANCZOS)
+    im.save(saida, "JPEG", quality=82, optimize=True, progressive=True)
+    return "img/jogadores/%s.jpg" % nome
+
+
+def deriva_escudo(origem, nome):
+    """Escudo mantém transparência; PNG pequeno."""
+    saida = os.path.join(_destino("times"), nome + "-escudo.png")
+    im = Image.open(origem).convert("RGBA")
+    caixa = im.getbbox()
+    if caixa:
+        im = im.crop(caixa)
+    im.thumbnail((320, 320), Image.LANCZOS)
+    im.save(saida, "PNG", optimize=True)
+    return "img/times/%s-escudo.png" % nome
+
+
+def deriva_foto_time(origem, nome):
+    saida = os.path.join(_destino("times"), nome + "-foto.jpg")
+    im = Image.open(origem).convert("RGB")
+    im.thumbnail((1100, 1100), Image.LANCZOS)
+    im.save(saida, "JPEG", quality=80, optimize=True, progressive=True)
+    return "img/times/%s-foto.jpg" % nome
+
+
+def foto_de(pid):
+    origem = acha_origem(pid)
+    if not origem:
+        for arquivo, alvo in APELIDO_JOGADOR.items():
+            if alvo == pid:
+                origem = acha_origem(arquivo)
+                break
+    return deriva_retrato(origem, pid) if origem else ""
+
+
+def imagens_do_time(tid):
+    """Devolve (escudo, foto) já otimizados, ou strings vazias."""
+    escudo = foto = ""
+    for arquivo, alvo in ESCUDO_TIME.items():
+        if alvo == tid:
+            o = acha_origem(arquivo, (ASSETS,))
+            if o:
+                escudo = deriva_escudo(o, tid)
+            break
+    for arquivo, alvo in FOTO_TIME.items():
+        if alvo == tid:
+            o = acha_origem(arquivo, (ASSETS,))
+            if o:
+                foto = deriva_foto_time(o, tid)
+            break
+    return escudo, foto
+
+
+def assets_sem_uso():
+    """Arquivo de imagem em assets/ que o build não soube onde encaixar."""
+    sobra = []
+    for f in sorted(os.listdir(ASSETS)):
+        base, ext = os.path.splitext(f)
+        if ext.lower() not in EXTS or base.lower() in IGNORAR_ASSET:
+            continue
+        if base.lower() not in USADOS:
+            sobra.append(f)
+    return sobra
 
 
 def logo_b64(px=300):
@@ -114,7 +230,7 @@ def main():
             "pos": str(r.get("posicao") or "").strip().upper(),
             "numero": num(r.get("numero_camisa"), 0),
             "foto": foto_de(pid),
-            "jogos": 0, "gols": 0, "assist": 0, "titulos": 0,
+            "jogos": 0, "gols": 0, "assist": 0, "titulos": 0, "contra": 0,
         })
     porId = {p["id"]: p for p in jogadores}
 
@@ -125,6 +241,15 @@ def main():
         tid = str(r.get("id") or "").strip()
         if not tid:
             continue
+        escudo, foto = imagens_do_time(tid)
+        # a planilha pode apontar um arquivo à mão; quando aponta, ela manda
+        manual = str(r.get("escudo_arquivo") or "").strip()
+        if manual:
+            o = acha_origem(os.path.splitext(manual)[0], (ASSETS,))
+            if o:
+                escudo = deriva_escudo(o, tid)
+            else:
+                aviso(f"TIMES {tid}: escudo_arquivo '{manual}' não existe em assets/")
         times.append({
             "id": tid,
             "nome": str(r.get("nome") or tid).strip(),
@@ -132,6 +257,8 @@ def main():
             "sigla": str(r.get("sigla") or tid[:3]).strip().upper(),
             "c1": str(r.get("cor_1") or "#12A150").strip(),
             "c2": str(r.get("cor_2") or "#F2B01E").strip(),
+            "escudo": escudo,
+            "foto": foto,
         })
     times.sort(key=lambda t: (t["temporada"], t["id"]))
     timeIds = {t["id"] for t in times}
@@ -190,6 +317,34 @@ def main():
                 "campeao": sim(r.get("campeao")),
                 "nota": num(r.get("nota_1a5"), 0) or None,
                 "numero": num(r.get("numero"), 0) or None,
+                # gol contra: conta pro adversário, nunca pro total do jogador
+                "contra": num(r.get("gols_contra")),
+                # gol anulado (VAR): vale pro jogador, não vale pro placar
+                "no_placar": str(r.get("conta_no_placar") or "SIM").strip().upper() != "NAO",
+            })
+
+    # ---------------- desempenho por time ----------------
+    # o rostinho da página do time sai daqui: é o julgamento de como a pessoa
+    # foi naquele time, não em cada jogo isolado
+    desempenho = []
+    if "DESEMPENHO" in wb.sheetnames:
+        ws = wb["DESEMPENHO"]
+        for r in linhas(ws, acha_cabecalho(ws, "time_id")):
+            tid = str(r.get("time_id") or "").strip()
+            pid = str(r.get("jogador_id") or "").strip()
+            nota = num(r.get("nota_1a5"), 0)
+            if not tid or not pid or not nota:
+                continue
+            if tid not in timeIds:
+                aviso(f"DESEMPENHO: time '{tid}' não existe na aba TIMES")
+                continue
+            if pid not in porId:
+                aviso(f"DESEMPENHO: jogador '{pid}' não existe na aba JOGADORES")
+                continue
+            desempenho.append({
+                "time": tid, "jogador": pid,
+                "nota": max(1, min(5, nota)),
+                "obs": str(r.get("observacao") or "").strip(),
             })
 
     # ---------------- estatísticas ----------------
@@ -201,12 +356,36 @@ def main():
 
     jogos_sem_gol = sorted({e["jogo"] for e in escalacoes if not e["gols_lancados"]})
 
+    # ---------------- placar x gols lançados ----------------
+    # é a conferência que a aba CONFERE fazia à mão. Gol contra vai pro outro
+    # lado; gol anulado pelo VAR não entra. Sobrou diferença, o build reclama.
+    # só pula o jogo em que NINGUÉM teve gol lançado. Jogo com uma ou outra
+    # célula vazia continua conferível — 2022-04 e 2022-10 são desses.
+    sem_nenhum = {g["id"] for g in jogos
+                  if not any(e["gols_lancados"] for e in escalacoes if e["jogo"] == g["id"])}
+    for g in jogos:
+        if g["id"] in sem_nenhum or not g["casa"] or not g["fora"]:
+            continue
+        marcou = {g["casa"]: 0, g["fora"]: 0}
+        for e in escalacoes:
+            if e["jogo"] != g["id"] or e["time"] not in marcou:
+                continue
+            if e["no_placar"]:
+                marcou[e["time"]] += e["gols"]
+            if e["contra"]:
+                outro = g["fora"] if e["time"] == g["casa"] else g["casa"]
+                marcou[outro] += e["contra"]
+        if marcou[g["casa"]] != g["gc"] or marcou[g["fora"]] != g["gf"]:
+            aviso(f"{g['id']}: as escalações somam {marcou[g['casa']]}x{marcou[g['fora']]} "
+                  f"mas o placar da aba JOGOS é {g['gc']}x{g['gf']}")
+
     if completo:
         for e in escalacoes:
             p = porId[e["jogador"]]
             p["jogos"] += 1
             p["gols"] += e["gols"]
             p["assist"] += e["assist"]
+            p["contra"] += e["contra"]
             if e["campeao"]:
                 p["titulos"] += 1
 
@@ -305,7 +484,7 @@ def main():
     dados = {
         "copa": {"nome": "Copa Revoada", "antigo": "Milior Fut", "playlist": PLAYLIST},
         "jogadores": jogadores, "times": times, "jogos": jogos,
-        "trofeus": trofeus, "escalacoes": escalacoes,
+        "trofeus": trofeus, "escalacoes": escalacoes, "desempenho": desempenho,
         "premiacoes": premiacoes, "clipes": clipes,
     }
 
@@ -319,10 +498,22 @@ def main():
 
     com_foto = sum(1 for p in jogadores if p["foto"])
     com_video = sum(1 for g in jogos if g["video"])
+    com_escudo = sum(1 for t in times if t["escudo"])
+    com_ft = sum(1 for t in times if t["foto"])
     print(f"\nindex.html gerado — {os.path.getsize(SAIDA)//1024} KB")
     print(f"  {len(jogadores)} jogadores ({com_foto} com foto)")
-    print(f"  {len(times)} times · {len(jogos)} jogos ({com_video} com vídeo)")
+    print(f"  {len(times)} times ({com_escudo} com escudo, {com_ft} com foto) · "
+          f"{len(jogos)} jogos ({com_video} com vídeo)")
     print(f"  {len(escalacoes)} escalações · {len(premiacoes)} troféus · {len(clipes)} clipes")
+    print(f"  {len(desempenho)} notas de desempenho por time")
+
+    sem_foto = [p["id"] for p in jogadores if not p["foto"]]
+    if sem_foto:
+        aviso(f"{len(sem_foto)} jogadores ainda sem foto: " + ", ".join(sem_foto))
+    sobra = assets_sem_uso()
+    if sobra:
+        aviso("Imagens em assets/ que o build não soube onde encaixar: "
+              + ", ".join(sobra) + ". Diga de quem/de que time é cada uma e eu ligo.")
 
     if AVISOS:
         print("\nAvisos:")

@@ -17,15 +17,23 @@ placar; o resto está aqui embaixo.
 | Dez/2020 · Chelsea 6×7 PSG | a planilha guardou só quem jogou, sem gol por jogador |
 | Jul/2021 · Chelsea 10×10 PSG | idem |
 | Dez/2021 · Chelsea 6×9 PSG | idem |
-| Dez/2024 · Branco 5×3 Preto | lançados 7 gols, o placar soma 8 — falta 1 |
-| Ago/2026 · Dentro FC 1×1 Ferroviagra | lançados 3 gols, o placar soma 2 — sobra 1 |
+| ~~Dez/2024 · Branco 5×3 Preto~~ | ✅ **resolvido** — era gol contra do Leo, que jogava no Preto |
+| ~~Ago/2026 · Dentro FC 1×1 Ferroviagra~~ | ✅ **resolvido** — gol do VAR pro Leo com assistência do Zaga, não entra no placar |
 
-Enquanto os três primeiros não tiverem gol por jogador, o total individual de gols
-e assistências continua vindo do ranking antigo em vez de sair das escalações.
-Não quebra nada, mas são duas fontes de verdade convivendo.
+Os três de 2020–2021 continuam sem gol por jogador. Decisão tomada: **nesses três
+jogos conta só o título**, não jogos nem gols nem assistências. É o que faz cada
+um ter 10 jogos e não 13.
 
-A aba **CONFERE** da planilha mostra isso jogo a jogo e atualiza sozinha conforme
-vocês preenchem.
+Duas colunas novas na aba **ESCALACOES** guardam os casos especiais:
+
+- `gols_contra` — gol contra. Vai pro placar do adversário e **não** entra no
+  total de gols de quem fez. Aparece como KPI próprio no perfil.
+- `conta_no_placar` — `NAO` quando o gol foi anulado ou dado pelo VAR fora do
+  resultado. Vale pro jogador, não vale pro placar.
+
+O `scripts/build.py` agora **confere sozinho** placar contra gols lançados, jogo a
+jogo, já levando gol contra e VAR em conta. Se algum dia parar de bater, ele
+reclama no build — não precisa mais conferir na mão.
 
 ## Prioridade 2 — de que lado cada time estava
 
@@ -44,8 +52,12 @@ Cada linha virou um jogador diferente no site. Se for a mesma pessoa, digam qual
 |---|---|
 | `derek` · `dereck` · `dereka` · `minidereck` | quatro grafias, aparecem em anos diferentes |
 | `bernardoc` · `bernardom` · `berna` | Bernardo C, Bernardo M e Berna |
-| `vitim` · `vitor` | Vitim só aparece em 2020–2021; Vitor só no ranking |
+| `vitim` · `vitor` · `gordo` | ⚠️ resposta recebida foi *"vitor seria o Ex gordo"*, seguida de *"kretzer"* e *"Vitao"* soltos. Não deu pra entender se é pra unificar `vitor` com `gordo`, nem o que Kretzer e Vitão respondem. **Perguntar de novo antes de mexer.** |
 | `robson` · `pairobson` | Robson e Pai Robson, ambos em Ago/2026 |
+
+Além disso: em **Ago/2026** o `leo` aparece duas vezes no mesmo jogo, uma pelo
+Dentro FC e outra pelo Ferroviagra. Uma das duas linhas está errada, ou é outro
+Leo (existe `leo`, `leobittencourt` e `leogodinho`).
 
 Já unifiquei sozinho, por serem claramente a mesma pessoa:
 `Garopa`→`Garopaba`, `Felps`→`Phelps`, `Andre`/`André`, e todos os `GK` no fim do
@@ -59,7 +71,16 @@ oficial e confirmação de que existem mesmo:
 `Berna` · `Bernardo C` · `Bernardo M` · `Dereck` · `Derek` · `Dereka` ·
 `Gordo` · `Mito` · `Pai Robson` · `Robson` · `Vitim`
 
-## Prioridade 5 — a contagem de jogos não fecha
+## Prioridade 5 — a contagem de jogos não fecha ✅ respondido
+
+> "Contei os títulos, não adicionei número de jogos porque não tem gols e assist
+> também. No caso fica 10 jogos mesmo, sendo que jogamos 13 no total."
+
+Ou seja: os três jogos de 2020–2021 entram só para título. **Ainda não apliquei
+esta regra no build** — ela muda o número de todo mundo na home, então está
+esperando confirmação. A tabela abaixo é o estado de hoje.
+
+
 
 As escalações dão mais jogos por pessoa do que o RANKING Atual. Provavelmente o
 ranking não foi atualizado com todos os jogos, mas vale conferir se algum nome não

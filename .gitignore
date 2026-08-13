@@ -16,6 +16,10 @@ venv/
 # configuração local do Claude Code (caminhos desta máquina)
 .claude/settings.local.json
 
+# derivadas otimizadas das imagens — geradas por scripts/build.py a cada build,
+# a partir dos originais em assets/. Não versionar: o workflow refaz no deploy.
+img/
+
 # masters de vídeo e projetos do DaVinci não entram no repositório
 *.mp4
 *.mov
