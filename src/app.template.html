@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Copa Revoada</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Barlow+Condensed:wght@500;600;700;800;900&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#050807; --panel:#0C120E; --panel2:#141D17; --line:#22301F;
+  --chalk:#F4F1E6; --dim:#8A9A8C;
+  --gold:#F2B01E; --gold-d:#B8830D;
+  --grass:#12A150; --grass-l:#2BE07A; --grass-d:#0A3A22;
+  --ember:#FF5A2C;
+  --f1:#2E6BD6; --f2:#4FB3E8; --f3:#F2C94C; --f4:#45C97A; --f5:#FF5A2C;
+  --shell:min(1240px,94vw);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--ink)}
+body{color:var(--chalk);font-family:'Barlow',system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+h1,h2,h3{font-family:'Archivo Black',sans-serif;font-weight:400;margin:0;line-height:.95;letter-spacing:-.02em}
+.num{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-variant-numeric:tabular-nums;line-height:.9}
+.eyebrow{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.72rem;letter-spacing:.26em;text-transform:uppercase;color:var(--dim)}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+
+/* campo de fundo com listras de corte de grama */
+.pitch{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+   repeating-linear-gradient(105deg, rgba(18,161,80,.045) 0 90px, rgba(18,161,80,.012) 90px 180px),
+   radial-gradient(1200px 700px at 82% -10%, rgba(242,176,30,.10), transparent 60%),
+   radial-gradient(900px 600px at 4% 106%, rgba(18,161,80,.14), transparent 62%);}
+
+/* ============ MENU (estilo jogo antigo) ============ */
+#menu{position:relative;z-index:1;min-height:100vh;display:grid;grid-template-columns:1fr 1fr;
+  align-items:center;gap:2rem;width:var(--shell);margin:0 auto;padding:3rem 0}
+.menu-left{max-width:520px}
+.menu-crest{width:104px;height:104px;object-fit:contain;filter:drop-shadow(0 6px 24px rgba(242,176,30,.35))}
+.menu-title{font-size:clamp(2.4rem,6vw,4rem);text-transform:uppercase;margin:1.1rem 0 .25rem}
+.menu-title span{color:var(--gold)}
+.menu-sub{color:var(--dim);font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.22em;text-transform:uppercase;font-size:.78rem}
+.menu-list{margin-top:2.2rem;border-top:1px solid var(--line)}
+.mi{display:flex;align-items:center;gap:1rem;width:100%;text-align:left;background:transparent;border:0;
+  border-bottom:1px solid var(--line);padding:.95rem .9rem;cursor:pointer;position:relative;
+  transition:padding-left .22s cubic-bezier(.2,.9,.3,1),background .22s}
+.mi .idx{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.78rem;letter-spacing:.16em;color:var(--dim);width:2ch}
+.mi .lbl{font-family:'Archivo Black',sans-serif;font-size:1.5rem;text-transform:uppercase;letter-spacing:-.01em}
+.mi .arw{margin-left:auto;opacity:0;transform:translateX(-8px);transition:.22s;color:var(--ink);
+  font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1.2rem}
+.mi.on{background:linear-gradient(90deg,var(--gold),var(--gold-d));color:var(--ink);padding-left:1.6rem}
+.mi.on .idx{color:rgba(5,8,7,.6)}
+.mi.on .arw{opacity:1;transform:none}
+.menu-right{position:relative;border:1px solid var(--line);border-radius:16px;background:var(--panel);
+  min-height:420px;padding:1.8rem;overflow:hidden}
+.menu-right::after{content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 2px,transparent 2px 4px);pointer-events:none}
+.mr-big{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:clamp(4rem,10vw,7rem);color:var(--gold);line-height:.85}
+.mr-desc{color:var(--dim);margin-top:1rem;max-width:38ch;line-height:1.6}
+.mr-tags{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:1.4rem}
+.tag{border:1px solid var(--line);border-radius:999px;padding:.3rem .8rem;font-family:'Barlow Condensed',sans-serif;
+  font-weight:700;letter-spacing:.14em;font-size:.7rem;text-transform:uppercase;color:var(--dim)}
+.menu-foot{position:fixed;bottom:0;left:0;right:0;z-index:3;border-top:1px solid var(--line);
+  background:rgba(5,8,7,.9);backdrop-filter:blur(10px);display:none}
+.menu-foot.on{display:block}
+.menu-foot .in{width:var(--shell);margin:0 auto;display:flex;gap:1.6rem;align-items:center;height:44px}
+.key{font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.16em;font-size:.7rem;text-transform:uppercase;color:var(--dim)}
+.key b{color:var(--gold);margin-right:.35rem}
+.snd{margin-left:auto;background:transparent;border:1px solid var(--line);border-radius:6px;padding:.2rem .6rem;cursor:pointer;
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.14em;font-size:.68rem;text-transform:uppercase;color:var(--dim)}
+
+/* ============ APP (telas internas) ============ */
+#app{display:none;position:relative;z-index:1}
+#app.on{display:block}
+.topbar{position:sticky;top:0;z-index:40;background:rgba(5,8,7,.88);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.topbar-in{width:var(--shell);margin:0 auto;display:flex;align-items:center;gap:1rem;height:60px}
+.tb-logo{height:32px;cursor:pointer}
+.nav{display:flex;gap:.15rem;margin-left:auto;overflow-x:auto;scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+.nav button{border:0;background:transparent;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:800;
+  font-size:.86rem;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);padding:.5rem .8rem;border-radius:7px;white-space:nowrap;transition:.2s}
+.nav button:hover{color:var(--chalk);background:rgba(255,255,255,.04)}
+.nav button[aria-current="true"]{color:var(--ink);background:var(--gold)}
+main{width:var(--shell);margin:0 auto;padding:2.4rem 0 5rem}
+.screen{display:none}
+.screen.on{display:block;animation:enter .45s cubic-bezier(.22,.9,.28,1) both}
+@keyframes enter{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+section+section{margin-top:3rem}
+.sec-head{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;margin-bottom:1rem;border-bottom:1px solid var(--line);padding-bottom:.6rem}
+.sec-head h2{font-size:clamp(1.2rem,2.4vw,1.6rem);text-transform:uppercase}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1.05rem}
+.btn{cursor:pointer;border:1px solid var(--line);background:var(--panel2);border-radius:9px;padding:.58rem 1rem;
+  font-family:'Barlow Condensed',sans-serif;font-weight:800;letter-spacing:.13em;text-transform:uppercase;font-size:.8rem;transition:.2s}
+.btn:hover{border-color:var(--dim)}
+.btn.primary{background:var(--gold);color:var(--ink);border-color:var(--gold)}
+.btn.ghost{background:transparent}
+
+/* ============ SELEÇÃO DE PERSONAGEM ============ */
+.select{display:grid;grid-template-columns:1fr 340px;gap:1.6rem;align-items:start}
+.roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:.5rem}
+.slot{position:relative;aspect-ratio:1;border:2px solid var(--line);border-radius:10px;background:var(--panel2);
+  cursor:pointer;overflow:hidden;display:grid;place-items:center;padding:0;transition:.16s}
+.slot img{width:100%;height:100%;object-fit:cover}
+.slot .ini{font-family:'Archivo Black',sans-serif;font-size:1.35rem;color:var(--dim)}
+.slot .tagname{position:absolute;left:0;right:0;bottom:0;background:rgba(5,8,7,.82);font-family:'Barlow Condensed',sans-serif;
+  font-weight:700;font-size:.6rem;letter-spacing:.06em;text-transform:uppercase;padding:.15rem .2rem;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slot:hover,.slot.on{border-color:var(--gold);transform:translateY(-3px)}
+.slot.on{box-shadow:0 0 0 3px rgba(242,176,30,.22)}
+.slot.on .ini{color:var(--gold)}
+.slot.gk::after{content:'GK';position:absolute;top:3px;right:4px;font-family:'Barlow Condensed',sans-serif;
+  font-weight:800;font-size:.55rem;letter-spacing:.1em;color:var(--grass-l)}
+.viewer{position:sticky;top:76px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(170deg,var(--panel2),var(--panel));padding:1.4rem;overflow:hidden}
+.viewer .big{font-size:clamp(1.6rem,3.6vw,2.5rem);text-transform:uppercase;line-height:.92;margin:.6rem 0 .1rem}
+.portrait{width:120px;height:120px;border-radius:12px;border:2px solid var(--gold);background:var(--panel2);
+  display:grid;place-items:center;font-family:'Archivo Black',sans-serif;font-size:2.4rem;color:var(--gold);overflow:hidden}
+.portrait img{width:100%;height:100%;object-fit:cover}
+.bars{margin-top:1.2rem;display:grid;gap:.55rem}
+.bar{display:grid;grid-template-columns:76px 1fr 34px;align-items:center;gap:.6rem}
+.bar span{font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.12em;font-size:.66rem;text-transform:uppercase;color:var(--dim)}
+.bar .track{height:8px;background:var(--panel2);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.bar .fill{height:100%;background:linear-gradient(90deg,var(--grass),var(--grass-l));transition:width .4s cubic-bezier(.2,.9,.3,1)}
+.bar .fill.gold{background:linear-gradient(90deg,var(--gold-d),var(--gold))}
+.bar b{font-family:'Barlow Condensed',sans-serif;font-weight:900;text-align:right;font-size:1rem}
+
+/* ============ TIMES — seleção estilo ISS ============ */
+.iss{border:2px solid var(--gold);border-radius:6px;background:linear-gradient(180deg,#0A1710,#050A07);overflow:hidden}
+.iss-bar{display:grid;grid-template-columns:1fr auto 1fr;align-items:stretch;background:linear-gradient(180deg,#123A24,#0A2216);border-bottom:2px solid var(--gold)}
+.iss-bar .who{display:flex;align-items:center;gap:.6rem;padding:.55rem .9rem;font-family:'Barlow Condensed',sans-serif;font-weight:900;letter-spacing:.06em;font-size:1.15rem;text-transform:uppercase}
+.iss-bar .who.r{justify-content:flex-end}
+.iss-bar .badge{background:var(--gold);color:var(--ink);border-radius:3px;padding:.05rem .4rem;font-size:.66rem;letter-spacing:.14em}
+.iss-bar .yr{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1.35rem;color:var(--gold);padding:0 1rem;border-left:2px solid var(--gold);border-right:2px solid var(--gold);display:grid;place-items:center}
+.iss-body{display:grid;grid-template-columns:1fr auto 1fr;gap:1rem;padding:1.1rem}
+.statcol{display:grid;gap:.35rem;align-content:start;min-width:150px}
+.statrow{display:grid;grid-template-columns:78px 1fr;align-items:center;gap:.5rem}
+.statrow em{font-style:normal;font-family:'Barlow Condensed',sans-serif;font-weight:800;letter-spacing:.12em;font-size:.62rem;text-transform:uppercase;color:var(--dim)}
+.segs{display:flex;gap:2px}
+.seg{width:9px;height:12px;background:#16241B;border:1px solid #223122}
+.seg.on{background:linear-gradient(180deg,var(--gold),var(--gold-d));border-color:var(--gold-d)}
+.statcol.r .statrow{grid-template-columns:1fr 78px}
+.statcol.r .segs{justify-content:flex-end}
+.statcol.r em{text-align:right}
+.iss-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:.35rem;align-content:start}
+.tsel{position:relative;background:#0E1A13;border:2px solid #223122;border-radius:4px;padding:.35rem .2rem .3rem;cursor:pointer;display:grid;justify-items:center;gap:.2rem;transition:.14s}
+.tsel:hover{border-color:var(--grass-l)}
+.tsel.p1{border-color:var(--gold);box-shadow:0 0 0 2px rgba(242,176,30,.3);transform:translateY(-2px)}
+.tsel.p2{border-color:var(--f2)}
+.tsel .sg{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:.6rem;color:var(--dim)}
+.tsel svg{display:block}
+.iss-foot{display:flex;gap:.8rem;align-items:center;padding:.6rem .9rem;border-top:2px solid var(--gold);background:#0A2216;flex-wrap:wrap}
+.lineup{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
+.lu-col{border:2px solid var(--line);border-radius:6px;overflow:hidden;background:#0A1510}
+.lu-head{padding:.45rem .7rem;font-family:'Barlow Condensed',sans-serif;font-weight:900;letter-spacing:.1em;text-transform:uppercase;font-size:.9rem}
+.lu-row{display:grid;grid-template-columns:26px 34px 1fr auto;align-items:center;gap:.45rem;padding:.3rem .55rem;border-top:1px solid rgba(255,255,255,.05)}
+.lu-row .n{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:.78rem;color:var(--gold);text-align:center}
+.lu-row .pos{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.6rem;letter-spacing:.06em;color:var(--dim);text-align:center}
+.lu-row .nm{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.96rem;letter-spacing:.03em}
+.legend{display:flex;flex-wrap:wrap;gap:.7rem;margin-top:.8rem;align-items:center}
+.legend span{display:flex;align-items:center;gap:.3rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.1em;font-size:.65rem;text-transform:uppercase;color:var(--dim)}
+.ratio{aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+.ratio iframe{width:100%;height:100%;border:0;display:block}
+.link{color:var(--grass-l);text-decoration:none;border-bottom:1px solid rgba(43,224,122,.35)}
+.slot .fc{position:absolute;top:3px;left:3px;z-index:2}
+
+/* ============ TABELAS / JOGOS ============ */
+.tbl{width:100%;border-collapse:collapse;font-size:.94rem}
+.tbl th{text-align:left;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  font-size:.66rem;color:var(--dim);padding:.5rem .6rem;border-bottom:1px solid var(--line)}
+.tbl td{padding:.55rem .6rem;border-bottom:1px solid rgba(34,48,31,.6)}
+.tbl td.n{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-variant-numeric:tabular-nums}
+.tbl tr:hover td{background:rgba(255,255,255,.02)}
+.match{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:.9rem 1.05rem;margin-bottom:.6rem}
+.match-top{display:flex;align-items:center;gap:.9rem}
+.match-top .side{flex:1;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.02rem;letter-spacing:.05em;text-transform:uppercase}
+.match-top .side.away{text-align:right}
+.score{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1.6rem;letter-spacing:.05em}
+.score .w{color:var(--gold)}
+.match-meta{display:flex;flex-wrap:wrap;gap:.5rem 1rem;margin-top:.5rem;padding-top:.5rem;border-top:1px solid var(--line);font-size:.84rem;color:var(--dim)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(102px,1fr));gap:.6rem;margin-top:1.2rem}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:.75rem .85rem}
+.kpi .num{font-size:1.8rem;color:var(--gold)}
+.kpi span{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.14em;font-size:.62rem;text-transform:uppercase;color:var(--dim);margin-top:.1rem}
+.trophy{display:flex;gap:.75rem;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:.75rem .85rem}
+.trophy .ico{width:42px;height:42px;border-radius:10px;display:grid;place-items:center;font-size:1.3rem;flex:none;background:var(--panel2);border:1px solid var(--line)}
+.trophy .nm{font-family:'Barlow Condensed',sans-serif;font-weight:800;letter-spacing:.06em;text-transform:uppercase;font-size:.9rem}
+.tier-ouro .ico{border-color:rgba(242,176,30,.6);color:var(--gold)}
+.tier-prata .ico{border-color:rgba(200,208,205,.5);color:#C8D0CD}
+.tier-zoeira .ico{border-color:rgba(255,90,44,.6);color:var(--ember)}
+.grid{display:grid;gap:.9rem}
+.g3{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.empty{padding:1.6rem;text-align:center;color:var(--dim);font-size:.9rem;line-height:1.6}
+.rail{display:flex;gap:.45rem;overflow-x:auto;padding-bottom:.4rem;scrollbar-width:none}
+.rail::-webkit-scrollbar{display:none}
+.chip{cursor:pointer;white-space:nowrap;background:var(--panel);border:1px solid var(--line);color:var(--dim);border-radius:999px;
+  padding:.45rem 1rem;font-family:'Barlow Condensed',sans-serif;font-weight:800;letter-spacing:.12em;font-size:.82rem;transition:.2s}
+.chip[aria-pressed="true"]{background:var(--chalk);color:var(--ink);border-color:var(--chalk)}
+
+/* ============ ESTÚDIO ============ */
+.studio{display:grid;grid-template-columns:310px 1fr;gap:1.4rem;align-items:start}
+.field{margin-bottom:.8rem}
+.field label{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:.64rem;color:var(--dim);margin-bottom:.28rem}
+.field textarea{min-height:150px;resize:vertical;font-family:'Barlow Condensed',sans-serif;font-weight:600;line-height:1.5}
+.field select,.field input,.field textarea{width:100%;background:var(--ink);border:1px solid var(--line);color:var(--chalk);border-radius:8px;padding:.5rem .6rem;font:inherit;font-size:.9rem}
+.field select:focus,.field input:focus,.field textarea:focus{outline:none;border-color:var(--gold)}
+.stage{border:1px solid var(--line);border-radius:14px;overflow:hidden;
+  background:conic-gradient(from 90deg at 50% 50%,#141D17 25%,#0C120E 0 50%,#141D17 0 75%,#0C120E 0) 0 0/22px 22px}
+.stage.chroma{background:#00B140}
+.stage canvas{display:block;width:100%;height:auto}
+.stage-bar{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-top:.8rem}
+.hint{font-size:.85rem;color:var(--dim);margin-top:.7rem;line-height:1.55}
+.hint b{color:var(--chalk)}
+#prog{font-family:'Barlow Condensed',sans-serif;font-weight:800;letter-spacing:.12em;font-size:.72rem;text-transform:uppercase;color:var(--gold)}
+
+@media (max-width:900px){
+  #menu{grid-template-columns:1fr;padding:2rem 0 5rem}
+  .menu-right{min-height:200px}
+  .select,.studio{grid-template-columns:1fr}
+  .iss-body{grid-template-columns:1fr}
+  .iss-grid{grid-template-columns:repeat(5,1fr)}
+  .statcol.r .statrow{grid-template-columns:78px 1fr}
+  .statcol.r .segs{justify-content:flex-start}
+  .statcol.r em{text-align:left}
+  .lineup{grid-template-columns:1fr}
+  .viewer{position:static}
+}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms !important;transition-duration:.01ms !important}}
+</style>
+</head>
+<body>
+<div class="pitch"></div>
+
+<!-- ==================== MENU ==================== -->
+<div id="menu">
+  <div class="menu-left">
+    <img class="menu-crest" id="crest" alt="Copa Revoada">
+    <h1 class="menu-title">Copa <span>Revoada</span></h1>
+    <p class="menu-sub" id="menu-sub"></p>
+    <div class="menu-list" id="menu-list"></div>
+  </div>
+  <div class="menu-right" id="menu-right"></div>
+</div>
+<div class="menu-foot on" id="menu-foot">
+  <div class="in">
+    <span class="key"><b>↑↓</b> navegar</span>
+    <span class="key"><b>ENTER</b> entrar</span>
+    <span class="key"><b>ESC</b> voltar ao menu</span>
+    <button class="snd" id="snd">Som: ligado</button>
+  </div>
+</div>
+
+<!-- ==================== APP ==================== -->
+<div id="app">
+  <header class="topbar"><div class="topbar-in">
+    <img class="tb-logo" id="tb-logo" alt="Copa Revoada" title="Voltar ao menu">
+    <nav class="nav" id="nav"></nav>
+  </div></header>
+  <main>
+    <div class="screen" id="s-jogadores">
+      <p class="eyebrow">Seleção de jogador</p>
+      <h1 style="font-size:clamp(1.8rem,5vw,3rem);text-transform:uppercase;margin:.3rem 0 1.4rem">Escolha seu craque</h1>
+      <div class="select">
+        <div><div class="roster" id="roster"></div></div>
+        <div class="viewer" id="viewer"></div>
+      </div>
+    </div>
+
+    <div class="screen" id="s-perfil">
+      <button class="btn ghost" data-go="jogadores" style="margin-bottom:1.2rem">← Voltar à seleção</button>
+      <div id="perfil"></div>
+    </div>
+
+    <div class="screen" id="s-times">
+      <p class="eyebrow">Seleção de time</p>
+      <h1 style="font-size:clamp(1.8rem,5vw,3rem);text-transform:uppercase;margin:.3rem 0 1.4rem">Team select</h1>
+      <div class="iss" id="iss"></div>
+    </div>
+
+    <div class="screen" id="s-time">
+      <button class="btn ghost" data-go="times" style="margin-bottom:1.2rem">← Voltar aos times</button>
+      <div id="time"></div>
+    </div>
+
+    <div class="screen" id="s-recordes">
+      <p class="eyebrow">Livro de recordes</p>
+      <h1 style="font-size:clamp(1.8rem,5vw,3rem);text-transform:uppercase;margin:.3rem 0 1.2rem">Recordes</h1>
+      <div class="rail" id="rec-tabs" style="margin-bottom:1.2rem"></div>
+      <div class="card"><table class="tbl" id="rec-tbl"></table></div>
+    </div>
+
+    <div class="screen" id="s-videos">
+      <p class="eyebrow">Arquivo</p>
+      <h1 style="font-size:clamp(1.8rem,5vw,3rem);text-transform:uppercase;margin:.3rem 0 1.3rem">Vídeos</h1>
+      <div id="videos"></div>
+    </div>
+
+    <div class="screen" id="s-estudio">
+      <p class="eyebrow">Produção</p>
+      <h1 style="font-size:clamp(1.8rem,5vw,3rem);text-transform:uppercase;margin:.3rem 0 .4rem">Estúdio</h1>
+      <p style="color:var(--dim);max-width:60ch;margin:0 0 1.5rem">Monta a arte e leva pro DaVinci: PNG parado, sequência animada com transparência, ou WebM em fundo verde.</p>
+      <div class="studio">
+        <div class="card">
+          <div class="field"><label for="f-tipo">Arte</label>
+            <select id="f-tipo">
+              <option value="gol">Gol — barra inferior</option>
+              <option value="golaco">Gol — tela cheia</option>
+              <option value="replay">Replay</option>
+              <option value="escalacao">Escalação do time</option>
+              <option value="sub">Substituição</option>
+              <option value="stat">Ficha do jogador</option>
+              <option value="cartao">Cartão</option>
+            </select></div>
+          <div class="field" data-for="gol golaco sub stat cartao"><label for="f-p1" id="l-p1">Jogador</label><select id="f-p1"></select></div>
+          <div class="field" data-for="sub"><label for="f-p2">Sai</label><select id="f-p2"></select></div>
+          <div class="field" data-for="gol golaco cartao"><label for="f-min">Minuto</label><input id="f-min" value="27'"></div>
+          <div class="field" data-for="gol golaco cartao sub replay escalacao"><label for="f-time">Time</label><select id="f-time"></select></div>
+          <div class="field" data-for="replay"><label for="f-rtxt">Texto</label><input id="f-rtxt" value="MELHOR MOMENTO"></div>
+          <div class="field" data-for="escalacao"><label for="f-esc">Escalação — um por linha: <i>POS Apelido</i></label><textarea id="f-esc"></textarea></div>
+          <div class="field" data-for="cartao"><label for="f-cor">Cor</label>
+            <select id="f-cor"><option value="amarelo">Amarelo</option><option value="vermelho">Vermelho</option></select></div>
+          <div class="field" data-for="stat"><label for="f-s1">Número 1</label><input id="f-s1" value="9 JOGOS"></div>
+          <div class="field" data-for="stat"><label for="f-s2">Número 2</label><input id="f-s2" value="3 GOLS"></div>
+          <div class="field"><label for="f-dur">Duração da animação (s)</label><input id="f-dur" type="number" min="1" max="8" step="0.5" value="3"></div>
+        </div>
+        <div>
+          <div class="stage" id="stage"><canvas id="cv" width="1920" height="1080"></canvas></div>
+          <div class="stage-bar">
+            <button class="btn primary" id="dl-png">PNG</button>
+            <button class="btn" id="dl-seq">Sequência PNG (.zip)</button>
+            <button class="btn" id="dl-webm">WebM verde</button>
+            <button class="btn ghost" id="play">Prever animação</button>
+            <button class="btn ghost" id="toggle-chroma">Fundo verde</button>
+            <span id="prog" style="margin-left:auto"></span>
+          </div>
+          <p class="hint">
+            <b>Sequência PNG</b> é o caminho bom: alpha de verdade, 30 fps. No DaVinci, importa a pasta como <i>image sequence</i> e arrasta pra trilha de cima — sem key, sem retrabalho.<br>
+            <b>WebM verde</b> é o atalho: um arquivo só, mas você tem que tirar o verde no Chroma Key.<br>
+            Com fotos de jogador, use o site publicado. Aberto direto do arquivo o navegador bloqueia a exportação.
+          </p>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+// __DADOS__
+
+/* ================= util ================= */
+const $ = s => document.querySelector(s);
+const jog = DADOS.jogadores, times = DADOS.times, jogos = DADOS.jogos;
+const pById = Object.fromEntries(jog.map(p=>[p.id,p]));
+const tById = Object.fromEntries(times.map(t=>[t.id,t]));
+const troById = Object.fromEntries(DADOS.trofeus.map(t=>[t.id,t]));
+const temporadas = [...new Set(jogos.map(g=>g.temporada))].sort((a,b)=>b-a);
+const ini = p => p.apelido.replace(/[^A-Za-zÀ-ú ]/g,'').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+$('#crest').src = LOGO; $('#tb-logo').src = LOGO;
+const PLAYLIST = DADOS.copa.playlist;
+const INSTAGRAM = 'https://www.instagram.com/coparevoada/';
+
+/* forma 1..5 — usa a nota lançada; sem nota, deriva da produção */
+function forma(p, nota){
+  if(nota) return Math.max(1,Math.min(5,+nota));
+  if(!p || !p.jogos) return 3;
+  const s = (p.gols+p.assist)/p.jogos*1.6 + p.titulos/p.jogos*1.4;
+  return s>1.5?5 : s>1.05?4 : s>.65?3 : s>.3?2 : 1;
+}
+const FCOR=['#2E6BD6','#4FB3E8','#F2C94C','#45C97A','#FF5A2C'];
+const FNOME=['Apagado','Abaixo','Normal','Bom','Inspirado'];
+function faceSVG(n,s){
+  s=s||22; const c=FCOR[n-1];
+  const boca = n>=4?'M7 15 Q11 19 15 15' : n===3?'M7 16 H15' : 'M7 18 Q11 14 15 18';
+  return `<svg class="fc" width="${s}" height="${s}" viewBox="0 0 22 22" aria-label="${FNOME[n-1]}">
+    <circle cx="11" cy="11" r="10" fill="${c}" stroke="rgba(0,0,0,.45)"/>
+    <circle cx="7.5" cy="9" r="1.6" fill="#101010"/><circle cx="14.5" cy="9" r="1.6" fill="#101010"/>
+    <path d="${boca}" stroke="#101010" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>`;
+}
+
+/* estatística de time a partir dos jogos */
+function statsTime(id){
+  const ms = jogos.filter(g=>g.casa===id||g.fora===id);
+  let v=0,e=0,d=0,gp=0,gc=0;
+  ms.forEach(g=>{
+    const casa = g.casa===id, meu = casa?g.gc:g.gf, dele = casa?g.gf:g.gc;
+    gp+=meu; gc+=dele;
+    if(meu>dele) v++; else if(meu===dele) e++; else d++;
+  });
+  return {jogos:ms.length, v, e, d, gp, gc, saldo:gp-gc, pts:v*3+e, partidas:ms};
+}
+
+function parTime(id){ const t=tById[id]; return times.find(x=>x.temporada===t.temporada && x.id!==id); }
+
+/* ================= som ================= */
+let somOn = true, ac = null;
+function blip(f=560, dur=.05, vol=.05){
+  if(!somOn) return;
+  try{
+    ac = ac || new (window.AudioContext||window.webkitAudioContext)();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type='square'; o.frequency.value=f; g.gain.value=vol;
+    o.connect(g); g.connect(ac.destination); o.start();
+    g.gain.exponentialRampToValueAtTime(.0001, ac.currentTime+dur);
+    o.stop(ac.currentTime+dur+.02);
+  }catch(e){}
+}
+$('#snd').onclick = e => { somOn = !somOn; e.target.textContent = 'Som: ' + (somOn?'ligado':'desligado'); blip(700); };
+
+/* ================= MENU ================= */
+const MENU = [
+  {id:'jogadores', lbl:'Jogadores', big:()=>jog.length,   unid:'atletas',
+   desc:'Todo mundo que já vestiu uma camisa da copa, com jogos, gols, assistências e títulos.',
+   tags:['seleção de craque','ficha completa','melhores momentos']},
+  {id:'times', lbl:'Times', big:()=>times.length, unid:'escudos',
+   desc:'Cada temporada teve seu duelo. Escolha um escudo e compare as campanhas lado a lado.',
+   tags:temporadas.map(String)},
+  {id:'recordes', lbl:'Recordes', big:()=>jogos.reduce((a,g)=>a+g.gc+g.gf,0), unid:'gols na história',
+   desc:'Artilharia, garçons, presença e títulos. O ranking que gera treta no grupo.',
+   tags:['artilharia','assistências','títulos']},
+  {id:'videos', lbl:'Vídeos', big:()=>jogos.length, unid:'jogos no arquivo',
+   desc:'A playlist inteira da copa, jogo por jogo, e o Instagram que um dia volta a rodar.',
+   tags:['youtube','instagram','melhores momentos']},
+  {id:'estudio', lbl:'Estúdio', big:()=>7, unid:'artes',
+   desc:'Gol, replay, escalação, substituição, ficha e cartão. Sai animado com fundo transparente.',
+   tags:['davinci resolve','obs','png sequence']}
+];
+let mSel = 0;
+
+$('#menu-sub').textContent = DADOS.copa.antigo + ' · ' + temporadas[temporadas.length-1] + '–' + temporadas[0];
+$('#menu-list').innerHTML = MENU.map((m,i)=>
+  `<button class="mi" data-mi="${i}"><span class="idx">${String(i+1).padStart(2,'0')}</span><span class="lbl">${m.lbl}</span><span class="arw">▶</span></button>`).join('');
+
+function paintMenu(){
+  document.querySelectorAll('.mi').forEach((el,i)=>el.classList.toggle('on', i===mSel));
+  const m = MENU[mSel];
+  $('#menu-right').innerHTML =
+    `<p class="eyebrow">${m.lbl}</p>
+     <div class="mr-big">${m.big()}</div>
+     <p class="eyebrow" style="color:var(--chalk)">${m.unid}</p>
+     <p class="mr-desc">${m.desc}</p>
+     <div class="mr-tags">${m.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div>`;
+}
+document.querySelectorAll('.mi').forEach(el=>{
+  el.addEventListener('mouseenter', ()=>{ if(mSel!=+el.dataset.mi){ mSel=+el.dataset.mi; paintMenu(); blip(520); }});
+  el.addEventListener('click', ()=>{ blip(880,.08); abrir(MENU[mSel].id); });
+});
+paintMenu();
+
+document.addEventListener('keydown', e=>{
+  const noMenu = !$('#app').classList.contains('on');
+  if(noMenu){
+    if(e.key==='ArrowDown'){ mSel=(mSel+1)%MENU.length; paintMenu(); blip(520); e.preventDefault(); }
+    if(e.key==='ArrowUp'){ mSel=(mSel-1+MENU.length)%MENU.length; paintMenu(); blip(520); e.preventDefault(); }
+    if(e.key==='Enter'){ blip(880,.08); abrir(MENU[mSel].id); }
+  } else if(e.key==='Escape'){ voltarMenu(); }
+});
+
+function abrir(id){
+  $('#menu').style.display='none'; $('#menu-foot').classList.remove('on');
+  $('#app').classList.add('on'); go(id);
+}
+function voltarMenu(){
+  $('#app').classList.remove('on'); $('#menu').style.display='';
+  $('#menu-foot').classList.add('on'); window.scrollTo({top:0}); blip(420);
+}
+$('#tb-logo').onclick = voltarMenu;
+
+/* ================= navegação interna ================= */
+$('#nav').innerHTML = MENU.map(m=>`<button data-go="${m.id}">${m.lbl}</button>`).join('') +
+  `<button data-menu="1">Menu</button>`;
+function go(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  const el = $('#s-'+id); if(el){ void el.offsetWidth; el.classList.add('on'); }
+  document.querySelectorAll('#nav [data-go]').forEach(b=>b.setAttribute('aria-current', String(b.dataset.go===id)));
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+document.addEventListener('click', e=>{
+  const g = e.target.closest('[data-go]'); if(g) go(g.dataset.go);
+  const m = e.target.closest('[data-menu]'); if(m) voltarMenu();
+});
+
+/* ================= JOGADORES (seleção de personagem) ================= */
+let sel = 0;
+const maxJ = Math.max(...jog.map(p=>p.jogos)), maxG = Math.max(...jog.map(p=>p.gols)),
+      maxA = Math.max(...jog.map(p=>p.assist)), maxT = Math.max(...jog.map(p=>p.titulos));
+
+$('#roster').innerHTML = jog.map((p,i)=>
+  `<button class="slot ${p.pos==='GOL'?'gk':''}" data-slot="${i}">
+     ${faceSVG(forma(p),18)}
+     ${p.foto?`<img src="${p.foto}" alt="">`:`<span class="ini">${ini(p)}</span>`}
+     <span class="tagname">${p.apelido}</span></button>`).join('');
+
+function paintViewer(){
+  const p = jog[sel], f = forma(p), apr = p.jogos ? Math.round(p.titulos/p.jogos*100) : 0;
+  $('#viewer').innerHTML = `
+    <div style="display:flex;gap:.8rem;align-items:flex-start">
+      <div class="portrait">${p.foto?`<img src="${p.foto}" alt="">`:ini(p)}</div>
+      <div style="margin-top:.2rem">${faceSVG(f,34)}<div class="eyebrow" style="margin-top:.3rem">${FNOME[f-1]}</div></div>
+    </div>
+    <p class="eyebrow" style="margin-top:.9rem">${p.pos||'linha'} · ${p.nome||'nome a preencher'}</p>
+    <h2 class="big">${p.apelido}</h2>
+    <div class="bars">
+      ${bar('Jogos',p.jogos,maxJ)}${bar('Gols',p.gols,maxG,1)}
+      ${bar('Assist.',p.assist,maxA)}${bar('Títulos',p.titulos,maxT,1)}
+    </div>
+    <div style="margin-top:1.1rem;display:flex;gap:.5rem;align-items:center">
+      <span class="tag">${apr}% de dias campeão</span>
+    </div>
+    <button class="btn primary" style="width:100%;margin-top:1.1rem" data-abrir="${p.id}">Ver ficha completa</button>`;
+  document.querySelectorAll('.slot').forEach((el,i)=>el.classList.toggle('on', i===sel));
+}
+function bar(lbl,v,max,gold){
+  return `<div class="bar"><span>${lbl}</span><div class="track">
+    <div class="fill ${gold?'gold':''}" style="width:${max?Math.round(v/max*100):0}%"></div></div><b>${v}</b></div>`;
+}
+document.addEventListener('mouseover', e=>{
+  const s = e.target.closest('[data-slot]');
+  if(s && +s.dataset.slot!==sel){ sel=+s.dataset.slot; paintViewer(); blip(600,.03,.03); }
+});
+document.addEventListener('click', e=>{
+  const s = e.target.closest('[data-slot]');
+  if(s){ sel=+s.dataset.slot; paintViewer(); blip(880,.07); perfil(jog[sel].id); go('perfil'); }
+  const a = e.target.closest('[data-abrir]');
+  if(a){ perfil(a.dataset.abrir); go('perfil'); }
+});
+paintViewer();
+
+/* ================= PERFIL ================= */
+function perfil(id){
+  const p = pById[id];
+  const clipes = DADOS.clipes.filter(c=>c.jogador===id);
+  const esc = DADOS.escalacoes.filter(x=>x.jogador===id);
+  const prem = DADOS.premiacoes.filter(x=>x.jogador===id);
+  const anos = [...new Set(esc.map(x=>(jogos.find(g=>g.id===x.jogo)||{}).temporada))].filter(Boolean);
+
+  $('#perfil').innerHTML = `
+  <div style="display:flex;gap:1.3rem;align-items:center;flex-wrap:wrap">
+    <div class="portrait">${p.foto?`<img src="${p.foto}" alt="">`:ini(p)}</div>
+    <div>
+      <p class="eyebrow">${p.pos||'jogador de linha'}</p>
+      <h1 style="font-size:clamp(2rem,6vw,3.6rem);text-transform:uppercase">${p.apelido}</h1>
+      <p style="color:var(--dim);margin:.25rem 0 0">${p.nome||'Nome completo ainda não cadastrado'}</p>
+    </div>
+    <div style="margin-left:auto;text-align:center">${faceSVG(forma(p),42)}<div class="eyebrow" style="margin-top:.3rem">${FNOME[forma(p)-1]}</div></div>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><b class="num">${p.jogos}</b><span>Jogos</span></div>
+    <div class="kpi"><b class="num">${p.gols}</b><span>Gols</span></div>
+    <div class="kpi"><b class="num">${p.assist}</b><span>Assistências</span></div>
+    <div class="kpi"><b class="num">${p.gols+p.assist}</b><span>Participações</span></div>
+    <div class="kpi"><b class="num">${p.titulos}</b><span>Títulos</span></div>
+    <div class="kpi"><b class="num">${p.jogos?(( p.gols+p.assist)/p.jogos).toFixed(2):'0'}</b><span>Por jogo</span></div>
+  </div>
+
+  <section>
+    <div class="sec-head"><h2>Times por temporada</h2></div>
+    ${anos.length ? `<div class="grid g3">${anos.sort().reverse().map(y=>{
+        const e = esc.find(x=>(jogos.find(g=>g.id===x.jogo)||{}).temporada===y);
+        const t = tById[e.time]||{nome:'—'};
+        return `<div class="card"><p class="eyebrow">Temporada ${y}</p>
+          <h3 style="font-size:1.3rem;margin:.35rem 0 0;color:var(--gold)">${t.nome}</h3></div>`;}).join('')}</div>`
+      : `<div class="card empty">Isto aparece quando a aba <b>ESCALACOES</b> da planilha estiver preenchida.<br>É ela que diz em que time cada um jogou, em cada ano.</div>`}
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Sala de troféus</h2></div>
+    ${prem.length ? `<div class="grid g3">${prem.map(a=>{const t=troById[a.trofeu]||{nome:a.trofeu,tier:'ouro',};
+        return `<div class="trophy tier-${t.tier}"><div class="ico">${t.tier==='zoeira'?'🌭':t.tier==='prata'?'🥈':'🏆'}</div>
+        <div><div class="nm">${t.nome}</div><div style="font-size:.8rem;color:var(--dim)">${a.temporada}</div></div></div>`;}).join('')}</div>`
+      : `<div class="card empty">Nenhum troféu lançado ainda — aba <b>TROFEUS</b> da planilha.</div>`}
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Melhores momentos</h2></div>
+    ${clipes.length ? `<div class="grid g3">${clipes.map(c=>
+        `<a class="card" style="text-decoration:none;color:inherit" target="_blank" rel="noopener"
+           href="https://youtu.be/${c.video}?t=${c.inicio||0}">
+           <p class="eyebrow">${c.temporada||''}</p>
+           <h3 style="font-size:1.05rem;margin-top:.4rem">${c.titulo}</h3></a>`).join('')}</div>`
+      : `<div class="card empty">Sem clipes. Cole o ID do vídeo e o segundo do lance na aba <b>CLIPES</b> — não precisa cortar nada.</div>`}
+  </section>`;
+}
+
+/* ================= TIMES ================= */
+function crestSVG(t, size){
+  const s = size||92, cont = luz(t.c1) ? '#0B0B0B' : '#FFFFFF';
+  return `<svg class="crest" viewBox="0 0 92 100" width="${s}" height="${Math.round(s*100/92)}" aria-hidden="true">
+    <defs><clipPath id="c${t.id}"><path d="M46 2 L88 14 V54 C88 76 68 92 46 98 C24 92 4 76 4 54 V14 Z"/></clipPath></defs>
+    <g clip-path="url(#c${t.id})">
+      <rect width="92" height="100" fill="${t.c1}"/>
+      <path d="M46 0 L92 0 V100 H46 Z" fill="${t.c2}" opacity=".9"/>
+      <path d="M0 62 L92 42 V52 L0 72 Z" fill="rgba(0,0,0,.18)"/>
+    </g>
+    <path d="M46 2 L88 14 V54 C88 76 68 92 46 98 C24 92 4 76 4 54 V14 Z" fill="none" stroke="#F2B01E" stroke-width="3"/>
+    <text x="46" y="60" text-anchor="middle" font-family="Archivo Black, sans-serif" font-size="24" fill="${cont}">${t.sigla}</text>
+  </svg>`;
+}
+function luz(hex){
+  const c = hex.replace('#',''); const r=parseInt(c.substr(0,2),16),g=parseInt(c.substr(2,2),16),b=parseInt(c.substr(4,2),16);
+  return (r*299+g*587+b*114)/1000 > 140;
+}
+const ATRIB=['Ataque','Defesa','Ritmo','Elenco','Títulos'];
+function atributos(id){
+  const s=statsTime(id), j=s.jogos||1, todos=times.map(t=>statsTime(t.id));
+  const maxAt=Math.max(...todos.map(x=>x.gp/(x.jogos||1)));
+  const maxDf=Math.max(...todos.map(x=>x.gc/(x.jogos||1)))||1;
+  const el=DADOS.escalacoes.filter(x=>x.time===id).length;
+  const maxEl=Math.max(1,...times.map(t=>DADOS.escalacoes.filter(x=>x.time===t.id).length));
+  return [ Math.round(s.gp/j/(maxAt||1)*10), Math.round((1-(s.gc/j)/maxDf)*10),
+           Math.round(s.pts/(j*3)*10), el?Math.round(el/maxEl*10):5,
+           Math.round(s.v/j*10) ].map(v=>Math.max(1,Math.min(10,v||1)));
+}
+function segs(v,dir){ return `<div class="segs">${Array.from({length:10},(_,i)=>
+  `<div class="seg ${(dir==='r'?(i>=10-v):(i<v))?'on':''}"></div>`).join('')}</div>`; }
+function statcol(id,side){
+  const a=atributos(id);
+  return `<div class="statcol ${side==='r'?'r':''}">${ATRIB.map((n,i)=>
+    side==='r' ? `<div class="statrow">${segs(a[i],'r')}<em>${n}</em></div>`
+               : `<div class="statrow"><em>${n}</em>${segs(a[i])}</div>`).join('')}</div>`;
+}
+let p1Time = times[times.length-1].id;
+function renderISS(){
+  const a=tById[p1Time], b=parTime(p1Time)||a;
+  const sa=statsTime(a.id), sb=statsTime(b.id);
+  const camp = sa.pts>sb.pts?a.id : sb.pts>sa.pts?b.id : null;
+  $('#iss').innerHTML = `
+   <div class="iss-bar">
+     <div class="who"><span class="badge">1P</span> ${a.nome} ${camp===a.id?'<span class="badge">CAMPEÃO</span>':''}</div>
+     <div class="yr">${a.temporada}</div>
+     <div class="who r">${camp===b.id?'<span class="badge">CAMPEÃO</span>':''} ${b.nome} <span class="badge">2P</span></div>
+   </div>
+   <div class="iss-body">
+     ${statcol(a.id)}
+     <div class="iss-grid">${times.map(t=>`
+        <button class="tsel ${t.id===p1Time?'p1':''} ${(t.id===b.id&&t.id!==p1Time)?'p2':''}" data-tsel="${t.id}">
+          ${crestSVG(t,44)}<span class="sg">${String(t.temporada).slice(2)}</span></button>`).join('')}</div>
+     ${statcol(b.id,'r')}
+   </div>
+   <div class="iss-foot">
+     <span class="key"><b>←→</b> trocar escudo</span>
+     <button class="btn primary" data-time="${a.id}">Abrir ${a.nome}</button>
+     <button class="btn" data-time="${b.id}">Abrir ${b.nome}</button>
+     <span class="key" style="margin-left:auto">${sa.v}V ${sa.e}E ${sa.d}D &nbsp;·&nbsp; ${sb.v}V ${sb.e}E ${sb.d}D</span>
+   </div>`;
+}
+document.addEventListener('click', e=>{
+  const s=e.target.closest('[data-tsel]');
+  if(s){ p1Time=s.dataset.tsel; renderISS(); blip(620,.04); }
+});
+document.addEventListener('keydown', e=>{
+  if(!$('#s-times').classList.contains('on')) return;
+  const i=times.findIndex(t=>t.id===p1Time);
+  if(e.key==='ArrowRight'){ p1Time=times[(i+1)%times.length].id; renderISS(); blip(620,.04); e.preventDefault(); }
+  if(e.key==='ArrowLeft'){ p1Time=times[(i-1+times.length)%times.length].id; renderISS(); blip(620,.04); e.preventDefault(); }
+});
+
+function elencoDe(id){
+  return DADOS.escalacoes.filter(x=>x.time===id).map(x=>({
+    p: pById[x.jogador] || {apelido:x.jogador,pos:'',jogos:0,gols:0,assist:0,titulos:0}, nota:x.nota }));
+}
+function luCol(t,itens){
+  const cont = luz(t.c1)?'#0B0B0B':'#FFFFFF';
+  return `<div class="lu-col"><div class="lu-head" style="background:${t.c1};color:${cont}">${t.nome} · ${t.temporada}</div>
+    ${itens.length ? itens.map((x,i)=>{const f=forma(x.p,x.nota);
+      return `<div class="lu-row"><span class="n">${i+1}</span><span class="pos">${x.p.pos||'—'}</span>
+        <span class="nm">${x.p.apelido}</span>${faceSVG(f,20)}</div>`;}).join('')
+      : `<div class="empty" style="padding:1.1rem">Elenco vem da aba <b>ESCALACOES</b>.</div>`}</div>`;
+}
+function matchHTML(g){
+  const a = tById[g.casa]||{nome:g.casa}, b = tById[g.fora]||{nome:g.fora};
+  return `<div class="match"><div class="match-top">
+      <div class="side">${a.nome}</div>
+      <div class="score"><span class="${g.gc>g.gf?'w':''}">${g.gc}</span> x <span class="${g.gf>g.gc?'w':''}">${g.gf}</span></div>
+      <div class="side away">${b.nome}</div></div>
+    <div class="match-meta"><span>${g.mes} de ${g.temporada}</span><span>${g.estadio}</span>
+      ${g.video?`<a class="link" target="_blank" rel="noopener" href="https://youtu.be/${g.video}">Assistir</a>`:''}</div></div>`;
+}
+renderISS();
+
+/* ================= RECORDES ================= */
+const RECS = [
+  {id:'jogos',  lbl:'Presença',      campo:'jogos'},
+  {id:'gols',   lbl:'Artilharia',    campo:'gols'},
+  {id:'assist', lbl:'Garçons',       campo:'assist'},
+  {id:'titulos',lbl:'Títulos',       campo:'titulos'},
+  {id:'part',   lbl:'Participações', campo:null}
+];
+let recSel = 'gols';
+function renderRec(){
+  $('#rec-tabs').innerHTML = RECS.map(r=>
+    `<button class="chip" data-rec="${r.id}" aria-pressed="${r.id===recSel}">${r.lbl}</button>`).join('');
+  const r = RECS.find(x=>x.id===recSel);
+  const val = p => r.campo ? p[r.campo] : p.gols+p.assist;
+  const lista = jog.slice().filter(p=>val(p)>0 || r.id==='jogos').sort((a,b)=>val(b)-val(a)).slice(0,20);
+  const max = Math.max(...lista.map(val), 1);
+  $('#rec-tbl').innerHTML =
+    `<thead><tr><th>#</th><th>Jogador</th><th>Jogos</th><th>${r.lbl}</th><th style="width:34%"></th></tr></thead><tbody>`+
+    lista.map((p,i)=>`<tr>
+      <td class="n" style="color:var(--gold)">${i+1}</td>
+      <td><b>${p.apelido}</b>${p.pos==='GOL'?' <span style="color:var(--grass-l);font-size:.75rem">GK</span>':''}</td>
+      <td class="n">${p.jogos}</td><td class="n">${val(p)}</td>
+      <td><div class="track" style="height:7px;background:var(--panel2);border:1px solid var(--line);border-radius:4px;overflow:hidden">
+        <div style="height:100%;width:${val(p)/max*100}%;background:linear-gradient(90deg,var(--grass),var(--grass-l))"></div></div></td>
+    </tr>`).join('')+`</tbody>`;
+}
+document.addEventListener('click', e=>{
+  const r = e.target.closest('[data-rec]'); if(r){ recSel = r.dataset.rec; renderRec(); blip(600,.04); }
+});
+renderRec();
+
+/* ================= VÍDEOS ================= */
+function renderVideos(){
+  const comV=jogos.filter(g=>g.video), semV=jogos.filter(g=>!g.video);
+  $('#videos').innerHTML = `
+  <div class="ratio" style="margin-bottom:1.3rem">
+    <iframe src="https://www.youtube.com/embed/videoseries?list=${PLAYLIST}&rel=0" allowfullscreen title="Playlist da Copa Revoada"></iframe></div>
+  <div class="stage-bar" style="margin:0 0 2rem">
+    <a class="btn primary" target="_blank" rel="noopener" href="https://youtube.com/playlist?list=${PLAYLIST}">Abrir playlist</a>
+    <a class="btn" target="_blank" rel="noopener" href="${INSTAGRAM}">Instagram @coparevoada</a>
+  </div>
+  <section><div class="sec-head"><h2>Jogo a jogo</h2><span class="eyebrow">${comV.length} de ${jogos.length} com vídeo</span></div>
+    ${jogos.slice().reverse().map(matchHTML).join('')}
+    ${semV.length?`<div class="card empty" style="margin-top:.8rem">Faltam ${semV.length} vídeos. Cole o ID do YouTube na coluna <b>video_youtube</b> da aba JOGOS.</div>`:''}
+  </section>`;
+}
+renderVideos();
+
+/* ================= ESTÚDIO ================= */
+const cv = $('#cv'), ctx = cv.getContext('2d');
+const F = {tipo:$('#f-tipo'),p1:$('#f-p1'),p2:$('#f-p2'),min:$('#f-min'),time:$('#f-time'),
+           cor:$('#f-cor'),s1:$('#f-s1'),s2:$('#f-s2'),rtxt:$('#f-rtxt'),esc:$('#f-esc'),dur:$('#f-dur')};
+[F.p1,F.p2].forEach((s,i)=>{ s.innerHTML = jog.map(p=>`<option value="${p.id}">${p.apelido}</option>`).join(''); s.selectedIndex=i; });
+
+F.time.innerHTML = times.map(t=>`<option value="${t.id}">${t.nome} ${t.temporada}</option>`).join('');
+F.time.value = times[times.length-1].id;
+function timeAtual(){ return tById[F.time.value] || times[0]; }
+function preencherEscalacao(){
+  const e = elencoDe(F.time.value);
+  F.esc.value = e.length ? e.map(x=>`${x.p.pos||'—'} ${x.p.apelido}`).join('\n')
+    : jog.slice(0,8).map(p=>`${p.pos||'MEI'} ${p.apelido}`).join('\n');
+}
+preencherEscalacao();
+F.time.addEventListener('change', ()=>{ if(F.tipo.value==='escalacao') preencherEscalacao(); draw(1); });
+
+const logoImg = new Image(); logoImg.src = LOGO;
+const fotos = {};
+function foto(p){
+  if(!p.foto) return null;
+  if(!fotos[p.id]){ const im=new Image(); im.src=p.foto; fotos[p.id]=im; }
+  const im = fotos[p.id];
+  return im.complete && im.naturalWidth ? im : null;
+}
+const ease = t => t<.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2;
+
+function rr(x,y,w,h,r){ ctx.beginPath(); ctx.roundRect(x,y,w,h,r); }
+function txt(s,x,y,size,color,family,track){
+  ctx.save(); ctx.fillStyle=color;
+  ctx.font = (family==='blk' ? '400 '+size+'px "Archivo Black", sans-serif'
+                             : '800 '+size+'px "Barlow Condensed", sans-serif');
+  if('letterSpacing' in ctx) ctx.letterSpacing = (track||0)+'px';
+  ctx.fillText(s,x,y); ctx.restore();
+}
+function retrato(p,x,y,w,h,r){
+  ctx.save(); rr(x,y,w,h,r||10); ctx.clip();
+  const im = foto(p);
+  if(im) ctx.drawImage(im,x,y,w,h);
+  else{
+    const g=ctx.createLinearGradient(x,y,x,y+h); g.addColorStop(0,'#1D2A22'); g.addColorStop(1,'#0E1611');
+    ctx.fillStyle=g; ctx.fillRect(x,y,w,h);
+    ctx.fillStyle='#F2B01E'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font='400 '+Math.round(h*.34)+'px "Archivo Black", sans-serif';
+    ctx.fillText(ini(p), x+w/2, y+h/2);
+    ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  }
+  ctx.restore();
+  ctx.strokeStyle='#F2B01E'; ctx.lineWidth=4; rr(x,y,w,h,r||10); ctx.stroke();
+}
+function drawFace(n,x,y,r){
+  ctx.save(); ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fillStyle=FCOR[n-1]; ctx.fill();
+  ctx.lineWidth=Math.max(1,r*.1); ctx.strokeStyle='rgba(0,0,0,.45)'; ctx.stroke();
+  ctx.fillStyle='#101010';
+  ctx.beginPath(); ctx.arc(x-r*.32,y-r*.18,r*.15,0,7); ctx.fill();
+  ctx.beginPath(); ctx.arc(x+r*.32,y-r*.18,r*.15,0,7); ctx.fill();
+  ctx.strokeStyle='#101010'; ctx.lineWidth=r*.15; ctx.lineCap='round'; ctx.beginPath();
+  if(n>=4){ ctx.moveTo(x-r*.36,y+r*.22); ctx.quadraticCurveTo(x,y+r*.62,x+r*.36,y+r*.22); }
+  else if(n===3){ ctx.moveTo(x-r*.34,y+r*.34); ctx.lineTo(x+r*.34,y+r*.34); }
+  else { ctx.moveTo(x-r*.36,y+r*.5); ctx.quadraticCurveTo(x,y+r*.08,x+r*.36,y+r*.5); }
+  ctx.stroke(); ctx.restore();
+}
+const clamp01 = v => Math.max(0,Math.min(1,v));
+function marca(x,y,s){
+  if(logoImg.complete && logoImg.naturalWidth) ctx.drawImage(logoImg,x,y,s,s);
+}
+
+/* k = 0 (fora) → 1 (cheio) */
+function draw(k){
+  k = k===undefined ? 1 : k;
+  ctx.clearRect(0,0,1920,1080);
+  const t = F.tipo.value, p1 = pById[F.p1.value], p2 = pById[F.p2.value], T = timeAtual();
+  ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  if(t==='escalacao'){ drawEscalacao(T,k); return; }
+  if(t==='golaco'){ drawGolaco(p1,T,k); return; }
+  if(t==='replay'){ drawReplay(T,k); return; }
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, k*1.6);
+  ctx.translate((1-ease(k))*-260, 0);
+
+  if(t==='gol'){
+    const x=110,y=790,w=1000,h=180;
+    sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.94)'; rr(x,y,w,h,16); ctx.fill(); });
+    ctx.fillStyle=T.c1; rr(x,y,16,h,8); ctx.fill();
+    retrato(p1, x+46, y+22, 136, 136, 12);
+    txt('GOL DA COPA REVOADA', x+218, y+62, 32, '#2BE07A','cond',7);
+    txt(p1.apelido.toUpperCase(), x+218, y+134, 70, '#F4F1E6','blk');
+    txt(T.nome.toUpperCase()+'   ·   '+F.min.value, x+220, y+170, 28, '#8A9A8C','cond',5);
+    marca(x+w-120, y+34, 112);
+  }
+
+  if(t==='sub'){
+    const x=110,y=700,w=1080,h=280;
+    sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.94)'; rr(x,y,w,h,16); ctx.fill(); });
+    txt('SUBSTITUIÇÃO', x+40, y+56, 30, '#8A9A8C','cond',7);
+    retrato(p1, x+40, y+78, 92, 92, 10);
+    retrato(p2, x+40, y+180, 92, 92, 10);
+    txt('▲', x+152, y+142, 44, '#2BE07A','cond');
+    txt(p1.apelido.toUpperCase(), x+212, y+146, 54, '#F4F1E6','blk');
+    txt('▼', x+152, y+244, 44, '#FF5A2C','cond');
+    txt(p2.apelido.toUpperCase(), x+212, y+248, 54, '#8A9A8C','blk');
+    txt(T.nome.toUpperCase(), x+w-280, y+56, 28, '#F2B01E','cond',6);
+    marca(x+w-150, y+90, 120);
+  }
+
+  if(t==='stat'){
+    const x=140,y=300,w=980,h=420;
+    // painel branco
+    sombra(()=>{ ctx.fillStyle='#F4F1E6'; rr(x+430,y,w-430,h,10); ctx.fill(); });
+    // foto + placa verde
+    sombra(()=>{ ctx.fillStyle='#0C120E'; rr(x,y,420,h,10); ctx.fill(); });
+    retrato(p1, x, y, 420, h-92, 10);
+    ctx.fillStyle='#12A150'; rr(x, y+h-92, 420, 92, 10); ctx.fill();
+    txt(p1.apelido.toUpperCase(), x+26, y+h-32, 52, '#F4F1E6','blk');
+    // números
+    const linha = (s, yy) => {
+      const m = String(s).trim().match(/^(\S+)\s+(.*)$/) || [null, s, ''];
+      txt(m[1], x+490, yy, 96, '#0C120E','cond');
+      txt(m[2].toUpperCase(), x+490, yy+44, 34, '#0C120E','cond',7);
+    };
+    linha(F.s1.value, y+130);
+    ctx.fillStyle='#0C120E'; ctx.fillRect(x+490, y+h/2-2, 120, 5);
+    linha(F.s2.value, y+310);
+    marca(x+w-140, y+24, 100);
+  }
+
+  if(t==='cartao'){
+    const x=110,y=800,w=900,h=170;
+    sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.94)'; rr(x,y,w,h,16); ctx.fill(); });
+    const cor = F.cor.value==='vermelho' ? '#E03A2F' : '#F2B01E';
+    ctx.fillStyle=cor; rr(x+44,y+38,64,94,7); ctx.fill();
+    txt(p1.apelido.toUpperCase(), x+146, y+96, 58, '#F4F1E6','blk');
+    txt('CARTÃO '+F.cor.value.toUpperCase()+'   ·   '+T.nome.toUpperCase()+'   ·   '+F.min.value,
+        x+148, y+134, 27, '#8A9A8C','cond',5);
+    marca(x+w-120, y+30, 110);
+  }
+  ctx.restore();
+}
+function sombra(fn){
+  ctx.save(); ctx.shadowColor='rgba(0,0,0,.55)'; ctx.shadowBlur=38; ctx.shadowOffsetY=12; fn(); ctx.restore();
+}
+
+/* ---- gol tela cheia ---- */
+function drawGolaco(p,T,k){
+  const pop = k<.35 ? ease(k/.35) : 1;
+  const esc = .82 + pop*.18 + (k>.35 ? Math.sin((k-.35)*9)*.006 : 0);
+  ctx.save(); ctx.globalAlpha=Math.min(1,k*2);
+  ctx.translate(960,470); ctx.scale(esc,esc); ctx.translate(-960,-470);
+  ctx.textAlign='center';
+  ctx.save(); ctx.shadowColor='rgba(242,176,30,.55)'; ctx.shadowBlur=60;
+  ctx.fillStyle='#F2B01E'; ctx.font='400 300px "Archivo Black", sans-serif';
+  ctx.fillText('GOL',960,470); ctx.restore();
+  ctx.fillStyle=T.c1; ctx.fillRect(560,510,800,10);
+  ctx.restore();
+  const kn = clamp01((k-.28)/.4);
+  ctx.save(); ctx.globalAlpha=kn; ctx.textAlign='center';
+  ctx.translate(0,(1-ease(kn))*60);
+  ctx.fillStyle='#F4F1E6'; ctx.font='400 104px "Archivo Black", sans-serif';
+  ctx.fillText(p.apelido.toUpperCase(),960,640);
+  ctx.fillStyle='#8A9A8C'; ctx.font='800 40px "Barlow Condensed", sans-serif';
+  if('letterSpacing' in ctx) ctx.letterSpacing='10px';
+  ctx.fillText(T.nome.toUpperCase()+'   ·   '+F.min.value,960,700);
+  ctx.restore(); ctx.textAlign='left';
+  ctx.save(); ctx.globalAlpha=clamp01((k-.4)/.3); marca(880,120,160); ctx.restore();
+}
+
+/* ---- replay ---- */
+function drawReplay(T,k){
+  const w=760,h=150,x=1920-w-100,y=90;
+  ctx.save(); ctx.globalAlpha=Math.min(1,k*2);
+  ctx.translate((1-ease(clamp01(k*1.4)))*(w+140),0);
+  sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.95)'; rr(x,y,w,h,12); ctx.fill(); });
+  ctx.save(); rr(x,y,w,h,12); ctx.clip();
+  ctx.fillStyle=T.c1;
+  const off=(k*260)%80;
+  for(let i=-2;i<12;i++){ ctx.save(); ctx.globalAlpha=.22; ctx.beginPath();
+    ctx.moveTo(x+i*80+off,y+h); ctx.lineTo(x+i*80+40+off,y+h);
+    ctx.lineTo(x+i*80+90+off,y); ctx.lineTo(x+i*80+50+off,y); ctx.closePath(); ctx.fill(); ctx.restore(); }
+  ctx.restore();
+  ctx.fillStyle='#F2B01E'; rr(x,y,w,10,5); ctx.fill();
+  ctx.save(); ctx.globalAlpha=.55+.45*Math.abs(Math.sin(k*10));
+  ctx.fillStyle='#E03A2F'; ctx.beginPath(); ctx.arc(x+56,y+80,17,0,7); ctx.fill(); ctx.restore();
+  txt('REPLAY',x+92,y+100,72,'#F4F1E6','blk');
+  txt((F.rtxt.value||'').toUpperCase(),x+380,y+76,30,'#2BE07A','cond',7);
+  txt(T.nome.toUpperCase()+' · '+T.temporada,x+380,y+116,26,'#8A9A8C','cond',5);
+  marca(x+w-118,y+24,104);
+  ctx.restore();
+}
+
+/* ---- escalação: entra posição por posição ---- */
+function parseEsc(){
+  return F.esc.value.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{
+    const m=l.match(/^(GOL|GK|ZAG|LAT|MEI|VOL|ATA|—|-)\s+(.*)$/i);
+    let pos = m?m[1].toUpperCase():''; const nome = m?m[2]:l;
+    if(pos==='GK') pos='GOL';
+    const p = jog.find(j=>j.apelido.toLowerCase()===nome.toLowerCase());
+    if(pos==='—'||pos==='-') pos = (p&&p.pos)||'';
+    return {pos,nome,p};
+  });
+}
+function drawEscalacao(T,k){
+  const lista=parseEsc(); if(!lista.length) return;
+  const x=120,y=130,w=780;
+  const rowH=Math.min(74,Math.max(44,(880-100)/Math.max(lista.length,1)));
+  const headH=92, total=headH+rowH*lista.length+16;
+  const kh=clamp01(k*3);
+  ctx.save(); ctx.globalAlpha=Math.min(1,kh*1.6);
+  sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.95)'; rr(x,y,w,total,14); ctx.fill(); });
+  ctx.save(); rr(x,y,w,headH,14); ctx.clip();
+  ctx.fillStyle=T.c1; ctx.fillRect(x,y,w,headH);
+  ctx.fillStyle='rgba(0,0,0,.25)'; ctx.beginPath();
+  ctx.moveTo(x+w-220,y); ctx.lineTo(x+w,y); ctx.lineTo(x+w,y+headH); ctx.lineTo(x+w-300,y+headH); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  const cont = luz(T.c1)?'#0B0B0B':'#F4F1E6';
+  txt(T.nome.toUpperCase(),x+30,y+62,54,cont,'blk');
+  txt(String(T.temporada),x+w-126,y+60,42,cont,'cond',4);
+  ctx.restore();
+  const inicio=.12, passo=(1-inicio-.10)/lista.length;
+  lista.forEach((it,i)=>{
+    const ki=clamp01((k-(inicio+i*passo))/Math.max(passo,.001));
+    if(ki<=0) return;
+    const yy=y+headH+i*rowH;
+    ctx.save(); ctx.globalAlpha=Math.min(1,ki*1.8); ctx.translate((1-ease(ki))*-90,0);
+    ctx.fillStyle = i%2 ? 'rgba(255,255,255,.03)' : 'rgba(255,255,255,.07)';
+    ctx.fillRect(x+14,yy+3,w-28,rowH-6);
+    ctx.fillStyle=T.c1; ctx.fillRect(x+14,yy+3,6,rowH-6);
+    txt(String(i+1),x+40,yy+rowH*.68,Math.round(rowH*.5),'#F2B01E','cond');
+    txt(it.pos||'—',x+98,yy+rowH*.66,Math.round(rowH*.32),'#8A9A8C','cond',4);
+    txt(it.nome.toUpperCase(),x+190,yy+rowH*.68,Math.round(rowH*.46),'#F4F1E6','cond',2);
+    if(it.p) drawFace(forma(it.p),x+w-52,yy+rowH*.5,Math.round(rowH*.26));
+    ctx.restore();
+  });
+  ctx.save(); ctx.globalAlpha=clamp01((k-.5)/.3); marca(x+w+50,y,150); ctx.restore();
+}
+
+/* curva de animação: entra, segura, sai */
+function kAt(prog){
+  const IN=.18, OUT=.82;
+  if(prog<IN) return prog/IN;
+  if(prog>OUT) return 1-(prog-OUT)/(1-OUT);
+  return 1;
+}
+
+function kAtSeq(prog){ return prog>.88 ? 1-(prog-.88)/.12 : Math.min(1,prog/.88); }
+function curva(prog){ return F.tipo.value==='escalacao' ? kAtSeq(prog) : kAt(prog); }
+
+function syncFields(){
+  const t = F.tipo.value;
+  document.querySelectorAll('[data-for]').forEach(el=>{
+    el.style.display = el.dataset.for.split(' ').includes(t) ? '' : 'none';
+  });
+  $('#l-p1').textContent = t==='sub' ? 'Entra' : 'Jogador';
+  if(t==='escalacao' && !F.esc.value.trim()) preencherEscalacao();
+  draw(1);
+}
+Object.values(F).forEach(el=> el.addEventListener('input', el===F.tipo ? syncFields : ()=>draw(1)));
+$('#toggle-chroma').onclick = ()=> $('#stage').classList.toggle('chroma');
+
+$('#play').onclick = ()=>{
+  const dur = (+F.dur.value||3)*1000, t0 = performance.now();
+  (function loop(now){
+    const prog = Math.min(1,(now-t0)/dur);
+    draw(curva(prog));
+    if(prog<1) requestAnimationFrame(loop); else draw(1);
+  })(t0);
+};
+
+function baixar(blob, nome){
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = nome; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+}
+$('#dl-png').onclick = ()=>{ draw(1); cv.toBlob(b=>baixar(b, `revoada-${F.tipo.value}.png`),'image/png'); };
+
+/* ---- ZIP (store) ---- */
+const CRC = (()=>{ const t=[]; for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;} return t; })();
+function crc32(u8){ let c=0xFFFFFFFF; for(let i=0;i<u8.length;i++) c=CRC[(c^u8[i])&0xFF]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
+function zip(files){
+  const chunks=[], dir=[]; let off=0;
+  const enc = new TextEncoder();
+  files.forEach(f=>{
+    const name = enc.encode(f.name), data = f.data, crc = crc32(data);
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true); lh.setUint16(4,20,true); lh.setUint16(6,0,true);
+    lh.setUint16(8,0,true); lh.setUint16(10,0,true); lh.setUint16(12,0,true);
+    lh.setUint32(14,crc,true); lh.setUint32(18,data.length,true); lh.setUint32(22,data.length,true);
+    lh.setUint16(26,name.length,true); lh.setUint16(28,0,true);
+    chunks.push(new Uint8Array(lh.buffer), name, data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true); ch.setUint16(4,20,true); ch.setUint16(6,20,true);
+    ch.setUint32(16,crc,true); ch.setUint32(20,data.length,true); ch.setUint32(24,data.length,true);
+    ch.setUint16(28,name.length,true); ch.setUint32(42,off,true);
+    dir.push(new Uint8Array(ch.buffer), name);
+    off += 30+name.length+data.length;
+  });
+  const dirSize = dir.reduce((a,b)=>a+b.length,0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0,0x06054b50,true); end.setUint16(8,files.length,true); end.setUint16(10,files.length,true);
+  end.setUint32(12,dirSize,true); end.setUint32(16,off,true);
+  return new Blob([...chunks,...dir,new Uint8Array(end.buffer)],{type:'application/zip'});
+}
+$('#dl-seq').onclick = async ()=>{
+  const fps=30, total=Math.max(2,Math.round((+F.dur.value||3)*fps)), files=[];
+  $('#prog').textContent='gerando 0%';
+  for(let i=0;i<total;i++){
+    draw(curva(i/(total-1)));
+    const blob = await new Promise(r=>cv.toBlob(r,'image/png'));
+    files.push({name:`revoada_${String(i).padStart(4,'0')}.png`, data:new Uint8Array(await blob.arrayBuffer())});
+    if(i%5===0){ $('#prog').textContent = 'gerando '+Math.round(i/total*100)+'%'; await new Promise(r=>setTimeout(r)); }
+  }
+  $('#prog').textContent='montando zip';
+  baixar(zip(files), `revoada-${F.tipo.value}-seq-${fps}fps.zip`);
+  $('#prog').textContent='pronto · '+total+' quadros a '+fps+' fps';
+  draw(1);
+};
+$('#dl-webm').onclick = ()=>{
+  const dur=(+F.dur.value||3)*1000;
+  const off=document.createElement('canvas'); off.width=1920; off.height=1080;
+  const octx=off.getContext('2d');
+  const stream=off.captureStream(30);
+  const mime=['video/webm;codecs=vp9','video/webm'].find(m=>MediaRecorder.isTypeSupported(m));
+  if(!mime){ $('#prog').textContent='navegador não grava webm'; return; }
+  const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:12e6}), parts=[];
+  rec.ondataavailable=e=>e.data.size&&parts.push(e.data);
+  rec.onstop=()=>{ baixar(new Blob(parts,{type:'video/webm'}), `revoada-${F.tipo.value}.webm`); $('#prog').textContent='webm pronto'; draw(1); };
+  rec.start(); $('#prog').textContent='gravando…';
+  const t0=performance.now();
+  (function loop(now){
+    const prog=Math.min(1,(now-t0)/dur);
+    draw(curva(prog));
+    octx.fillStyle='#00B140'; octx.fillRect(0,0,1920,1080); octx.drawImage(cv,0,0);
+    if(prog<1) requestAnimationFrame(loop); else setTimeout(()=>rec.stop(),120);
+  })(t0);
+};
+
+/* ================= boot ================= */
+(document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve())
+ .then(()=>Promise.all([
+    document.fonts.load('400 300px "Archivo Black"'),
+    document.fonts.load('800 32px "Barlow Condensed"'),
+    document.fonts.load('800 96px "Barlow Condensed"')]).catch(()=>{}))
+ .then(()=>syncFields());
+logoImg.onload = ()=>draw(1);
+syncFields();
+</script>
+</body>
+</html>

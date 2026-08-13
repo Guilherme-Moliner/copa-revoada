@@ -1,0 +1,362 @@
+[
+ {
+  "id": "andre",
+  "apelido": "Andre",
+  "jogos": 8,
+  "gols": 1,
+  "assist": 1,
+  "titulos": 7
+ },
+ {
+  "id": "arthur",
+  "apelido": "Arthur gk",
+  "jogos": 6,
+  "gols": 0,
+  "assist": 1,
+  "titulos": 3
+ },
+ {
+  "id": "bala",
+  "apelido": "Bala",
+  "jogos": 5,
+  "gols": 1,
+  "assist": 0,
+  "titulos": 2
+ },
+ {
+  "id": "berna",
+  "apelido": "Berna",
+  "jogos": 0,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 0
+ },
+ {
+  "id": "bernardoc",
+  "apelido": "Bernardo C",
+  "jogos": 0,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 0
+ },
+ {
+  "id": "bernardom",
+  "apelido": "Bernardo M",
+  "jogos": 0,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 0
+ },
+ {
+  "id": "borba",
+  "apelido": "Borba",
+  "jogos": 7,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 5
+ },
+ {
+  "id": "bruno",
+  "apelido": "Bruno",
+  "jogos": 4,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 1
+ },
+ {
+  "id": "correa",
+  "apelido": "Correa",
+  "jogos": 2,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 2
+ },
+ {
+  "id": "danilim",
+  "apelido": "Danilim",
+  "jogos": 5,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 3
+ },
+ {
+  "id": "davi",
+  "apelido": "Davi",
+  "jogos": 1,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 0
+ },
+ {
+  "id": "dereck",
+  "apelido": "Dereck",
+  "jogos": 0,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 0
+ },
+ {
+  "id": "derek",
+  "apelido": "Derek",
+  "jogos": 0,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 0
+ },
+ {
+  "id": "dereka",
+  "apelido": "Dereka",
+  "jogos": 0,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 0
+ },
+ {
+  "id": "enzo",
+  "apelido": "Enzo",
+  "jogos": 5,
+  "gols": 3,
+  "assist": 2,
+  "titulos": 3
+ },
+ {
+  "id": "fanta",
+  "apelido": "Fanta",
+  "jogos": 10,
+  "gols": 3,
+  "assist": 1,
+  "titulos": 7
+ },
+ {
+  "id": "garopaba",
+  "apelido": "Garopaba",
+  "jogos": 9,
+  "gols": 10,
+  "assist": 1,
+  "titulos": 5
+ },
+ {
+  "id": "glauber",
+  "apelido": "Glauber",
+  "jogos": 10,
+  "gols": 7,
+  "assist": 4,
+  "titulos": 6
+ },
+ {
+  "id": "gordo",
+  "apelido": "Gordo",
+  "jogos": 0,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 0
+ },
+ {
+  "id": "hanon",
+  "apelido": "Hanon",
+  "jogos": 7,
+  "gols": 0,
+  "assist": 1,
+  "titulos": 4
+ },
+ {
+  "id": "henrique",
+  "apelido": "Henrique",
+  "jogos": 2,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 1
+ },
+ {
+  "id": "joao",
+  "apelido": "Joao",
+  "jogos": 1,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 0
+ },
+ {
+  "id": "kretzer",
+  "apelido": "Kretzer",
+  "jogos": 8,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 4
+ },
+ {
+  "id": "leo",
+  "apelido": "Leo",
+  "jogos": 8,
+  "gols": 5,
+  "assist": 2,
+  "titulos": 5
+ },
+ {
+  "id": "leobittencourt",
+  "apelido": "Leobittencourt",
+  "jogos": 1,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 0
+ },
+ {
+  "id": "leogodinho",
+  "apelido": "Leo Godinho",
+  "jogos": 3,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 2
+ },
+ {
+  "id": "letti",
+  "apelido": "Letti",
+  "jogos": 10,
+  "gols": 8,
+  "assist": 4,
+  "titulos": 7
+ },
+ {
+  "id": "luigi",
+  "apelido": "Luigi",
+  "jogos": 1,
+  "gols": 0,
+  "assist": 1,
+  "titulos": 1
+ },
+ {
+  "id": "marucco",
+  "apelido": "Marucco",
+  "jogos": 2,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 2
+ },
+ {
+  "id": "matheus",
+  "apelido": "Matheus",
+  "jogos": 1,
+  "gols": 1,
+  "assist": 0,
+  "titulos": 0
+ },
+ {
+  "id": "merizi",
+  "apelido": "Merizi GK",
+  "jogos": 5,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 3
+ },
+ {
+  "id": "miniderek",
+  "apelido": "Mini Derek",
+  "jogos": 0,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 1
+ },
+ {
+  "id": "mito",
+  "apelido": "Mito",
+  "jogos": 0,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 0
+ },
+ {
+  "id": "nathan",
+  "apelido": "Nathan",
+  "jogos": 10,
+  "gols": 3,
+  "assist": 0,
+  "titulos": 5
+ },
+ {
+  "id": "pairobson",
+  "apelido": "Pai Robson",
+  "jogos": 0,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 0
+ },
+ {
+  "id": "phelps",
+  "apelido": "Phelps",
+  "jogos": 4,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 3
+ },
+ {
+  "id": "pietro",
+  "apelido": "Pietro",
+  "jogos": 4,
+  "gols": 2,
+  "assist": 1,
+  "titulos": 2
+ },
+ {
+  "id": "probst",
+  "apelido": "Probst",
+  "jogos": 4,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 3
+ },
+ {
+  "id": "robson",
+  "apelido": "Robson",
+  "jogos": 0,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 0
+ },
+ {
+  "id": "sograo",
+  "apelido": "Sograo",
+  "jogos": 1,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 0
+ },
+ {
+  "id": "vicente",
+  "apelido": "Vicente",
+  "jogos": 1,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 0
+ },
+ {
+  "id": "vitao",
+  "apelido": "Vitao",
+  "jogos": 10,
+  "gols": 5,
+  "assist": 6,
+  "titulos": 5
+ },
+ {
+  "id": "vitim",
+  "apelido": "Vitim",
+  "jogos": 0,
+  "gols": 0,
+  "assist": 0,
+  "titulos": 0
+ },
+ {
+  "id": "vitor",
+  "apelido": "Vitor",
+  "jogos": 3,
+  "gols": 0,
+  "assist": 2,
+  "titulos": 1
+ },
+ {
+  "id": "zaga",
+  "apelido": "Zaga",
+  "jogos": 5,
+  "gols": 3,
+  "assist": 4,
+  "titulos": 3
+ }
+]

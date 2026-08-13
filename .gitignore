@@ -1,0 +1,22 @@
+# temporários de sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# temporários do Excel/LibreOffice
+~$*
+.~lock.*
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# configuração local do Claude Code (caminhos desta máquina)
+.claude/settings.local.json
+
+# masters de vídeo e projetos do DaVinci não entram no repositório
+*.mp4
+*.mov
+*.drp
