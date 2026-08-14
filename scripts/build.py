@@ -46,6 +46,12 @@ SAIDA = os.path.join(RAIZ, "index.html")
 
 PLAYLIST = "PLSnrz0oA5cB49hSu2rMMCCtbXZOK6l9hq"
 
+# Se PLANILHA_URL estiver definida, o build baixa a planilha de lá em vez de
+# usar o arquivo local. É assim que o Google Sheets entra: a URL de export do
+# Sheets devolve um .xlsx com as mesmas abas.
+#   https://docs.google.com/spreadsheets/d/<ID>/export?format=xlsx
+PLANILHA_URL = os.environ.get("PLANILHA_URL", "").strip()
+
 # Nos três primeiros jogos ninguém anotou gol nem assistência por jogador, só
 # quem foi campeão. Decisão do grupo: esses jogos contam título e nada mais.
 # É o que faz cada um ter 10 jogos válidos e 13 presenças.
@@ -343,8 +349,36 @@ def logo_b64(px=300):
     return base64.b64encode(buf.getvalue()).decode()
 
 
+def baixa_planilha():
+    """Baixa a planilha publicada e devolve o caminho de um arquivo local.
+
+    Guarda uma cópia em dados/ para o build continuar funcionando offline se
+    o Sheets estiver fora do ar na hora do deploy.
+    """
+    import urllib.request
+    copia = os.path.join(RAIZ, "dados", "COPA_REVOADA_baixada.xlsx")
+    try:
+        print(f"  baixando a planilha de {PLANILHA_URL[:60]}...")
+        req = urllib.request.Request(PLANILHA_URL, headers={"User-Agent": "copa-revoada"})
+        with urllib.request.urlopen(req, timeout=45) as r:
+            dados = r.read()
+        if len(dados) < 5000 or dados[:2] != b"PK":
+            raise ValueError("a resposta não parece um .xlsx — a planilha está publicada?")
+        with open(copia, "wb") as f:
+            f.write(dados)
+        print(f"  planilha baixada — {len(dados)//1024} KB")
+        return copia
+    except Exception as e:
+        if os.path.exists(copia):
+            aviso(f"não deu para baixar a planilha ({e}); usando a última cópia baixada")
+            return copia
+        aviso(f"não deu para baixar a planilha ({e}); usando o arquivo do repositório")
+        return PLANILHA
+
+
 def main():
-    wb = openpyxl.load_workbook(PLANILHA, data_only=True)
+    origem = baixa_planilha() if PLANILHA_URL else PLANILHA
+    wb = openpyxl.load_workbook(origem, data_only=True)
 
     # ---------------- jogadores ----------------
     ws = wb["JOGADORES"]

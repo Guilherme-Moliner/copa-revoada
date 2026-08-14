@@ -407,6 +407,9 @@ section+section{margin-top:3rem}
                 <option value="formacao">Formação no campo</option>
                 <option value="sub">Substituição</option>
               </optgroup>
+              <optgroup label="Especiais">
+                <option value="marco">Marco da copinha</option>
+              </optgroup>
               <optgroup label="Equipe">
                 <option value="arbitragem">Arbitragem</option>
                 <option value="varsala">Sala do VAR / Transmissão</option>
@@ -459,6 +462,14 @@ section+section{margin-top:3rem}
 Assistente · Ciclano
 Assistente · Beltrano
 Quarto árbitro · Zutano</textarea></div>
+          <div class="field" data-for="marco"><label for="f-marcoauto">Sugestões dos dados</label>
+            <select id="f-marcoauto"><option value="">— escolher —</option></select></div>
+          <div class="field" data-for="marco"><label for="f-marconum">Número</label>
+            <input id="f-marconum" value="100"></div>
+          <div class="field" data-for="marco"><label for="f-marcotit">Título</label>
+            <input id="f-marcotit" value="GOLS NA COPA"></div>
+          <div class="field" data-for="marco"><label for="f-marcosub">Linha de baixo</label>
+            <input id="f-marcosub" value="Desde dezembro de 2020, em 13 jogos"></div>
           <div class="field" data-for="varsala"><label for="f-var2">Sala do VAR — no máximo dois, um por linha</label>
             <textarea id="f-var2" rows="3">Árbitro de vídeo · Fulano
 Assistente de VAR · Ciclano</textarea></div>
@@ -472,6 +483,10 @@ Assistente de VAR · Ciclano</textarea></div>
           <div class="field"><label for="f-fps">Quadros por segundo da sequência</label>
             <select id="f-fps"><option value="60">60 fps — igual ao seu vídeo</option>
               <option value="30">30 fps — metade dos arquivos</option></select></div>
+          <div class="field"><label for="f-escala">Tamanho da sequência</label>
+            <select id="f-escala"><option value="1">100% — tamanho original</option>
+              <option value="0.75">75% — bem mais leve</option>
+              <option value="0.5">50% — o mais leve</option></select></div>
         </div>
         <div>
           <div class="stage" id="stage"><canvas id="cv" width="1920" height="1080"></canvas></div>
@@ -516,6 +531,29 @@ function forma(p, nota){
   const s = (p.gols+p.assist)/p.jogos*1.6 + p.titulos/p.jogos*1.4;
   return s>1.5?5 : s>1.05?4 : s>.65?3 : s>.3?2 : 1;
 }
+/* ---- paleta segura para chroma key ----
+   Qualquer verde dentro da arte some junto com o fundo quando você aplica o
+   Chroma Key. Com o fundo verde ligado, todo verde vira âmbar/azul. */
+let semVerde = false;
+const PAL = {
+  normal: {ac:'#2BE07A', acFraco:'rgba(43,224,122,.35)', acZero:'rgba(43,224,122,0)',
+           faixa:'rgba(18,161,80,.95)', campo1:'#127A38', campo2:'#0A5324', vazio:'#16241B'},
+  chroma: {ac:'#F2B01E', acFraco:'rgba(242,176,30,.35)', acZero:'rgba(242,176,30,0)',
+           faixa:'rgba(190,120,10,.95)', campo1:'#1E3A63', campo2:'#122641', vazio:'#1B2430'},
+};
+function P(){ return semVerde ? PAL.chroma : PAL.normal; }
+/* time com cor verde (Dentro FC é #12A150) também some no chroma:
+   no modo sem verde, a cor vira um azul de brilho equivalente */
+function corSegura(hex){
+  if(!semVerde || typeof hex!=='string' || hex[0]!=='#' || hex.length<7) return hex;
+  const R=parseInt(hex.slice(1,3),16), G=parseInt(hex.slice(3,5),16), B=parseInt(hex.slice(5,7),16);
+  if(!(G>80 && G>R*1.25 && G>B*1.25)) return hex;
+  const l=R*.3+G*.59+B*.11;
+  const f=v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0');
+  return '#'+f(l*.30)+f(l*.58)+f(Math.min(255,l*1.20));
+}
+
+
 const FCOR=['#2E6BD6','#4FB3E8','#F2C94C','#45C97A','#FF5A2C'];
 const FNOME=['Apagado','Abaixo','Normal','Bom','Inspirado'];
 function faceSVG(n,s){
@@ -1234,7 +1272,8 @@ const F = {tipo:$('#f-tipo'),p1:$('#f-p1'),p2:$('#f-p2'),min:$('#f-min'),time:$(
            pa:$('#f-pa'),pb:$('#f-pb'),hist:$('#f-hist'),txt:$('#f-txt'),
            hyper:$('#f-hyper'),dist:$('#f-dist'),xg:$('#f-xg'),
            unif:$('#f-unif'),layout:$('#f-layout'),form:$('#f-form'),
-           arb:$('#f-arb'),var2:$('#f-var2'),fps:$('#f-fps'),piada:$('#f-piada'),
+           arb:$('#f-arb'),var2:$('#f-var2'),fps:$('#f-fps'),piada:$('#f-piada'),escala:$('#f-escala'),
+           marconum:$('#f-marconum'),marcotit:$('#f-marcotit'),marcosub:$('#f-marcosub'),
            cor:$('#f-cor'),rtxt:$('#f-rtxt'),esc:$('#f-esc'),dur:$('#f-dur')};
 [F.p1,F.p2].forEach((s,i)=>{ s.innerHTML = jog.map(p=>`<option value="${p.id}">${p.apelido}</option>`).join(''); s.selectedIndex=i; });
 
@@ -1245,6 +1284,17 @@ F.time2.innerHTML = optTimes;
 /* adversário começa no par da mesma temporada, que é o duelo real daquele ano */
 F.time2.value = (parTime(F.time.value)||times[0]).id;
 function timeAtual(){ return tById[F.time.value] || times[0]; }
+(function(){
+  const sel=$('#f-marcoauto'); if(!sel) return;
+  const lista=marcosSugeridos();
+  sel.innerHTML = '<option value="">— escolher —</option>' +
+    lista.map((m,i)=>`<option value="${i}">${m.n} ${m.t}</option>`).join('');
+  sel.addEventListener('change', ()=>{
+    const m=lista[+sel.value]; if(!m) return;
+    F.marconum.value=m.n; F.marcotit.value=m.t; F.marcosub.value=m.s;
+    draw(1);
+  });
+})();
 function timeAdv(){ return tById[F.time2.value] || parTime(F.time.value) || times[0]; }
 function preencherEscalacao(){
   const e = elencoDe(F.time.value);
@@ -1319,7 +1369,8 @@ function retrato(p,x,y,w,h,r){
   ctx.strokeStyle='#F2B01E'; ctx.lineWidth=4; rr(x,y,w,h,r||10); ctx.stroke();
 }
 function drawFace(n,x,y,r){
-  ctx.save(); ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fillStyle=FCOR[n-1]; ctx.fill();
+  ctx.save(); ctx.beginPath(); ctx.arc(x,y,r,0,7);
+  ctx.fillStyle=(semVerde && FCOR[n-1]==='#45C97A') ? '#E8B33A' : FCOR[n-1]; ctx.fill();
   ctx.lineWidth=Math.max(1,r*.1); ctx.strokeStyle='rgba(0,0,0,.45)'; ctx.stroke();
   ctx.fillStyle='#101010';
   ctx.beginPath(); ctx.arc(x-r*.32,y-r*.18,r*.15,0,7); ctx.fill();
@@ -1356,6 +1407,7 @@ function draw(k){
   if(t==='formacao'){ drawFormacao(T,k); return; }
   if(t==='arbitragem'){ drawArbitragem(k); return; }
   if(t==='varsala'){ drawVarSala(k); return; }
+  if(t==='marco'){ drawMarco(k); return; }
   ctx.save();
   ctx.globalAlpha = Math.min(1, k*1.6);
   ctx.translate((1-ease(k))*-260, 0);
@@ -1363,9 +1415,9 @@ function draw(k){
   if(t==='gol'){
     const x=110,y=790,w=1000,h=180;
     sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.94)'; rr(x,y,w,h,16); ctx.fill(); });
-    ctx.fillStyle=T.c1; rr(x,y,16,h,8); ctx.fill();
+    ctx.fillStyle=corSegura(T.c1); rr(x,y,16,h,8); ctx.fill();
     retrato(p1, x+46, y+22, 136, 136, 12);
-    txt('GOL DA COPA REVOADA', x+218, y+62, 32, '#2BE07A','cond',7);
+    txt('GOL DA COPA REVOADA', x+218, y+62, 32, P().ac,'cond',7);
     txt(p1.apelido.toUpperCase(), x+218, y+134, 70, '#F4F1E6','blk');
     txt(T.nome.toUpperCase()+'   ·   '+F.min.value, x+220, y+170, 28, '#8A9A8C','cond',5);
     marca(x+w-120, y+34, 112);
@@ -1375,11 +1427,11 @@ function draw(k){
     /* mais estreita, e com o escudo do time no lugar da logo da copa */
     const x=110,y=700,w=760,h=272;
     sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.94)'; rr(x,y,w,h,16); ctx.fill(); });
-    ctx.fillStyle=T.c1; rr(x,y,10,h,5); ctx.fill();
+    ctx.fillStyle=corSegura(T.c1); rr(x,y,10,h,5); ctx.fill();
     txt('SUBSTITUIÇÃO', x+36, y+52, 28, '#8A9A8C','cond',7);
     retrato(p1, x+36, y+74, 86, 86, 10);
     retrato(p2, x+36, y+172, 86, 86, 10);
-    txt('▲', x+142, y+134, 40, '#2BE07A','cond');
+    txt('▲', x+142, y+134, 40, P().ac,'cond');
     txt(p1.apelido.toUpperCase(), x+192, y+138, 48, '#F4F1E6','blk');
     txt('▼', x+142, y+232, 40, '#FF5A2C','cond');
     txt(p2.apelido.toUpperCase(), x+192, y+236, 48, '#8A9A8C','blk');
@@ -1390,12 +1442,12 @@ function draw(k){
     const w=1360, h=660, x=(1920-w)/2, y=(1080-h)/2;
     const tro = DADOS.premiacoes.filter(a=>a.jogador===p1.id).length;
     sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.96)'; rr(x,y,w,h,18); ctx.fill(); });
-    ctx.fillStyle=T.c1; rr(x,y,w,10,6); ctx.fill();
+    ctx.fillStyle=corSegura(T.c1); rr(x,y,w,10,6); ctx.fill();
 
     // retrato com proporção respeitada
     const fw=380, fh=460;
     retrato(p1, x+40, y+50, fw, fh, 12);
-    ctx.fillStyle='rgba(18,161,80,.95)'; rr(x+40, y+50+fh-76, fw, 76, 12); ctx.fill();
+    ctx.fillStyle=P().faixa; rr(x+40, y+50+fh-76, fw, 76, 12); ctx.fill();
     txt(p1.apelido.toUpperCase(), x+62, y+50+fh-24, 48, '#F4F1E6','blk');
 
     const cx=x+460;
@@ -1467,7 +1519,7 @@ function drawGolaco(p,T,k){
   ctx.save(); ctx.shadowColor='rgba(242,176,30,.55)'; ctx.shadowBlur=60;
   ctx.fillStyle='#F2B01E'; ctx.font='400 300px "Archivo Black", sans-serif';
   ctx.fillText('GOL',960,560); ctx.restore();
-  ctx.fillStyle=T.c1; ctx.fillRect(560,600,800,10);
+  ctx.fillStyle=corSegura(T.c1); ctx.fillRect(560,600,800,10);
   ctx.restore();
   const kn = clamp01((k-.28)/.4);
   ctx.save(); ctx.globalAlpha=kn; ctx.textAlign='center';
@@ -1489,7 +1541,7 @@ function drawReplay(T,k){
   ctx.translate((1-ease(clamp01(k*1.4)))*(w+140),0);
   sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.95)'; rr(x,y,w,h,12); ctx.fill(); });
   ctx.save(); rr(x,y,w,h,12); ctx.clip();
-  ctx.fillStyle=T.c1;
+  ctx.fillStyle=corSegura(T.c1);
   const off=(k*260)%80;
   for(let i=-2;i<12;i++){ ctx.save(); ctx.globalAlpha=.22; ctx.beginPath();
     ctx.moveTo(x+i*80+off,y+h); ctx.lineTo(x+i*80+40+off,y+h);
@@ -1505,19 +1557,28 @@ function drawReplay(T,k){
 }
 
 /* ---- hyper motion: os dados do lance sobre a imagem ---- */
+/* mede já contando o espaçamento entre letras que o txt() aplica —
+   sem isso o rótulo passava por baixo do número */
+function medir(s, size, family, track){
+  ctx.save();
+  ctx.font = (family==='blk' ? '400 '+size+'px "Archivo Black", sans-serif'
+                             : '800 '+size+'px "Barlow Condensed", sans-serif');
+  if('letterSpacing' in ctx) ctx.letterSpacing = (track||0)+'px';
+  const w = ctx.measureText(s).width;
+  ctx.restore();
+  return w;
+}
 function caixaDado(rot, valor, unid, x, y, cor){
-  const lr = 26, lv = 58;
-  ctx.font = '800 '+lr+'px "Barlow Condensed", sans-serif';
-  const wr = ctx.measureText(rot).width;
-  ctx.font = '400 '+lv+'px "Archivo Black", sans-serif';
-  const wv = ctx.measureText(valor).width;
-  const w = Math.max(wr, 40) + wv + 74, h = 84;
-  sombra(()=>{ ctx.fillStyle='rgba(6,10,8,.9)'; rr(x,y,w,h,8); ctx.fill(); });
+  const lr = 24, lv = 54;
+  const wr = Math.max(medir(rot, lr, 'cond', 6), medir(unid||'', 18, 'cond', 4));
+  const wv = medir(valor, lv, 'blk', 0);
+  const w = wr + wv + 92, h = 84;
+  sombra(()=>{ ctx.fillStyle='rgba(6,10,8,.92)'; rr(x,y,w,h,8); ctx.fill(); });
   ctx.fillStyle=cor; rr(x,y,5,h,3); ctx.fill();
-  txt(rot, x+22, y+34, lr, '#9FB4A4','cond',6);
-  if(unid) txt(unid, x+22, y+66, 20, '#6B7A6E','cond',4);
+  txt(rot, x+22, y+36, lr, '#9FB4A4','cond',6);
+  if(unid) txt(unid, x+22, y+64, 18, '#6B7A6E','cond',4);
   ctx.textAlign='right';
-  txt(valor, x+w-20, y+62, lv, cor,'blk');
+  txt(valor, x+w-22, y+60, lv, cor,'blk');
   ctx.textAlign='left';
   return w;
 }
@@ -1525,29 +1586,11 @@ function drawHyper(p,T,k){
   const vis = clamp01((k-.2)/.35);
   if(vis<=0) return;
   ctx.save(); ctx.globalAlpha = vis;
-
-  // mira no ponto do chute, como o marcador do jogo
-  const mx=760, my=690, r=46+ (1-ease(vis))*40;
-  ctx.strokeStyle='#2BE07A'; ctx.lineWidth=4;
-  ctx.beginPath(); ctx.arc(mx,my,r,0,7); ctx.stroke();
-  ctx.globalAlpha=vis*.5;
-  ctx.beginPath(); ctx.arc(mx,my,r*1.5,0,7); ctx.stroke();
-  ctx.globalAlpha=vis;
-  [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sy])=>{
-    ctx.beginPath();
-    ctx.moveTo(mx+sx*r*.72, my+sy*r*.72);
-    ctx.lineTo(mx+sx*r*1.02, my+sy*r*1.02); ctx.stroke();
-  });
-
-  // trajetória curva até o gol
-  ctx.setLineDash([14,12]); ctx.lineWidth=5; ctx.strokeStyle='rgba(43,224,122,.85)';
-  ctx.beginPath(); ctx.moveTo(mx, my);
-  ctx.quadraticCurveTo(1180, 300, 1500, 470);
-  ctx.stroke(); ctx.setLineDash([]);
-
+  /* o alvo e a trajetória saíram: eram um par, e sem a mira a curva começava
+     no vazio. Ficaram só os dados do lance e a ficha de quem chutou. */
   ctx.translate((1-ease(vis))*-60, 0);
   caixaDado('DISTÂNCIA', (+F.dist.value||0).toFixed(1), 'METROS', 120, 800, '#F2B01E');
-  caixaDado('GOL ESPERADO', (+F.xg.value||0).toFixed(2), 'xG', 120, 900, '#2BE07A');
+  caixaDado('GOL ESPERADO', (+F.xg.value||0).toFixed(2), 'xG', 120, 900, P().ac);
   ctx.restore();
 
   // ficha do batedor, à direita, como no jogo
@@ -1558,7 +1601,7 @@ function drawHyper(p,T,k){
     ctx.translate((1-ease(kk))*80, 0);
     const w=430, x=1920-w-90, y=740;
     sombra(()=>{ ctx.fillStyle='rgba(6,10,8,.9)'; rr(x,y,w,250,10); ctx.fill(); });
-    ctx.fillStyle=T.c1; rr(x,y,w,6,3); ctx.fill();
+    ctx.fillStyle=corSegura(T.c1); rr(x,y,w,6,3); ctx.fill();
     retrato(p, x+18, y+22, 92, 92, 8);
     txt(p.apelido.toUpperCase(), x+128, y+70, 44, '#F4F1E6','blk');
     txt((p.pos||'LINHA')+(p.numero?('  ·  #'+p.numero):''), x+130, y+104, 24, '#8A9A8C','cond',5);
@@ -1568,7 +1611,7 @@ function drawHyper(p,T,k){
       const yy = y+146+i*32;
       txt(nome, x+20, yy+15, 22, '#9FB4A4','cond',5);
       ctx.fillStyle='rgba(255,255,255,.1)'; rr(x+130, yy, 210, 12, 6); ctx.fill();
-      ctx.fillStyle='#2BE07A';
+      ctx.fillStyle=P().ac;
       rr(x+130, yy, Math.max(6, 210*Math.min(1,v/maxv)*kk), 12, 6); ctx.fill();
       ctx.textAlign='right'; txt(String(v), x+w-18, yy+14, 26, '#F2B01E','cond'); ctx.textAlign='left';
     });
@@ -1602,11 +1645,11 @@ function drawEscalacao(T,k){
   ctx.save(); ctx.globalAlpha=Math.min(1,kh*1.6);
   sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.95)'; rr(x,y,w,total,14); ctx.fill(); });
   ctx.save(); rr(x,y,w,headH,14); ctx.clip();
-  ctx.fillStyle=T.c1; ctx.fillRect(x,y,w,headH);
+  ctx.fillStyle=corSegura(T.c1); ctx.fillRect(x,y,w,headH);
   ctx.fillStyle='rgba(0,0,0,.25)'; ctx.beginPath();
   ctx.moveTo(x+w-220,y); ctx.lineTo(x+w,y); ctx.lineTo(x+w,y+headH); ctx.lineTo(x+w-300,y+headH); ctx.closePath(); ctx.fill();
   ctx.restore();
-  const cont = luz(T.c1)?'#0B0B0B':'#F4F1E6';
+  const cont = luz(corSegura(T.c1))?'#0B0B0B':'#F4F1E6';
   const u = unifAtual();
   crestCv(T, x+58, y+headH/2, 72);
   txt(T.nome.toUpperCase(),x+108,y+62,54,cont,'blk');
@@ -1625,7 +1668,7 @@ function drawEscalacao(T,k){
     if(reserva) ctx.globalAlpha*=.82;
     ctx.fillStyle = i%2 ? 'rgba(255,255,255,.03)' : 'rgba(255,255,255,.07)';
     ctx.fillRect(x+14,yy+3,w-28,rowH-6);
-    ctx.fillStyle=reserva?'#8A9A8C':u.camisa; ctx.fillRect(x+14,yy+3,6,rowH-6);
+    ctx.fillStyle=reserva?'#8A9A8C':corSegura(u.camisa); ctx.fillRect(x+14,yy+3,6,rowH-6);
     // número: o da camisa quando cadastrado, senão a ordem da lista
     const num = (it.p && it.p.numero) ? it.p.numero : i+1;
     txt(String(num),x+38,yy+rowH*.68,Math.round(rowH*.5),'#F2B01E','cond');
@@ -1661,7 +1704,7 @@ function drawEscalacaoRodape(T,k){
   ctx.save(); ctx.globalAlpha=Math.min(1,k*2.4);
   ctx.translate(0,(1-ease(clamp01(k*1.4)))*(h+30));
   sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.95)'; ctx.fillRect(x,y,w,h); });
-  ctx.fillStyle=u.camisa; ctx.fillRect(x,y,w,8);
+  ctx.fillStyle=corSegura(u.camisa); ctx.fillRect(x,y,w,8);
   // bloco do time, à esquerda
   ctx.fillStyle='rgba(255,255,255,.05)'; ctx.fillRect(x,y+8,300,h-8);
   crestCv(T, 110, y+96, 108);
@@ -1682,12 +1725,12 @@ function drawEscalacaoRodape(T,k){
     ctx.save(); ctx.beginPath(); ctx.arc(cx,y+96,r,0,7); ctx.clip();
     const im=it.p && foto(it.p);
     if(im) ctx.drawImage(im,cx-r,y+96-r,r*2,r*2);
-    else { ctx.fillStyle='#16241B'; ctx.fillRect(cx-r,y+96-r,r*2,r*2);
+    else { ctx.fillStyle=P().vazio; ctx.fillRect(cx-r,y+96-r,r*2,r*2);
       ctx.textAlign='center'; ctx.textBaseline='middle';
       txt(it.p?ini(it.p):'?',cx,y+96,34,'#F2B01E','blk');
       ctx.textAlign='left'; ctx.textBaseline='alphabetic'; }
     ctx.restore();
-    ctx.strokeStyle=u.camisa; ctx.lineWidth=4;
+    ctx.strokeStyle=corSegura(u.camisa); ctx.lineWidth=4;
     ctx.beginPath(); ctx.arc(cx,y+96,r,0,7); ctx.stroke();
     ctx.textAlign='center';
     const nm=(it.p&&it.p.numero)?it.p.numero:i+1;
@@ -1716,7 +1759,7 @@ function camisaCv(x,y,w,u){
   ctx.lineTo(x+w,y+h*.22); ctx.lineTo(x+w*.82,y+h*.40);
   ctx.lineTo(x+w*.82,y+h); ctx.lineTo(x+w*.18,y+h);
   ctx.lineTo(x+w*.18,y+h*.40); ctx.lineTo(x,y+h*.22); ctx.closePath();
-  ctx.fillStyle=u.camisa; ctx.fill();
+  ctx.fillStyle=corSegura(u.camisa); ctx.fill();
   ctx.strokeStyle=u.linha; ctx.lineWidth=Math.max(1.5,w*.045); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(x+w*.30,y);
   ctx.quadraticCurveTo(x+w*.5,y+h*.16,x+w*.70,y); ctx.stroke();
@@ -1755,7 +1798,7 @@ function drawFormacao(T,k){
   const cw=680, ch=940, cx=170, cy=70;
   ctx.save(); ctx.globalAlpha=Math.min(1,k*2.2);
   sombra(()=>{ const g=ctx.createLinearGradient(0,cy,0,cy+ch);
-    g.addColorStop(0,'#127A38'); g.addColorStop(1,'#0A5324');
+    g.addColorStop(0,P().campo1); g.addColorStop(1,P().campo2);
     ctx.fillStyle=g; rr(cx,cy,cw,ch,14); ctx.fill(); });
   ctx.save(); rr(cx,cy,cw,ch,14); ctx.clip();
   for(let i=0;i<10;i++){ if(i%2){ ctx.fillStyle='rgba(255,255,255,.035)';
@@ -1792,16 +1835,16 @@ function drawFormacao(T,k){
     ctx.beginPath(); ctx.arc(o.x,o.y,r,0,7); ctx.clip();
     const im = o.it.p && foto(o.it.p);
     if(im) ctx.drawImage(im,o.x-r,o.y-r,r*2,r*2);
-    else { ctx.fillStyle='#16241B'; ctx.fillRect(o.x-r,o.y-r,r*2,r*2);
+    else { ctx.fillStyle=P().vazio; ctx.fillRect(o.x-r,o.y-r,r*2,r*2);
       ctx.textAlign='center'; ctx.textBaseline='middle';
       txt(o.it.p?ini(o.it.p):'?',o.x,o.y,40,'#F2B01E','blk');
       ctx.textAlign='left'; ctx.textBaseline='alphabetic'; }
     ctx.restore();
-    ctx.strokeStyle=u.camisa; ctx.lineWidth=5;
+    ctx.strokeStyle=corSegura(u.camisa); ctx.lineWidth=5;
     ctx.beginPath(); ctx.arc(o.x,o.y,r,0,7); ctx.stroke();
     // número no canto
     const nm = (o.it.p && o.it.p.numero) ? o.it.p.numero : idx+1;
-    ctx.fillStyle=u.camisa; ctx.beginPath(); ctx.arc(o.x+r*.78,o.y-r*.78,20,0,7); ctx.fill();
+    ctx.fillStyle=corSegura(u.camisa); ctx.beginPath(); ctx.arc(o.x+r*.78,o.y-r*.78,20,0,7); ctx.fill();
     ctx.textAlign='center';
     txt(String(nm),o.x+r*.78,o.y-r*.78+9,26,u.tinta,'blk');
     // nome embaixo
@@ -1827,6 +1870,62 @@ function drawFormacao(T,k){
   ctx.textAlign='left';
   ctx.restore();
   ctx.save(); ctx.globalAlpha=clamp01((k-.4)/.3); marca(pmeio-70, py+660, 140); ctx.restore();
+}
+
+/* ---- marcos da copinha ---- */
+function marcosSugeridos(){
+  const golsTotais = jogos.reduce((a,g)=>a+g.gc+g.gf,0);
+  const artilheiro = jog.slice().sort((a,b)=>b.gols-a.gols)[0] || {apelido:'—',gols:0};
+  const garcom = jog.slice().sort((a,b)=>b.assist-a.assist)[0] || {apelido:'—',assist:0};
+  const maisTitulos = jog.slice().sort((a,b)=>b.titulos-a.titulos)[0] || {apelido:'—',titulos:0};
+  const presenca = jog.slice().sort((a,b)=>b.presencas-a.presencas)[0] || {apelido:'—',presencas:0};
+  const temps = temporadas.length;
+  return [
+    {n:golsTotais, t:'GOLS NA COPA', s:`Em ${jogos.length} jogos e ${temps} temporadas`},
+    {n:jogos.length, t:'JOGOS DISPUTADOS', s:`De ${temporadas[temporadas.length-1]} a ${temporadas[0]}`},
+    {n:jog.length, t:'JOGADORES NA HISTÓRIA', s:'Todo mundo que já vestiu uma camisa'},
+    {n:temps, t:'TEMPORADAS', s:'E a copinha não parou'},
+    {n:artilheiro.gols, t:'GOLS DO '+artilheiro.apelido.toUpperCase(), s:'Artilheiro histórico da copa'},
+    {n:garcom.assist, t:'ASSISTÊNCIAS DO '+garcom.apelido.toUpperCase(), s:'O garçom da copa'},
+    {n:maisTitulos.titulos, t:'TÍTULOS DO '+maisTitulos.apelido.toUpperCase(), s:'Quem mais levantou a taça'},
+    {n:presenca.presencas, t:'PRESENÇAS DO '+presenca.apelido.toUpperCase(), s:'O mais fiel da copinha'},
+  ];
+}
+function drawMarco(k){
+  const num=(F.marconum.value||'').trim(), tit=(F.marcotit.value||'').trim();
+  const sub=(F.marcosub.value||'').trim();
+  const pop=Math.min(1,k*2.2);
+  ctx.save(); ctx.globalAlpha=pop;
+  const esc=.86+ease(Math.min(1,k*1.5))*.14;
+  ctx.translate(960,540); ctx.scale(esc,esc); ctx.translate(-960,-540);
+  const w=1240,h=560,x=(1920-w)/2,y=(1080-h)/2;
+  sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.96)'; rr(x,y,w,h,22); ctx.fill(); });
+  ctx.strokeStyle='#F2B01E'; ctx.lineWidth=5; rr(x,y,w,h,22); ctx.stroke();
+  // raios de fundo, girando devagar
+  ctx.save(); rr(x,y,w,h,22); ctx.clip();
+  ctx.globalAlpha=pop*.10;
+  for(let i=0;i<14;i++){
+    ctx.save(); ctx.translate(960,y+230); ctx.rotate(i*Math.PI/7 + k*.35);
+    ctx.fillStyle='#F2B01E'; ctx.beginPath();
+    ctx.moveTo(0,0); ctx.lineTo(900,-50); ctx.lineTo(900,50); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+  ctx.textAlign='center';
+  txt('MARCO DA COPINHA', 960, y+82, 32, '#8A9A8C','cond',14);
+  const fn=fonteQueCabe(num, 210, w-160, 'blk');
+  ctx.save(); ctx.shadowColor='rgba(242,176,30,.5)'; ctx.shadowBlur=50;
+  txt(num, 960, y+286, fn, '#F2B01E','blk'); ctx.restore();
+  const ft=fonteQueCabe(tit, 74, w-140, 'blk');
+  txt(tit, 960, y+372, ft, '#F4F1E6','blk');
+  ctx.fillStyle=P().ac; ctx.fillRect(960-160, y+404, 320, 6);
+  if(sub){
+    const fs=fonteQueCabe(sub, 34, w-160, 'cond');
+    txt(sub, 960, y+466, fs, '#8A9A8C','cond',4);
+  }
+  ctx.textAlign='left';
+  marca(x+w-136, y+h-128, 104);
+  ctx.restore();
 }
 
 /* ---- arbitragem e sala do VAR ---- */
@@ -1863,7 +1962,7 @@ function drawEquipe(titulo, itens, k, corTopo){
   marca(x+w-130, y+h-116, 100);
   ctx.restore();
 }
-function drawArbitragem(k){ drawEquipe('ARBITRAGEM', paresDe(F.arb.value, 6), k, '#2BE07A'); }
+function drawArbitragem(k){ drawEquipe('ARBITRAGEM', paresDe(F.arb.value, 6), k, P().ac); }
 function drawVarSala(k){ drawEquipe('SALA DO VAR', paresDe(F.var2.value, 2), k, '#F2B01E'); }
 
 /* ---- escudo no canvas (mesma silhueta do crestSVG da tela de times) ---- */
@@ -1877,14 +1976,14 @@ function escudoCv(t,cx,cy,w){
   ctx.bezierCurveTo(24,92,4,76,4,54);
   ctx.lineTo(4,14); ctx.closePath();
   ctx.save(); ctx.clip();
-  ctx.fillStyle=t.c1; ctx.fillRect(0,0,92,100);
-  ctx.fillStyle=t.c2; ctx.fillRect(46,0,46,100);
+  ctx.fillStyle=corSegura(t.c1); ctx.fillRect(0,0,92,100);
+  ctx.fillStyle=corSegura(t.c2); ctx.fillRect(46,0,46,100);
   ctx.fillStyle='rgba(0,0,0,.18)'; ctx.fillRect(0,58,92,10);
   ctx.restore();
   ctx.strokeStyle='#F2B01E'; ctx.lineWidth=3; ctx.stroke();
   ctx.restore();
-  const claro = (parseInt(t.c1.slice(1,3),16)*299 + parseInt(t.c1.slice(3,5),16)*587
-               + parseInt(t.c1.slice(5,7),16)*114)/1000 > 140;
+  const claro = (parseInt(corSegura(t.c1).slice(1,3),16)*299 + parseInt(corSegura(t.c1).slice(3,5),16)*587
+               + parseInt(corSegura(t.c1).slice(5,7),16)*114)/1000 > 140;
   ctx.textAlign='center';
   txt(t.sigla, cx, cy+w*.12, w*.26, claro?'#0B0B0B':'#FFFFFF','blk');
   ctx.textAlign='left';
@@ -1893,9 +1992,9 @@ function escudoCv(t,cx,cy,w){
 /* ---- checagem do VAR ---- */
 const VARD = {
   checando:    ['CHECANDO',        '#F2B01E'],
-  gol:         ['GOL CONFIRMADO',  '#2BE07A'],
+  gol:         ['GOL CONFIRMADO',  P().ac],
   anulado:     ['GOL ANULADO',     '#FF5A2C'],
-  penalti:     ['É PÊNALTI',       '#2BE07A'],
+  penalti:     ['É PÊNALTI',       P().ac],
   naopenalti:  ['NÃO É PÊNALTI',   '#FF5A2C'],
   impedimento: ['IMPEDIMENTO',     '#FF5A2C'],
 };
@@ -1923,8 +2022,8 @@ function drawVAR(p,T,k){
   // linha de varredura anda com k
   const sy = ty + ((k*1.7)%1)*th;
   const g = ctx.createLinearGradient(0,sy-40,0,sy+40);
-  g.addColorStop(0,'rgba(43,224,122,0)'); g.addColorStop(.5,'rgba(43,224,122,.35)');
-  g.addColorStop(1,'rgba(43,224,122,0)');
+  g.addColorStop(0,P().acZero); g.addColorStop(.5,P().acFraco);
+  g.addColorStop(1,P().acZero);
   ctx.fillStyle=g; ctx.fillRect(tx,sy-40,tw,80);
   // retrato do lance
   retrato(p, tx+tw/2-95, ty+22, 190, 190, 12);
@@ -1948,7 +2047,7 @@ function drawPenalti(p,T,k){
   ctx.save(); ctx.shadowColor='rgba(242,176,30,.5)'; ctx.shadowBlur=55;
   txt('PÊNALTI', 960, 470, 190, '#F2B01E','blk');
   ctx.restore();
-  ctx.fillStyle=T.c1; ctx.fillRect(560,510,800,10);
+  ctx.fillStyle=corSegura(T.c1); ctx.fillRect(560,510,800,10);
   // marca do pênalti + bola
   ctx.fillStyle='rgba(244,241,230,.9)';
   ctx.beginPath(); ctx.arc(960,640,17,0,7); ctx.fill();
@@ -2003,7 +2102,7 @@ function drawArtilheiro(p,T,k){
   txt('ARTILHEIRO DO DIA', x+382, y+118, 38, '#F2B01E','cond',10);
   txt(p.apelido.toUpperCase(), x+382, y+216, 96, '#F4F1E6','blk');
   const g = p.gols||0;
-  txt(String(g), x+382, y+330, 92, '#2BE07A','blk');
+  txt(String(g), x+382, y+330, 92, P().ac,'blk');
   txt(g===1?'GOL':'GOLS', x+382+(String(g).length*56), y+330, 44, '#8A9A8C','cond',6);
   txt(T.nome.toUpperCase(), x+382, y+372, 28, '#8A9A8C','cond',6);
   marca(x+w-150, y+60, 120);
@@ -2025,12 +2124,12 @@ function drawHistorico(p,T,k){
   ctx.translate((1-ease(k))*-220,0);
   const w=1280,h=440,x=(1920-w)/2,y=(1080-h)/2+40;
   sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.95)'; rr(x,y,w,h,18); ctx.fill(); });
-  ctx.fillStyle='#2BE07A'; rr(x,y,w,9,5); ctx.fill();
+  ctx.fillStyle=P().ac; rr(x,y,w,9,5); ctx.fill();
   retrato(p, x+34, y+48, 250, 250, 14);
 
   /* colunas com folga: texto até 700, gráfico a partir de 760 */
   const cx = x+312, limiteTexto = 700 - 312 - 20;
-  txt('NA COPA REVOADA', cx, y+92, 30, '#2BE07A','cond',10);
+  txt('NA COPA REVOADA', cx, y+92, 30, P().ac,'cond',10);
   const fn = fonteQueCabe(p.apelido.toUpperCase(), 78, limiteTexto, 'blk');
   txt(p.apelido.toUpperCase(), cx, y+170, fn, '#F4F1E6','blk');
 
@@ -2050,7 +2149,7 @@ function drawHistorico(p,T,k){
       const alt = Math.round((a[1]/maxG)*160*Math.min(1,Math.max(0,(k-.3)/.5)));
       const bx = gx + i*bw;
       ctx.fillStyle='rgba(255,255,255,.07)'; rr(bx, y+128, bw-14, 160, 4); ctx.fill();
-      ctx.fillStyle='#2BE07A'; rr(bx, y+288-alt, bw-14, alt, 4); ctx.fill();
+      ctx.fillStyle=P().ac; rr(bx, y+288-alt, bw-14, alt, 4); ctx.fill();
       ctx.textAlign='center';
       txt(String(a[1]), bx+(bw-14)/2, y+320, 30, '#F4F1E6','cond');
       txt(String(a[0]), bx+(bw-14)/2, y+356, 24, '#8A9A8C','cond',2);
@@ -2063,7 +2162,7 @@ function drawHistorico(p,T,k){
 /* ---- disputa de pênaltis ---- */
 function marcaPenal(ch, cx, cy, r){
   if(ch==='G'||ch==='g'){
-    ctx.strokeStyle='#2BE07A'; ctx.lineWidth=r*.34; ctx.beginPath();
+    ctx.strokeStyle=P().ac; ctx.lineWidth=r*.34; ctx.beginPath();
     ctx.arc(cx,cy,r*.62,0,7); ctx.stroke();
   } else if(ch==='X'||ch==='x'){
     ctx.strokeStyle='#FF5A2C'; ctx.lineWidth=r*.34; ctx.lineCap='round';
@@ -2087,9 +2186,9 @@ function drawPenaltis(A,B,k){
   txt('DISPUTA DE PÊNALTIS', 960, y+74, 46, '#F2B01E','cond',14);
   const meia=(w-60)/2;
   [[A,seqA,x+30],[B,seqB,x+30+meia]].forEach(([T,seq,bx])=>{
-    const claro=(parseInt(T.c1.slice(1,3),16)*299+parseInt(T.c1.slice(3,5),16)*587
-                +parseInt(T.c1.slice(5,7),16)*114)/1000>140;
-    ctx.fillStyle=T.c1; rr(bx, y+108, meia-10, 62, 8); ctx.fill();
+    const claro=(parseInt(corSegura(T.c1).slice(1,3),16)*299+parseInt(corSegura(T.c1).slice(3,5),16)*587
+                +parseInt(corSegura(T.c1).slice(5,7),16)*114)/1000>140;
+    ctx.fillStyle=corSegura(T.c1); rr(bx, y+108, meia-10, 62, 8); ctx.fill();
     txt(T.nome.toUpperCase(), bx+(meia-10)/2, y+150, 38, claro?'#0B0B0B':'#FFFFFF','cond',6);
     txt(String(conta(seq)), bx+(meia-10)/2, y+268, 92, '#F2B01E','blk');
     const r=30, esp=(meia-60)/n;
@@ -2117,7 +2216,7 @@ function drawBatedor(p,T,k){
   ctx.translate((1-ease(k))*-260,0);
   const w=1080,h=440,x=(1920-w)/2,y=(1080-h)/2+20;
   sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.95)'; rr(x,y,w,h,18); ctx.fill(); });
-  ctx.fillStyle=T.c1; rr(x,y,16,h,8); ctx.fill();
+  ctx.fillStyle=corSegura(T.c1); rr(x,y,16,h,8); ctx.fill();
   retrato(p, x+48, y+56, 240, 240, 14);
   txt('PRÓXIMO BATEDOR', x+322, y+108, 34, '#F2B01E','cond',12);
   txt(p.apelido.toUpperCase(), x+322, y+206, 88, '#F4F1E6','blk');
@@ -2129,7 +2228,7 @@ function drawBatedor(p,T,k){
   }
   ctx.fillStyle='rgba(255,255,255,.08)'; rr(x+322, y+240, w-390, 76, 10); ctx.fill();
   txt('HISTÓRICO', x+346, y+272, 24, '#8A9A8C','cond',8);
-  txt(F.hist.value.toUpperCase(), x+346, y+306, 38, '#2BE07A','cond',3);
+  txt(F.hist.value.toUpperCase(), x+346, y+306, 38, P().ac,'cond',3);
   txt(T.nome.toUpperCase(), x+322, y+364, 28, '#8A9A8C','cond',6);
   marca(x+w-136, y+h-128, 104);
   ctx.restore();
@@ -2203,7 +2302,12 @@ function syncFields(){
   draw(1);
 }
 Object.values(F).forEach(el=> el.addEventListener('input', el===F.tipo ? syncFields : ()=>draw(1)));
-$('#toggle-chroma').onclick = ()=> $('#stage').classList.toggle('chroma');
+$('#toggle-chroma').onclick = ()=>{
+  const on = $('#stage').classList.toggle('chroma');
+  semVerde = on;                 // nenhum verde dentro da arte com o fundo verde
+  $('#toggle-chroma').textContent = on ? 'Fundo verde: ligado' : 'Fundo verde';
+  draw(1);
+};
 
 $('#play').onclick = ()=>{
   const dur = (+F.dur.value||3)*1000, t0 = performance.now();
@@ -2247,30 +2351,88 @@ function zip(files){
   end.setUint32(12,dirSize,true); end.setUint32(16,off,true);
   return new Blob([...chunks,...dir,new Uint8Array(end.buffer)],{type:'application/zip'});
 }
+/* Área realmente desenhada, olhando alguns quadros ao longo da animação.
+   Gravar 1920x1080 inteiro quando a arte ocupa um canto é o que fazia a
+   sequência pesar 150 MB. O recorte é o mesmo em todos os quadros, então a
+   posição relativa não muda — basta soltar na mesma coordenada no DaVinci. */
+function areaDesenhada(total){
+  let x0=1920, y0=1080, x1=0, y1=0;
+  const amostras = [0, .15, .3, .5, .7, .85, 1];
+  amostras.forEach(a=>{
+    draw(curva(a));
+    const d = ctx.getImageData(0,0,1920,1080).data;
+    for(let y=0;y<1080;y+=2){
+      for(let x=0;x<1920;x+=2){
+        if(d[(y*1920+x)*4+3] > 6){
+          if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
+        }
+      }
+    }
+  });
+  if(x1<=x0||y1<=y0) return {x:0,y:0,w:1920,h:1080};
+  const m=8;   // margem de segurança
+  x0=Math.max(0,x0-m); y0=Math.max(0,y0-m);
+  x1=Math.min(1919,x1+m); y1=Math.min(1079,y1+m);
+  // largura e altura pares, que alguns codecs exigem
+  let w=x1-x0+1, h=y1-y0+1;
+  if(w%2)w++; if(h%2)h++;
+  return {x:x0, y:y0, w:Math.min(w,1920-x0), h:Math.min(h,1080-y0)};
+}
+
 $('#dl-seq').onclick = async ()=>{
   const fps=+F.fps.value||30, total=Math.max(2,Math.round((+F.dur.value||3)*fps)), files=[];
-  $('#prog').textContent='gerando 0%';
+  const escala=+F.escala.value||1;
+  $('#prog').textContent='medindo a área da arte…';
+  await new Promise(r=>setTimeout(r));
+  const cx = areaDesenhada(total);
+  const lw=Math.round(cx.w*escala), lh=Math.round(cx.h*escala);
+  const rec=document.createElement('canvas'); rec.width=lw; rec.height=lh;
+  const rctx=rec.getContext('2d');
   for(let i=0;i<total;i++){
     draw(curva(i/(total-1)));
-    const blob = await new Promise(r=>cv.toBlob(r,'image/png'));
+    rctx.clearRect(0,0,lw,lh);
+    rctx.drawImage(cv, cx.x, cx.y, cx.w, cx.h, 0, 0, lw, lh);
+    const blob = await new Promise(r=>rec.toBlob(r,'image/png'));
     files.push({name:`revoada_${String(i).padStart(4,'0')}.png`, data:new Uint8Array(await blob.arrayBuffer())});
     if(i%5===0){ $('#prog').textContent = 'gerando '+Math.round(i/total*100)+'%'; await new Promise(r=>setTimeout(r)); }
   }
+  const leiame =
+`Sequência da Copa Revoada — ${F.tipo.value}
+${total} quadros a ${fps} fps  (${(+F.dur.value||3)}s)
+Tamanho de cada PNG: ${lw}x${lh}
+
+Os quadros vêm recortados só na área desenhada, para não pesar.
+Para posicionar igual ao original de 1920x1080:
+
+   canto superior esquerdo = x ${cx.x} , y ${cx.y}
+   escala aplicada = ${Math.round(escala*100)}%
+
+No DaVinci: importe a pasta como image sequence, jogue na trilha de cima e,
+no Inspector, use Zoom/Position para encostar nessa coordenada. Se preferir
+não posicionar na mão, exporte em 100% e escolha "quadro inteiro" no Estúdio.
+`;
+  files.push({name:'LEIA-ME.txt', data:new TextEncoder().encode(leiame)});
   $('#prog').textContent='montando zip';
-  baixar(zip(files), `revoada-${F.tipo.value}-seq-${fps}fps.zip`);
-  $('#prog').textContent='pronto · '+total+' quadros a '+fps+' fps';
+  baixar(zip(files), `revoada-${F.tipo.value}-${lw}x${lh}-${fps}fps.zip`);
+  const mb = files.reduce((a,f)=>a+f.data.length,0)/1048576;
+  $('#prog').textContent=`pronto · ${total} quadros ${lw}x${lh} · ${mb.toFixed(0)} MB`;
   draw(1);
 };
 $('#dl-webm').onclick = ()=>{
   const dur=(+F.dur.value||3)*1000;
+  /* o WebM sai sempre em fundo verde, então a arte tem que sair sem verde
+     nenhum — senão o Chroma Key come pedaço do desenho junto com o fundo */
+  const antes = semVerde; semVerde = true;
   const off=document.createElement('canvas'); off.width=1920; off.height=1080;
   const octx=off.getContext('2d');
   const stream=off.captureStream(30);
   const mime=['video/webm;codecs=vp9','video/webm'].find(m=>MediaRecorder.isTypeSupported(m));
-  if(!mime){ $('#prog').textContent='navegador não grava webm'; return; }
+  if(!mime){ $('#prog').textContent='navegador não grava webm'; semVerde=antes; return; }
   const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:12e6}), parts=[];
   rec.ondataavailable=e=>e.data.size&&parts.push(e.data);
-  rec.onstop=()=>{ baixar(new Blob(parts,{type:'video/webm'}), `revoada-${F.tipo.value}.webm`); $('#prog').textContent='webm pronto'; draw(1); };
+  rec.onstop=()=>{ baixar(new Blob(parts,{type:'video/webm'}), `revoada-${F.tipo.value}.webm`);
+    $('#prog').textContent='webm pronto · arte gerada sem nenhum verde';
+    semVerde=antes; draw(1); };
   rec.start(); $('#prog').textContent='gravando…';
   const t0=performance.now();
   (function loop(now){

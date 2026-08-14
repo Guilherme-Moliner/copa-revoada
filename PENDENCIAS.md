@@ -1,153 +1,198 @@
 # Pendências — Copa Revoada
 
-Gerado a partir de `COPA_REVOADA.xlsx` (versão de agosto/2026).
-A mesma lista está na aba **PENDENCIAS** da planilha, com coluna pra marcar quem pegou.
+Lista de trabalho para fechar os dados da copa. O que estiver aqui **não** foi
+preenchido por conta própria: célula vazia é célula que precisa de decisão de
+vocês.
 
-O que já entrou sozinho: **13 jogos**, **45 jogadores**, **233 escalações** e
-**14 times** em 7 temporadas. As escalações estavam espalhadas pela aba Dados da
-planilha antiga e foram extraídas jogo a jogo. Oito jogos fecharam certinho com o
-placar; o resto está aqui embaixo.
+Site: https://guilherme-moliner.github.io/copa-revoada/
+
+**Como preencher:** editem `dados/COPA_REVOADA_planilha.xlsx` (ou a versão no
+Google Sheets, se já tiver migrado — veja `CONTINUAR-EM-OUTRO-PC.md`) e rodem
+`python scripts/build.py`. O build reclama do que ainda estiver inconsistente.
+Quando o push acontecer, o site republica sozinho.
+
+Estado de hoje: **32 jogadores · 14 times · 13 jogos · 233 escalações**.
 
 ---
 
-## Prioridade 1 — gols que não batem com o placar
+## Prioridade 1 — as duas decisões que travam número no site
 
-| Jogo | Situação |
+### 1.1 Ago/2026: qual Leo?
+
+Na aba ESCALACOES, o `leo` aparece **nos dois times** do mesmo jogo:
+
+| jogo_id | jogador_id | time_id | gols |
+|---|---|---|---|
+| 2026-08 | leo | ferroviagra26 | 1 |
+| 2026-08 | leo | dentro26 | 0 |
+
+Em **Abr/2026** vocês já resolveram assim: o do Ferroviagra era o **Leo
+Bittencourt**, e o do Dentro é o **Leonardo Zanette**. Falta dizer se em Ago/2026
+vale a mesma regra.
+
+**Por que importa:** é justamente nessa linha que está o **gol do VAR**, com
+assistência do Zaga. Dependendo da resposta, o gol muda de dono.
+
+> **Ação:** trocar o `jogador_id` da linha certa para `leobittencourt`, ou
+> confirmar que os dois são o Leonardo Zanette mesmo.
+
+### 1.2 Campeão de cada jogo
+
+**Nenhum dos 13 jogos** tem `campeao_time_id` preenchido na aba JOGOS.
+
+Hoje o título de cada jogador sai da coluna `campeao` (SIM/NAO) da aba
+ESCALACOES, que veio da importação. A coluna da aba JOGOS existe e está vazia —
+preenchendo, o site passa a mostrar o campeão na tela de cada jogo.
+
+Lembrete do que já foi decidido: **Ago/2022 (Liverpool 1×1 Borussia) não teve
+título**, porque não houve penalidades.
+
+---
+
+## Prioridade 2 — o que dá mais resultado por hora gasta
+
+### 2.1 Números de camisa — 32 de 32 vazios
+
+Aba **JOGADORES**, coluna `numero_camisa`.
+
+Enquanto estiver vazio, o Estúdio usa a ordem da lista no lugar do número. Com
+os números, a escalação, a formação no campo e a chamada do batedor ficam com o
+número certo de cada um.
+
+### 2.2 Posição — 28 de 32 vazios
+
+Aba **JOGADORES**, coluna `posicao`. Valores: `GOL`, `DEF`, `MEI`, `ATA`.
+
+Já marcados como goleiro: **Arthur, Merizi, Be Correa e Be Marucco**.
+
+É o que faz a formação no campo posicionar cada um na faixa certa e a lista
+mostrar a tarja colorida por posição.
+
+### 2.3 Vídeos — 13 de 13 jogos sem link
+
+Aba **JOGOS**, coluna `video_youtube`. Só o ID, o que vem depois de `v=` na URL.
+
+A tela de Vídeos já está pronta, com seletor de temporada e um card por jogo —
+hoje todos aparecem como "sem vídeo ainda".
+
+### 2.4 Nota de desempenho por time — 155 pares esperando
+
+Aba **DESEMPENHO**, coluna `nota_1a5`. Uma linha por jogador por time, já
+montadas: é só dar a nota.
+
+| nota | significa |
 |---|---|
-| Dez/2020 · Chelsea 6×7 PSG | a planilha guardou só quem jogou, sem gol por jogador |
-| Jul/2021 · Chelsea 10×10 PSG | idem |
-| Dez/2021 · Chelsea 6×9 PSG | idem |
-| ~~Dez/2024 · Branco 5×3 Preto~~ | ✅ **resolvido** — era gol contra do Leo, que jogava no Preto |
-| ~~Ago/2026 · Dentro FC 1×1 Ferroviagra~~ | ✅ **resolvido** — gol do VAR pro Leo com assistência do Zaga, não entra no placar |
+| 1 | apagado |
+| 2 | abaixo |
+| 3 | normal |
+| 4 | bom |
+| 5 | inspirado |
 
-Os três de 2020–2021 continuam sem gol por jogador. Decisão tomada: **nesses três
-jogos conta só o título**, não jogos nem gols nem assistências. É o que faz cada
-um ter 10 jogos e não 13.
+É o rostinho que aparece na página do time. Enquanto estiver vazio, o site mostra
+um rosto deduzido da produção, apagado, avisando no hover que ainda não foi
+julgado.
 
-Duas colunas novas na aba **ESCALACOES** guardam os casos especiais:
+---
 
-- `gols_contra` — gol contra. Vai pro placar do adversário e **não** entra no
-  total de gols de quem fez. Aparece como KPI próprio no perfil.
-- `conta_no_placar` — `NAO` quando o gol foi anulado ou dado pelo VAR fora do
-  resultado. Vale pro jogador, não vale pro placar.
+## Prioridade 3 — material que falta
 
-O `scripts/build.py` agora **confere sozinho** placar contra gols lançados, jogo a
-jogo, já levando gol contra e VAR em conta. Se algum dia parar de bater, ele
-reclama no build — não precisa mais conferir na mão.
+| O quê | Onde | Quanto falta |
+|---|---|---|
+| Nome completo | aba JOGADORES, `nome_completo` | 31 de 32 |
+| Foto de jogador | `assets/<id>.jpg` | 3: **Berna, Mauro, Robson** |
+| Escudo de time | `assets/`, ou coluna `escudo_arquivo` | 4: **Chelsea 2020, Chelsea 2021, Boca, City** |
+| Troféus entregues por ano | aba TROFEUS | tudo, fora os simulados do Fanta |
+| Melhores momentos | aba CLIPES | tudo |
 
-## Prioridade 2 — de que lado cada time estava
+### Coisas para conferir nas imagens
 
-Em dois jogos o placar empatou, então não dá pra deduzir automaticamente qual
-escalação era de qual time. Chutei uma ordem; confirmem na aba ESCALACOES:
+- **O escudo do Borussia 2022 é o brasão do Boca Juniors** (arquivo
+  `borussetalogo.png`). E o **Boca 2023 está sem escudo**. É piada de vocês ou
+  troca de arquivo?
+- **A foto do André** (`dede.jpg`) é de corpo inteiro num estádio; o rosto é
+  pequeno demais para o recorte automático achar. Uma foto mais próxima resolve.
+- **`jogo1-2026.jpg` e `vencedorjogo12026.jpg`** estão em `assets/` sem uso. Se
+  quiserem, dá para fazer uma galeria por jogo.
 
-- **Ago/2022 · Liverpool 1×1 Borussia**
-- **Jun/2023 · Boca 0×0 City**
+---
 
-## Prioridade 3 — nomes que podem ser a mesma pessoa
+## O que já foi decidido e está aplicado
 
-Cada linha virou um jogador diferente no site. Se for a mesma pessoa, digam qual
-`id` fica e eu unifico:
+Nada aqui precisa de ação. É registro, para ninguém refazer discussão.
 
-| Variantes | Observação |
+### Contagem de jogos
+
+Os três primeiros jogos (**Dez/2020, Jul/2021, Dez/2021**) contam **só título** —
+ninguém anotou gol nem assistência por jogador neles. Por isso o perfil mostra
+*Jogos válidos* (10) e *Presenças* (13).
+
+Isso zerou a divergência com o ranking antigo: dos 12 nomes que não batiam,
+sobrou zero.
+
+### Gols que não fechavam com o placar
+
+| Jogo | Resolução |
 |---|---|
-| `derek` · `dereck` · `dereka` · `minidereck` | quatro grafias, aparecem em anos diferentes |
-| `bernardoc` · `bernardom` · `berna` | Bernardo C, Bernardo M e Berna |
-| `vitim` · `vitor` · `gordo` | ⚠️ resposta recebida foi *"vitor seria o Ex gordo"*, seguida de *"kretzer"* e *"Vitao"* soltos. Não deu pra entender se é pra unificar `vitor` com `gordo`, nem o que Kretzer e Vitão respondem. **Perguntar de novo antes de mexer.** |
-| `robson` · `pairobson` | Robson e Pai Robson, ambos em Ago/2026 |
+| Dez/2024 · Branco 5×3 Preto | gol contra do Leo, que jogava no Preto |
+| Ago/2026 · Dentro 1×1 Ferroviagra | gol do VAR pro Leo, assistência do Zaga, fora do placar |
 
-Além disso: em **Ago/2026** o `leo` aparece duas vezes no mesmo jogo, uma pelo
-Dentro FC e outra pelo Ferroviagra. Uma das duas linhas está errada, ou é outro
-Leo (existe `leo`, `leobittencourt` e `leogodinho`).
+Duas colunas novas na aba ESCALACOES guardam isso:
 
-Já unifiquei sozinho, por serem claramente a mesma pessoa:
-`Garopa`→`Garopaba`, `Felps`→`Phelps`, `Andre`/`André`, e todos os `GK` no fim do
-apelido (`Arthur gk`→`arthur`, `Merizi GK`→`merizi`).
+- `gols_contra` — vai pro placar do adversário e **não** entra no total de quem fez;
+- `conta_no_placar` — `NAO` quando o gol não vale para o resultado.
 
-## Prioridade 4 — gente que joga mas não está no ranking
+O build **confere sozinho** placar contra gols lançados, jogo a jogo. Dez jogos
+conferidos, todos fechando.
 
-Aparecem nas escalações e não constam no RANKING Atual. Precisam de apelido
-oficial e confirmação de que existem mesmo:
+### Quem é quem
 
-`Berna` · `Bernardo C` · `Bernardo M` · `Dereck` · `Derek` · `Dereka` ·
-`Gordo` · `Mito` · `Pai Robson` · `Robson` · `Vitim`
+Unificados: **Be / Be Correa / Bernardo C** → Be Correa (goleiro) ·
+**Be Marucco / Bernardo M** → Be Marucco (goleiro) · **Vitim** → Kretzer ·
+**Gordo** → Vitor · **Mito** → Berna · **Dedé** → André.
 
-## Prioridade 5 — a contagem de jogos não fecha ✅ respondido
+Renomeados: *Arthur gk* → **Arthur** · *Merizi GK* → **Merizi** ·
+*Pai Robson* → **Mauro**.
 
-> "Contei os títulos, não adicionei número de jogos porque não tem gols e assist
-> também. No caso fica 10 jogos mesmo, sendo que jogamos 13 no total."
+Escondidos do site, mantidos na planilha (constante `EXCLUIR_DO_SITE` no build):
+**Derek, Davi, Dereck, Matheus, Luigi, Dereka, João, Mini Derek**.
 
-Ou seja: os três jogos de 2020–2021 entram só para título. ✅ **Aplicado.** O site
-mostra os dois números: *Jogos válidos* (10) e *Presenças* (13).
+> **Derek, Mini Derek e Dereck não foram unificados de propósito.** Em Dez/2020 o
+> `derek` jogou pelo Chelsea e o `miniderek` pelo PSG; em Abr/2022 o `dereck`
+> jogou pelo Borussia e o `derek` pelo Liverpool. Quem se enfrenta não é a mesma
+> pessoa. Pela linha do tempo, `miniderek` (2020–21) e `dereck` (2022–23) nunca
+> coincidem e provavelmente são a mesma pessoa. Como todos foram escondidos, isso
+> deixou de ser urgente — mas fica registrado se um dia quiserem trazer de volta.
 
-A regra mora na constante `SO_TITULO` no topo do `scripts/build.py`. Esvaziar o
-conjunto devolve a contagem antiga.
+### Times por temporada
 
-A aplicação praticamente zerou a divergência: dos 12 nomes da tabela abaixo,
-**11 passaram a bater exatamente com o ranking antigo**. Sobra um só:
+Chelsea×PSG (2020 e 2021), Liverpool×Borussia (2022), Boca×City (2023),
+Branco×Preto (2024), Milan Be×Jumentus (2025), Dentro FC×Ferroviagra (2026).
 
-| Jogador | Site | Ranking |
-|---|---|---|
-| Vitor | 0 | 3 |
+Confirmados por vocês: **Criseúma FC** é o time preto de 2024, **D Boa FC** o
+branco de 2024, e **Peguei Sua Gata** é o PSG de 2020 e 2021.
 
-E esse é o mesmo caso de identidade não resolvida da Prioridade 3 — o Vitor não
-tem escalação nenhuma lançada. A tabela original ficou aqui embaixo por histórico.
+O ano deixou de aparecer junto do nome do time nas telas e nas artes.
 
+### Coisas que continuam sendo chute meu
 
-
-As escalações dão mais jogos por pessoa do que o RANKING Atual. Provavelmente o
-ranking não foi atualizado com todos os jogos, mas vale conferir se algum nome não
-foi lançado a mais em alguma partida:
-
-| Jogador | Escalações | Ranking |
-|---|---|---|
-| Fanta | 13 | 10 |
-| Letti | 13 | 10 |
-| Nathan | 13 | 10 |
-| Leo | 13 | 8 |
-| André | 11 | 8 |
-| Borba | 11 | 7 |
-| Hanon | 11 | 7 |
-| Zaga | 8 | 5 |
-| Danilim | 8 | 5 |
-| Phelps | 8 | 4 |
-| Pietro | 7 | 4 |
-| Vitor | 0 | 3 |
-
-O site hoje usa a contagem das escalações, que é a mais detalhada.
+- **Cores de cada time**, deduzidas do nome. São elas que desenham o escudo
+  quando não há arquivo, e a faixa colorida nas artes.
+- **Estádio**: onde faltava, coloquei Paula Ramos.
 
 ---
 
-## O que continua faltando (não é erro, é material que ninguém mandou ainda)
+## Para quem vai editar vídeo
 
-| O quê | Onde entra | Quem |
-|---|---|---|
-| Nome completo e posição de cada um dos 45 | aba JOGADORES | |
-| Time campeão de cada jogo | aba JOGOS, `campeao_time_id` | |
-| ID do YouTube de cada partida | aba JOGOS, `video_youtube` | |
-| Troféus entregues por ano, inclusive a piroquinha | aba TROFEUS | |
-| Melhores momentos: jogador + vídeo + minuto | aba CLIPES | |
-| Foto de cada jogador | pasta `fotos/`, arquivo com o nome do id | |
-| Nota 1 a 5 de cada um por jogo (o rostinho) | aba ESCALACOES, `nota_1a5` | |
-| Cores e escudos oficiais dos times | aba TIMES | |
+Duas limitações que valem saber antes de montar a timeline:
 
-## Coisas que eu chutei e você precisa confirmar
+1. **Cinco fotos foram tiradas contra parede verde** — Garopaba, Borba, Bala,
+   Leo Godinho e Vitor. Em qualquer arte que mostre essas fotos, **não use o WebM
+   verde**: o Chroma Key vai comer o fundo da foto junto com o fundo da tela. Use
+   a **sequência PNG**, que tem alpha de verdade.
+2. **Três escudos** — Criseúma, D Boa e Jumentus — são desenho claro sobre fundo
+   claro, e o build não consegue tirar o fundo sem comer o escudo junto. Se
+   quiserem transparência neles, subam o PNG já recortado.
 
-- **Nomes dos times por temporada.** Usei o que estava na planilha: Chelsea×PSG
-  (2020 e 2021), Liverpool×Borussia (2022), Boca×City (2023), Branco×Preto (2024),
-  Milan Be×Jumentus (2025), Dentro FC×Ferroviagra (2026).
-- **Cores de cada time.** Deduzidas do nome. São elas que desenham o escudo no site.
-- **Estádio.** Onde faltava, coloquei Paula Ramos.
-- **Quem é goleiro.** Marquei GOL em quem tinha "GK" no apelido.
-
----
-
-## Como aplicar as correções
-
-Edite `dados/COPA_REVOADA_planilha.xlsx` e rode:
-
-```bash
-python3 scripts/build.py
-```
-
-O script reclama do que ainda estiver inconsistente. Quando o `git push` acontecer,
-o site republica sozinho.
+Fora esses casos, o Estúdio já gera tudo **sem nenhum verde dentro da arte**
+quando o fundo verde está ligado — inclusive trocando a cor do Dentro FC, que é
+verde, por um azul de brilho equivalente.

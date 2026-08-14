@@ -24,6 +24,11 @@ jobs:
           python-version: '3.12'
       - run: pip install openpyxl pillow 'opencv-python-headless<5'
       - name: Gerar index.html a partir da planilha
+        # Se a variável PLANILHA_URL existir no repositório, o build usa a
+        # planilha do Google Sheets. Sem ela, usa o .xlsx versionado.
+        # Settings > Secrets and variables > Actions > Variables > New variable
+        env:
+          PLANILHA_URL: ${{ vars.PLANILHA_URL }}
         run: python3 scripts/build.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
