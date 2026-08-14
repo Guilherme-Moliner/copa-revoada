@@ -404,17 +404,30 @@ section+section{margin-top:3rem}
                 <option value="fim">Fim de jogo</option>
                 <option value="intervalo">Fim do 1º tempo</option>
                 <option value="escalacao">Escalação do time</option>
+                <option value="formacao">Formação no campo</option>
                 <option value="sub">Substituição</option>
+              </optgroup>
+              <optgroup label="Equipe">
+                <option value="arbitragem">Arbitragem</option>
+                <option value="varsala">Sala do VAR / Transmissão</option>
               </optgroup>
               <optgroup label="Outros">
                 <option value="replay">Replay</option>
                 <option value="stat">Ficha do jogador</option>
               </optgroup>
             </select></div>
-          <div class="field" data-for="gol golaco sub stat cartao falta var penalti artilheiro"><label for="f-p1" id="l-p1">Jogador</label><select id="f-p1"></select></div>
+          <div class="field" data-for="gol golaco sub stat cartao falta var penalti artilheiro batedor historico"><label for="f-p1" id="l-p1">Jogador</label><select id="f-p1"></select></div>
           <div class="field" data-for="sub falta"><label for="f-p2" id="l-p2">Sai</label><select id="f-p2"></select></div>
           <div class="field" data-for="gol golaco cartao falta var penalti fim"><label for="f-min">Minuto</label><input id="f-min" value="27'"></div>
-          <div class="field" data-for="gol golaco cartao sub replay escalacao falta var penalti placar fim artilheiro"><label for="f-time">Time</label><select id="f-time"></select></div>
+          <div class="field" data-for="gol golaco cartao sub replay escalacao falta var penalti placar fim artilheiro batedor historico penaltis intervalo formacao"><label for="f-time">Time</label><select id="f-time"></select></div>
+          <div class="field" data-for="escalacao formacao"><label for="f-unif">Uniforme do dia</label>
+            <select id="f-unif"><option value="branco">Branco</option><option value="preto">Preto</option></select></div>
+          <div class="field" data-for="escalacao"><label for="f-layout">Formato</label>
+            <select id="f-layout"><option value="painel">Painel lateral</option>
+              <option value="rodape">Rodapé</option></select></div>
+          <div class="field" data-for="formacao"><label for="f-form">Formação</label>
+            <select id="f-form"><option>3-1-2</option><option>3-2-1</option>
+              <option selected>2-2-2</option><option>2-1-3</option><option>2-3-1</option></select></div>
           <div class="field" data-for="placar fim"><label for="f-time2">Adversário</label><select id="f-time2"></select></div>
           <div class="field" data-for="placar fim"><label for="f-ga">Placar — casa × fora</label>
             <div style="display:flex;gap:.4rem"><input id="f-ga" type="number" min="0" value="0" style="width:50%">
@@ -441,6 +454,14 @@ section+section{margin-top:3rem}
             <input id="f-hist" value="3 de 4 convertidos"></div>
           <div class="field" data-for="intervalo"><label for="f-txt">Mensagem</label>
             <textarea id="f-txt" rows="3">Time da casa cresceu no fim do tempo e criou as melhores chances.</textarea></div>
+          <div class="field" data-for="arbitragem"><label for="f-arb">Arbitragem — um por linha: <i>Função · Nome</i></label>
+            <textarea id="f-arb" rows="5">Árbitro · Fulano
+Assistente · Ciclano
+Assistente · Beltrano
+Quarto árbitro · Zutano</textarea></div>
+          <div class="field" data-for="varsala"><label for="f-var2">Sala do VAR — no máximo dois, um por linha</label>
+            <textarea id="f-var2" rows="3">Árbitro de vídeo · Fulano
+Assistente de VAR · Ciclano</textarea></div>
           <div class="field" data-for="replay"><label for="f-hyper">Estilo</label>
             <select id="f-hyper"><option value="limpo">Limpo</option>
               <option value="hyper">Hyper motion — com dados do lance</option></select></div>
@@ -448,6 +469,9 @@ section+section{margin-top:3rem}
             <div style="display:flex;gap:.4rem"><input id="f-dist" type="number" min="1" max="60" step="0.1" value="22.7" style="width:50%">
             <input id="f-xg" type="number" min="0" max="1" step="0.01" value="0.24" style="width:50%"></div></div>
           <div class="field"><label for="f-dur">Duração da animação (s)</label><input id="f-dur" type="number" min="1" max="8" step="0.5" value="3"></div>
+          <div class="field"><label for="f-fps">Quadros por segundo da sequência</label>
+            <select id="f-fps"><option value="60">60 fps — igual ao seu vídeo</option>
+              <option value="30">30 fps — metade dos arquivos</option></select></div>
         </div>
         <div>
           <div class="stage" id="stage"><canvas id="cv" width="1920" height="1080"></canvas></div>
@@ -460,7 +484,7 @@ section+section{margin-top:3rem}
             <span id="prog" style="margin-left:auto"></span>
           </div>
           <p class="hint">
-            <b>Sequência PNG</b> é o caminho bom: alpha de verdade, 30 fps. No DaVinci, importa a pasta como <i>image sequence</i> e arrasta pra trilha de cima — sem key, sem retrabalho.<br>
+            <b>Sequência PNG</b> é o caminho bom: alpha de verdade. Escolha o mesmo fps do seu projeto — em 60 fps entra direto, sem reinterpretar. No DaVinci, importa a pasta como <i>image sequence</i> e arrasta pra trilha de cima — sem key, sem retrabalho.<br>
             <b>WebM verde</b> é o atalho: um arquivo só, mas você tem que tirar o verde no Chroma Key.<br>
             Com fotos de jogador, use o site publicado. Aberto direto do arquivo o navegador bloqueia a exportação.
           </p>
@@ -737,23 +761,36 @@ const TROFEU_ART = {
     <circle cx="24" cy="16" r="1.5" fill="${C[1]}" opacity=".5"/>
     <circle cx="36" cy="16" r="1.5" fill="${C[1]}" opacity=".5"/>
     <circle cx="30" cy="29" r="1.5" fill="${C[1]}" opacity=".5"/>`,
-  /* chuteira de ouro — artilheiro */
+  /* chuteira de ouro — artilheiro. Silhueta de perfil, bico à esquerda:
+     cano, cadarço, três listras, solado e travas. */
   chuteira: (g,C)=>`
-    <path d="M9 30c0-5 1.5-9 4-13 2-3 5-4 8-3l3 6 6 1 12 4c4 1.4 6 3.4 6 6v3c0 1.4-1 2.4-2.4 2.4H11.4
-      C10 36.4 9 35.4 9 34z" fill="url(#${g})" stroke="${C[1]}" stroke-width="1"/>
-    <path d="M12 36.4h34" stroke="${C[1]}" stroke-width="2.4"/>
-    <circle cx="16" cy="39" r="1.4" fill="${C[1]}"/><circle cx="24" cy="39" r="1.4" fill="${C[1]}"/>
-    <circle cx="32" cy="39" r="1.4" fill="${C[1]}"/><circle cx="40" cy="39" r="1.4" fill="${C[1]}"/>
-    <path d="M22 20l4 8M27 22l4 7M32 25l3.5 5" stroke="${C[1]}" stroke-width="1" opacity=".55"/>`,
-  /* goleiro pulando — paredão */
+    <path d="M6 33c0-3.6 1.6-6.4 4.8-8L24 18.6c3.2-1.6 5.6-4 7.2-7.2l1.6-3.2
+      c.8-1.6 2.4-2 4-1.2l9.6 5.6c1.6 .8 2 2.4 1.2 4l-3.2 6.4c-1.6 3.2-2 6.4-1.2 9.6
+      .4 1.6-.8 3.2-2.4 3.2H8.4C7 35.8 6 34.8 6 33.4z"
+      fill="url(#${g})" stroke="${C[1]}" stroke-width="1.3" stroke-linejoin="round"/>
+    <path d="M36.4 8.6l9.6 5.6" stroke="${C[1]}" stroke-width="1.3" opacity=".8"/>
+    <path d="M17 25.6l3.6 6M22.6 22.8l3.6 6M28.2 19.6l3.6 6"
+      stroke="${C[1]}" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M13 30.6l2.6 4.4M17.6 28.4l3 4.6M22.2 26l3.2 4.6"
+      stroke="${C[0]}" stroke-width="1.6" stroke-linecap="round" opacity=".85"/>
+    <path d="M6.6 35.8h39" stroke="${C[1]}" stroke-width="3" stroke-linecap="round"/>
+    <path d="M10 37.6v2.6M18 37.6v2.6M27 37.6v2.6M36 37.6v2.6M43 37.6v2.6"
+      stroke="${C[1]}" stroke-width="2.4" stroke-linecap="round"/>`,
+  /* goleiro de ouro — paredão. De pé, saltando com os dois braços erguidos
+     segurando a bola no alto, uma perna esticada. */
   goleiro: (g,C)=>`
-    <circle cx="41" cy="10" r="5" fill="url(#${g})"/>
-    <path d="M36 15c-4 1-9 4-13 8l-9 8c-1.4 1.3-1.3 3 .2 4 1.3.9 2.9.6 3.9-.6l7.5-8
-      3.5-2.6 1.4 7.6c.3 1.7 1.9 2.7 3.5 2.3 1.6-.4 2.5-2 2.1-3.6l-2-9.6 4.4-2.2
-      c1.8-.9 2.4-3 1.3-4.6-.9-1.3-2.6-1.7-3.8-1z" fill="url(#${g})"/>
-    <path d="M12 26l-5-3" stroke="${C[1]}" stroke-width="3" stroke-linecap="round"/>
-    <circle cx="10" cy="14" r="5.5" fill="none" stroke="${C[1]}" stroke-width="1.6"/>
-    <path d="M6.5 10.5l7 7M13.5 10.5l-7 7" stroke="${C[1]}" stroke-width=".9" opacity=".6"/>`,
+    <circle cx="34" cy="9.5" r="6.4" fill="url(#${g})" stroke="${C[1]}" stroke-width=".9"/>
+    <path d="M31.4 5.2l2.6-2 2.6 2-1 3.2h-3.2z" fill="${C[1]}" opacity=".45"/>
+    <circle cx="27" cy="17" r="4.4" fill="url(#${g})"/>
+    <path d="M27 21c-3.4 0-5.6 2-6.2 5l-1 5.4c-.3 1.6.8 3 2.4 3.1 1.5.1 2.7-1 2.9-2.4l.5-2.6
+      v6.6c0 1.3 1 2.3 2.3 2.3h2.6c1.3 0 2.3-1 2.3-2.3v-6.6"
+      fill="url(#${g})"/>
+    <path d="M22.6 22.4C19 19.6 22.4 13.6 27.4 12.4M31.6 22.4c3.6-2.8 1.4-8.4-2.6-9.6"
+      fill="none" stroke="url(#${g})" stroke-width="3.6" stroke-linecap="round"/>
+    <path d="M33 34.6l7.6 3.4" stroke="url(#${g})" stroke-width="3.6" stroke-linecap="round"/>
+    <path d="M41 37.6l4 1.6" stroke="${C[1]}" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M22 32l-6.4 5" stroke="url(#${g})" stroke-width="3.4" stroke-linecap="round"/>
+    <path d="M16 36.6l-4 2.6" stroke="${C[1]}" stroke-width="2.4" stroke-linecap="round"/>`,
   /* lutador — campeão do dia */
   lutador: (g,C)=>`
     <circle cx="30" cy="9" r="5.2" fill="url(#${g})"/>
@@ -1139,20 +1176,57 @@ document.addEventListener('click', e=>{
 renderRec();
 
 /* ================= VÍDEOS ================= */
+let anoVideo = 'todas';
 function renderVideos(){
-  const comV=jogos.filter(g=>g.video), semV=jogos.filter(g=>!g.video);
+  const daTemp = anoVideo==='todas' ? jogos : jogos.filter(g=>g.temporada===+anoVideo);
+  const comV=daTemp.filter(g=>g.video), semV=daTemp.filter(g=>!g.video);
   $('#videos').innerHTML = `
-  <div class="ratio" style="margin-bottom:1.3rem">
-    <iframe src="https://www.youtube.com/embed/videoseries?list=${PLAYLIST}&rel=0" allowfullscreen title="Playlist da Copa Revoada"></iframe></div>
-  <div class="stage-bar" style="margin:0 0 2rem">
-    <a class="btn primary" target="_blank" rel="noopener" href="https://youtube.com/playlist?list=${PLAYLIST}">Abrir playlist</a>
-    <a class="btn" target="_blank" rel="noopener" href="${INSTAGRAM}">Instagram @coparevoada</a>
+  <div class="rail" style="margin-bottom:1rem">
+    <button class="chip" data-ano="todas" aria-pressed="${anoVideo==='todas'}">Todas</button>
+    ${temporadas.slice().sort((a,b)=>b-a).map(y=>{
+      const n = jogos.filter(g=>g.temporada===y).length;
+      return `<button class="chip" data-ano="${y}" aria-pressed="${anoVideo==String(y)}">${y}
+        <span style="opacity:.6">· ${n}</span></button>`;}).join('')}
   </div>
-  <section><div class="sec-head"><h2>Jogo a jogo</h2><span class="eyebrow">${comV.length} de ${jogos.length} com vídeo</span></div>
-    ${jogos.slice().reverse().map(matchHTML).join('')}
-    ${semV.length?`<div class="card empty" style="margin-top:.8rem">Faltam ${semV.length} vídeos. Cole o ID do YouTube na coluna <b>video_youtube</b> da aba JOGOS.</div>`:''}
+  <div class="stage-bar" style="margin:0 0 1.6rem">
+    <a class="btn primary" target="_blank" rel="noopener" href="https://youtube.com/playlist?list=${PLAYLIST}">▶ Abrir playlist da copa</a>
+    <a class="btn" target="_blank" rel="noopener" href="${INSTAGRAM}">Instagram @coparevoada</a>
+    <span class="key" style="margin-left:auto">${comV.length} de ${daTemp.length} com vídeo</span>
+  </div>
+  <section>
+    <div class="sec-head"><h2>${anoVideo==='todas'?'Jogo a jogo':'Temporada '+anoVideo}</h2></div>
+    ${daTemp.length ? `<div class="grid g3" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr))">
+      ${daTemp.slice().reverse().map(g=>{
+        const a=tById[g.casa]||{nome:g.casa}, b=tById[g.fora]||{nome:g.fora};
+        return `<div class="card" style="padding:0;overflow:hidden">
+          ${g.video
+            ? `<div class="ratio" style="border-radius:0;border:0;border-bottom:1px solid var(--line)">
+                 <iframe src="https://www.youtube.com/embed/${g.video}?rel=0" allowfullscreen
+                   title="${a.nome} x ${b.nome}"></iframe></div>`
+            : `<div class="ratio" style="border-radius:0;border:0;border-bottom:1px solid var(--line);
+                 display:grid;place-items:center;background:var(--panel2)">
+                 <span class="eyebrow" style="color:var(--dim)">sem vídeo ainda</span></div>`}
+          <div style="padding:.85rem 1rem">
+            <div style="display:flex;align-items:center;gap:.6rem">
+              <span style="flex:none">${escudoHTML(a,30)}</span>
+              <b style="font-family:'Barlow Condensed',sans-serif;font-size:1.35rem">
+                <span class="${g.gc>g.gf?'':''}" style="color:${g.gc>g.gf?'var(--gold)':'inherit'}">${g.gc}</span>
+                <span style="color:var(--dim)">×</span>
+                <span style="color:${g.gf>g.gc?'var(--gold)':'inherit'}">${g.gf}</span></b>
+              <span style="flex:none">${escudoHTML(b,30)}</span>
+              <span class="eyebrow" style="margin-left:auto">${g.mes}</span>
+            </div>
+            <p style="margin:.5rem 0 0;font-size:.86rem;color:var(--dim)">
+              ${a.nome} × ${b.nome} · ${g.estadio||'—'}</p>
+          </div></div>`;}).join('')}</div>`
+      : '<div class="card empty">Nenhum jogo nesta temporada.</div>'}
+    ${semV.length?`<div class="card empty" style="margin-top:.9rem">Faltam ${semV.length} vídeo${semV.length>1?'s':''} nesta seleção. Cole o ID do YouTube na coluna <b>video_youtube</b> da aba JOGOS.</div>`:''}
   </section>`;
 }
+document.addEventListener('click', e=>{
+  const a=e.target.closest('[data-ano]');
+  if(a){ anoVideo=a.dataset.ano; renderVideos(); blip(600,.04); }
+});
 renderVideos();
 
 /* ================= ESTÚDIO ================= */
@@ -1161,6 +1235,8 @@ const F = {tipo:$('#f-tipo'),p1:$('#f-p1'),p2:$('#f-p2'),min:$('#f-min'),time:$(
            time2:$('#f-time2'),ga:$('#f-ga'),gb:$('#f-gb'),vard:$('#f-vard'),
            pa:$('#f-pa'),pb:$('#f-pb'),hist:$('#f-hist'),txt:$('#f-txt'),
            hyper:$('#f-hyper'),dist:$('#f-dist'),xg:$('#f-xg'),
+           unif:$('#f-unif'),layout:$('#f-layout'),form:$('#f-form'),
+           arb:$('#f-arb'),var2:$('#f-var2'),fps:$('#f-fps'),
            cor:$('#f-cor'),s1:$('#f-s1'),s2:$('#f-s2'),rtxt:$('#f-rtxt'),esc:$('#f-esc'),dur:$('#f-dur')};
 [F.p1,F.p2].forEach((s,i)=>{ s.innerHTML = jog.map(p=>`<option value="${p.id}">${p.apelido}</option>`).join(''); s.selectedIndex=i; });
 
@@ -1248,6 +1324,9 @@ function draw(k){
   if(t==='penaltis'){ drawPenaltis(T,timeAdv(),k); return; }
   if(t==='batedor'){ drawBatedor(p1,T,k); return; }
   if(t==='intervalo'){ drawIntervalo(T,timeAdv(),k); return; }
+  if(t==='formacao'){ drawFormacao(T,k); return; }
+  if(t==='arbitragem'){ drawArbitragem(k); return; }
+  if(t==='varsala'){ drawVarSala(k); return; }
   ctx.save();
   ctx.globalAlpha = Math.min(1, k*1.6);
   ctx.translate((1-ease(k))*-260, 0);
@@ -1463,6 +1542,7 @@ function parseEsc(){
    o resto é banco. A arte se ajusta ao tamanho real do elenco. */
 const TITULARES = 7;
 function drawEscalacao(T,k){
+  if(F.layout.value==='rodape') return drawEscalacaoRodape(T,k);
   const lista=parseEsc(); if(!lista.length) return;
   const banco = Math.max(0, lista.length - TITULARES);
   const x=120,y=130,w=860;
@@ -1478,10 +1558,15 @@ function drawEscalacao(T,k){
   ctx.moveTo(x+w-220,y); ctx.lineTo(x+w,y); ctx.lineTo(x+w,y+headH); ctx.lineTo(x+w-300,y+headH); ctx.closePath(); ctx.fill();
   ctx.restore();
   const cont = luz(T.c1)?'#0B0B0B':'#F4F1E6';
-  txt(T.nome.toUpperCase(),x+30,y+62,54,cont,'blk');
-  txt(String(T.temporada),x+w-126,y+60,42,cont,'cond',4);
+  const u = unifAtual();
+  crestCv(T, x+58, y+headH/2, 72);
+  txt(T.nome.toUpperCase(),x+108,y+62,54,cont,'blk');
+  camisaCv(x+w-190, y+18, 54, u);
+  txt(String(T.temporada),x+w-118,y+60,42,cont,'cond',4);
   ctx.restore();
-  const inicio=.12, passo=(1-inicio-.10)/lista.length;
+  /* o último jogador entra exatamente em k=1; a sobra de um segundo vem da
+     curva kAtSeq, que segura em 1 no fim da animação */
+  const inicio=.12, passo=(1-inicio)/lista.length;
   lista.forEach((it,i)=>{
     const ki=clamp01((k-(inicio+i*passo))/Math.max(passo,.001));
     if(ki<=0) return;
@@ -1491,7 +1576,7 @@ function drawEscalacao(T,k){
     if(reserva) ctx.globalAlpha*=.82;
     ctx.fillStyle = i%2 ? 'rgba(255,255,255,.03)' : 'rgba(255,255,255,.07)';
     ctx.fillRect(x+14,yy+3,w-28,rowH-6);
-    ctx.fillStyle=reserva?'#8A9A8C':T.c1; ctx.fillRect(x+14,yy+3,6,rowH-6);
+    ctx.fillStyle=reserva?'#8A9A8C':u.camisa; ctx.fillRect(x+14,yy+3,6,rowH-6);
     // número: o da camisa quando cadastrado, senão a ordem da lista
     const num = (it.p && it.p.numero) ? it.p.numero : i+1;
     txt(String(num),x+38,yy+rowH*.68,Math.round(rowH*.5),'#F2B01E','cond');
@@ -1518,6 +1603,218 @@ function drawEscalacao(T,k){
   }
   ctx.save(); ctx.globalAlpha=clamp01((k-.5)/.3); marca(x+w+50,y,150); ctx.restore();
 }
+
+/* ---- escalação em rodapé, tira gigante embaixo ---- */
+function drawEscalacaoRodape(T,k){
+  const lista=parseEsc().slice(0,TITULARES+3); if(!lista.length) return;
+  const u=unifAtual();
+  const h=300, y=1080-h, x=0, w=1920;
+  ctx.save(); ctx.globalAlpha=Math.min(1,k*2.4);
+  ctx.translate(0,(1-ease(clamp01(k*1.4)))*(h+30));
+  sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.95)'; ctx.fillRect(x,y,w,h); });
+  ctx.fillStyle=u.camisa; ctx.fillRect(x,y,w,8);
+  // bloco do time, à esquerda
+  ctx.fillStyle='rgba(255,255,255,.05)'; ctx.fillRect(x,y+8,300,h-8);
+  crestCv(T, 110, y+96, 108);
+  ctx.textAlign='center';
+  txt(T.nome.toUpperCase(), 110, y+180, 34, '#F4F1E6','blk');
+  txt(String(T.temporada), 110, y+214, 24, '#8A9A8C','cond',6);
+  camisaCv(232, y+40, 46, u);
+  ctx.textAlign='left';
+  // jogadores lado a lado
+  const n=lista.length, col=(w-340)/n;
+  lista.forEach((it,i)=>{
+    const ki=clamp01((k-.12-i*((1-.12)/n))/Math.max((1-.12)/n,.001));
+    if(ki<=0) return;
+    const cx=320+col*i+col/2;
+    ctx.save(); ctx.globalAlpha=Math.min(1,ki*1.8);
+    ctx.translate(0,(1-ease(ki))*30);
+    const r=Math.min(56, col*.34);
+    ctx.save(); ctx.beginPath(); ctx.arc(cx,y+96,r,0,7); ctx.clip();
+    const im=it.p && foto(it.p);
+    if(im) ctx.drawImage(im,cx-r,y+96-r,r*2,r*2);
+    else { ctx.fillStyle='#16241B'; ctx.fillRect(cx-r,y+96-r,r*2,r*2);
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      txt(it.p?ini(it.p):'?',cx,y+96,34,'#F2B01E','blk');
+      ctx.textAlign='left'; ctx.textBaseline='alphabetic'; }
+    ctx.restore();
+    ctx.strokeStyle=u.camisa; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.arc(cx,y+96,r,0,7); ctx.stroke();
+    ctx.textAlign='center';
+    const nm=(it.p&&it.p.numero)?it.p.numero:i+1;
+    txt(String(nm), cx, y+188, 34, '#F2B01E','blk');
+    txt(it.nome.toUpperCase(), cx, y+226, 26, '#F4F1E6','cond',2);
+    txt(it.pos||'—', cx, y+256, 20, '#8A9A8C','cond',4);
+    if(i>=TITULARES) txt('BANCO', cx, y+282, 18, '#6B7A6E','cond',6);
+    ctx.textAlign='left';
+    ctx.restore();
+  });
+  ctx.save(); ctx.globalAlpha=clamp01((k-.5)/.3); marca(w-130, y+20, 100); ctx.restore();
+  ctx.restore();
+}
+
+/* ---- uniforme do dia ---- */
+const UNIF = {
+  branco: {nome:'BRANCO', camisa:'#F4F1E6', tinta:'#12140F', linha:'#C9C4B2'},
+  preto:  {nome:'PRETO',  camisa:'#17181A', tinta:'#F4F1E6', linha:'#4A4E52'},
+};
+function unifAtual(){ return UNIF[F.unif.value] || UNIF.branco; }
+function camisaCv(x,y,w,u){
+  const h=w*1.02;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(x+w*.30,y); ctx.lineTo(x+w*.70,y);
+  ctx.lineTo(x+w,y+h*.22); ctx.lineTo(x+w*.82,y+h*.40);
+  ctx.lineTo(x+w*.82,y+h); ctx.lineTo(x+w*.18,y+h);
+  ctx.lineTo(x+w*.18,y+h*.40); ctx.lineTo(x,y+h*.22); ctx.closePath();
+  ctx.fillStyle=u.camisa; ctx.fill();
+  ctx.strokeStyle=u.linha; ctx.lineWidth=Math.max(1.5,w*.045); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x+w*.30,y);
+  ctx.quadraticCurveTo(x+w*.5,y+h*.16,x+w*.70,y); ctx.stroke();
+  ctx.restore();
+}
+
+/* ---- escudo do time no canvas: usa o arquivo quando existe ---- */
+const escudosCv = {};
+function escudoImg(t){
+  if(!t || !t.escudo) return null;
+  if(!escudosCv[t.id]){ const im=new Image(); im.src=t.escudo; escudosCv[t.id]=im; }
+  const im=escudosCv[t.id];
+  return im.complete && im.naturalWidth ? im : null;
+}
+function crestCv(t,cx,cy,w){
+  const im = escudoImg(t);
+  if(im){
+    const h = w*im.naturalHeight/im.naturalWidth;
+    ctx.drawImage(im, cx-w/2, cy-h/2, w, h);
+  } else escudoCv(t,cx,cy,w);
+}
+
+/* ---- formação no campo, com foto ---- */
+const FORMACOES = {
+  '3-1-2':[3,1,2], '3-2-1':[3,2,1], '2-2-2':[2,2,2], '2-1-3':[2,1,3], '2-3-1':[2,3,1],
+};
+function drawFormacao(T,k){
+  const lista = parseEsc().slice(0,7);
+  if(!lista.length) return;
+  const u = unifAtual();
+  const nome = F.form.value, linhas = FORMACOES[nome] || FORMACOES['2-2-2'];
+  const gk = lista.find(it=>it.pos==='GOL') || lista[0];
+  const resto = lista.filter(it=>it!==gk);
+
+  // campo
+  const cw=760, ch=940, cx=(1920-cw)/2, cy=70;
+  ctx.save(); ctx.globalAlpha=Math.min(1,k*2.2);
+  sombra(()=>{ const g=ctx.createLinearGradient(0,cy,0,cy+ch);
+    g.addColorStop(0,'#127A38'); g.addColorStop(1,'#0A5324');
+    ctx.fillStyle=g; rr(cx,cy,cw,ch,14); ctx.fill(); });
+  ctx.save(); rr(cx,cy,cw,ch,14); ctx.clip();
+  for(let i=0;i<10;i++){ if(i%2){ ctx.fillStyle='rgba(255,255,255,.035)';
+    ctx.fillRect(cx,cy+i*ch/10,cw,ch/10); } }
+  ctx.restore();
+  ctx.strokeStyle='rgba(255,255,255,.45)'; ctx.lineWidth=3;
+  rr(cx+14,cy+14,cw-28,ch-28,8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx+14,cy+ch/2); ctx.lineTo(cx+cw-14,cy+ch/2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx+cw/2,cy+ch/2,86,0,7); ctx.stroke();
+  ctx.strokeRect(cx+cw/2-150,cy+ch-14-120,300,120);
+  ctx.strokeRect(cx+cw/2-150,cy+14,300,120);
+  ctx.restore();
+
+  // posições: goleiro embaixo, depois cada faixa
+  const pontos=[{it:gk, x:cx+cw/2, y:cy+ch-110}];
+  const faixas=[cy+ch*.66, cy+ch*.44, cy+ch*.20];
+  let i=0;
+  linhas.forEach((qtd,fi)=>{
+    for(let j=0;j<qtd;j++){
+      const it=resto[i++]; if(!it) continue;
+      const px = qtd===1 ? cx+cw/2 : cx+130+j*((cw-260)/(qtd-1));
+      pontos.push({it, x:px, y:faixas[fi]});
+    }
+  });
+
+  pontos.forEach((o,idx)=>{
+    const ki=clamp01((k-.1-idx*.085)/.3);
+    if(ki<=0) return;
+    ctx.save(); ctx.globalAlpha=Math.min(1,ki*1.6);
+    ctx.translate(0,(1-ease(ki))*26);
+    const r=56;
+    // foto redonda
+    ctx.save();
+    ctx.beginPath(); ctx.arc(o.x,o.y,r,0,7); ctx.clip();
+    const im = o.it.p && foto(o.it.p);
+    if(im) ctx.drawImage(im,o.x-r,o.y-r,r*2,r*2);
+    else { ctx.fillStyle='#16241B'; ctx.fillRect(o.x-r,o.y-r,r*2,r*2);
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      txt(o.it.p?ini(o.it.p):'?',o.x,o.y,40,'#F2B01E','blk');
+      ctx.textAlign='left'; ctx.textBaseline='alphabetic'; }
+    ctx.restore();
+    ctx.strokeStyle=u.camisa; ctx.lineWidth=5;
+    ctx.beginPath(); ctx.arc(o.x,o.y,r,0,7); ctx.stroke();
+    // número no canto
+    const nm = (o.it.p && o.it.p.numero) ? o.it.p.numero : idx+1;
+    ctx.fillStyle=u.camisa; ctx.beginPath(); ctx.arc(o.x+r*.78,o.y-r*.78,20,0,7); ctx.fill();
+    ctx.textAlign='center';
+    txt(String(nm),o.x+r*.78,o.y-r*.78+9,26,u.tinta,'blk');
+    // nome embaixo
+    ctx.fillStyle='rgba(8,12,10,.85)';
+    const larg=Math.max(120,o.it.nome.length*15);
+    rr(o.x-larg/2,o.y+r+8,larg,34,6); ctx.fill();
+    txt(o.it.nome.toUpperCase(),o.x,o.y+r+32,26,'#F4F1E6','cond',2);
+    ctx.textAlign='left';
+    ctx.restore();
+  });
+
+  // painel lateral com escudo, formação e uniforme
+  const px=cx+cw+40, py=cy+40;
+  ctx.save(); ctx.globalAlpha=clamp01((k-.05)/.25);
+  crestCv(T, px+90, py+90, 160);
+  ctx.textAlign='center';
+  txt(T.nome.toUpperCase(), px+90, py+220, 44, '#F4F1E6','blk');
+  txt(nome, px+90, py+300, 72, '#F2B01E','blk');
+  txt('FORMAÇÃO', px+90, py+336, 24, '#8A9A8C','cond',10);
+  camisaCv(px+40, py+380, 100, u);
+  txt('UNIFORME '+u.nome, px+90, py+520, 24, '#8A9A8C','cond',8);
+  ctx.textAlign='left';
+  ctx.restore();
+  ctx.save(); ctx.globalAlpha=clamp01((k-.4)/.3); marca(px+20, py+580, 140); ctx.restore();
+}
+
+/* ---- arbitragem e sala do VAR ---- */
+function paresDe(texto, limite){
+  return (texto||'').split('\n').map(l=>l.trim()).filter(Boolean).slice(0,limite)
+    .map(l=>{ const p=l.split('·'); return p.length>1
+      ? {func:p[0].trim(), nome:p.slice(1).join('·').trim()}
+      : {func:'', nome:l}; });
+}
+function drawEquipe(titulo, itens, k, corTopo){
+  const w=1020, linhaH=96, h=150+itens.length*linhaH+40;
+  const x=(1920-w)/2, y=(1080-h)/2;
+  ctx.save(); ctx.globalAlpha=Math.min(1,k*2);
+  const esc=.93+ease(Math.min(1,k*1.6))*.07;
+  ctx.translate(960,y+h/2); ctx.scale(esc,esc); ctx.translate(-960,-(y+h/2));
+  sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.96)'; rr(x,y,w,h,20); ctx.fill(); });
+  ctx.strokeStyle=corTopo; ctx.lineWidth=4; rr(x,y,w,h,20); ctx.stroke();
+  ctx.fillStyle=corTopo; rr(x,y,w,96,20); ctx.fill(); ctx.fillRect(x,y+60,w,36);
+  ctx.textAlign='center';
+  txt(titulo, 960, y+64, 50, '#08120C','cond',14);
+  ctx.textAlign='left';
+  itens.forEach((it,i)=>{
+    const ki=clamp01((k-.25-i*.12)/.3);
+    if(ki<=0) return;
+    const yy=y+130+i*linhaH;
+    ctx.save(); ctx.globalAlpha=Math.min(1,ki*1.8);
+    ctx.translate((1-ease(ki))*-60,0);
+    ctx.fillStyle='rgba(255,255,255,.05)'; rr(x+34,yy,w-68,linhaH-16,10); ctx.fill();
+    ctx.fillStyle=corTopo; rr(x+34,yy,6,linhaH-16,3); ctx.fill();
+    if(it.func) txt(it.func.toUpperCase(), x+66, yy+32, 24, '#8A9A8C','cond',8);
+    txt(it.nome.toUpperCase(), x+66, yy+70, 44, '#F4F1E6','blk');
+    ctx.restore();
+  });
+  marca(x+w-130, y+h-116, 100);
+  ctx.restore();
+}
+function drawArbitragem(k){ drawEquipe('ARBITRAGEM', paresDe(F.arb.value, 6), k, '#2BE07A'); }
+function drawVarSala(k){ drawEquipe('SALA DO VAR', paresDe(F.var2.value, 2), k, '#F2B01E'); }
 
 /* ---- escudo no canvas (mesma silhueta do crestSVG da tela de times) ---- */
 function escudoCv(t,cx,cy,w){
@@ -1825,8 +2122,16 @@ function kAt(prog){
   return 1;
 }
 
-function kAtSeq(prog){ return prog>.88 ? 1-(prog-.88)/.12 : Math.min(1,prog/.88); }
-function curva(prog){ return F.tipo.value==='escalacao' ? kAtSeq(prog) : kAt(prog); }
+/* escalação e formação: revela até sobrar 1 segundo, depois segura parado —
+   dá tempo de ler o último nome antes do corte */
+function kAtSeq(prog){
+  const dur = Math.max(1.5, +F.dur.value||3);
+  const fim = Math.max(.35, 1 - 1/dur);
+  return prog < fim ? prog/fim : 1;
+}
+function curva(prog){
+  return ['escalacao','formacao'].includes(F.tipo.value) ? kAtSeq(prog) : kAt(prog);
+}
 
 function syncFields(){
   const t = F.tipo.value;
@@ -1884,7 +2189,7 @@ function zip(files){
   return new Blob([...chunks,...dir,new Uint8Array(end.buffer)],{type:'application/zip'});
 }
 $('#dl-seq').onclick = async ()=>{
-  const fps=30, total=Math.max(2,Math.round((+F.dur.value||3)*fps)), files=[];
+  const fps=+F.fps.value||30, total=Math.max(2,Math.round((+F.dur.value||3)*fps)), files=[];
   $('#prog').textContent='gerando 0%';
   for(let i=0;i<total;i++){
     draw(curva(i/(total-1)));

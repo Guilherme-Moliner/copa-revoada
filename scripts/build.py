@@ -77,12 +77,17 @@ ESCUDO_TIME = {
 FOTO_TIME = {
     "borusseta": "borussia22",
     "citifodo": "city23",
+    "criseuma": "preto24",       # Criseúma FC é o time preto de 2024
+    "dboafc": "branco24",        # D Boa FC é o time branco de 2024
     "dentofc2026": "dentro26",
     "ferroviagra2026": "ferroviagra26",
     "jumentos": "jumentus25",
     "liverpool": "liverpool22",
     "milanb": "milanbe25",
 }
+# Lançamento errado na planilha antiga: fica lá para conferência, mas não entra
+# no site nem conta estatística. Tirar daqui devolve a pessoa ao ar.
+EXCLUIR_DO_SITE = {"derek"}
 # Não são foto de jogador nem de time; ficam de fora do site até alguém dizer
 # o que são. Listados aqui só para não aparecerem como "arquivo sem uso".
 IGNORAR_ASSET = {"logo", "logo-azul", "logo-branco"}
@@ -298,7 +303,7 @@ def main():
     jogadores = []
     for r in linhas(ws, acha_cabecalho(ws, "id")):
         pid = str(r.get("id") or "").strip()
-        if not pid:
+        if not pid or pid in EXCLUIR_DO_SITE:
             continue
         jogadores.append({
             "id": pid,
@@ -383,6 +388,8 @@ def main():
             if jid not in jogoIds:
                 aviso(f"ESCALACOES: jogo '{jid}' não existe na aba JOGOS")
                 continue
+            if pid in EXCLUIR_DO_SITE:
+                continue
             if pid not in porId:
                 aviso(f"ESCALACOES: jogador '{pid}' não existe na aba JOGADORES")
                 continue
@@ -415,6 +422,8 @@ def main():
                 continue
             if tid not in timeIds:
                 aviso(f"DESEMPENHO: time '{tid}' não existe na aba TIMES")
+                continue
+            if pid in EXCLUIR_DO_SITE:
                 continue
             if pid not in porId:
                 aviso(f"DESEMPENHO: jogador '{pid}' não existe na aba JOGADORES")
@@ -510,10 +519,10 @@ def main():
     # todos são de ouro: é assim que os troféus da copa existem de verdade.
     # o "modelo" diz qual arte o site desenha.
     trofeus = [
-        {"id": "campeao", "nome": "Campeão do dia", "tier": "ouro", "modelo": "lutador"},
+        {"id": "campeao", "nome": "Campeão da Temporada", "tier": "ouro", "modelo": "lutador"},
         {"id": "artilheiro", "nome": "Artilheiro", "tier": "ouro", "modelo": "chuteira"},
         {"id": "garcom", "nome": "Garçom", "tier": "ouro", "modelo": "bandeja"},
-        {"id": "craque", "nome": "Craque da copa", "tier": "ouro", "modelo": "bola"},
+        {"id": "craque", "nome": "Bola de Ouro", "tier": "ouro", "modelo": "bola"},
         {"id": "paredao", "nome": "Paredão", "tier": "ouro", "modelo": "goleiro"},
         {"id": "piroquinha", "nome": "Piroquinha", "tier": "ouro", "modelo": "piroquinha"},
     ]
@@ -523,6 +532,8 @@ def main():
         for r in linhas(ws, acha_cabecalho(ws, "temporada")):
             pid = str(r.get("jogador_id") or "").strip()
             if not pid or str(r.get("jogo_id") or "").upper().startswith("EXEMPLO"):
+                continue
+            if pid in EXCLUIR_DO_SITE:
                 continue
             if pid not in porId:
                 aviso(f"TROFEUS: jogador '{pid}' não existe na aba JOGADORES")
