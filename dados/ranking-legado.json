@@ -32,22 +32,6 @@
   "titulos": 0
  },
  {
-  "id": "bernardoc",
-  "apelido": "Bernardo C",
-  "jogos": 0,
-  "gols": 0,
-  "assist": 0,
-  "titulos": 0
- },
- {
-  "id": "bernardom",
-  "apelido": "Bernardo M",
-  "jogos": 0,
-  "gols": 0,
-  "assist": 0,
-  "titulos": 0
- },
- {
   "id": "borba",
   "apelido": "Borba",
   "jogos": 7,
@@ -142,14 +126,6 @@
   "gols": 7,
   "assist": 4,
   "titulos": 6
- },
- {
-  "id": "gordo",
-  "apelido": "Gordo",
-  "jogos": 0,
-  "gols": 0,
-  "assist": 0,
-  "titulos": 0
  },
  {
   "id": "hanon",
@@ -334,14 +310,6 @@
   "gols": 5,
   "assist": 6,
   "titulos": 5
- },
- {
-  "id": "vitim",
-  "apelido": "Vitim",
-  "jogos": 0,
-  "gols": 0,
-  "assist": 0,
-  "titulos": 0
  },
  {
   "id": "vitor",

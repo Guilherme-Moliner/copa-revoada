@@ -20,9 +20,19 @@ import re
 
 try:
     import openpyxl
-    from PIL import Image
+    from PIL import Image, ImageEnhance, ImageOps
 except ImportError:
     sys.exit("Faltam dependências. Rode:  pip install openpyxl pillow")
+
+# opencv é opcional: com ele o recorte do retrato acha o rosto; sem ele, cai no
+# enquadramento por proporção. O build funciona dos dois jeitos.
+try:
+    import cv2
+    import numpy as np
+    TEM_ROSTO = os.path.isfile(
+        os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml"))
+except ImportError:
+    TEM_ROSTO = False
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLANILHA = os.path.join(RAIZ, "dados", "COPA_REVOADA_planilha.xlsx")
@@ -51,6 +61,10 @@ AVISOS = []
 APELIDO_JOGADOR = {
     "danilin": "danilim",
     "leobittencour": "leobittencourt",
+    "be": "correa",          # Be / Be Correa / Bernardo C
+    "bemarucco": "marucco",  # Be Marucco / Bernardo M
+    "dede": "andre",         # Dedé é o André
+    "vitim": "kretzer",      # Vitim e Kretzer são a mesma pessoa
 }
 ESCUDO_TIME = {
     "borussetalogo": "borussia22",
@@ -132,17 +146,74 @@ def _destino(sub):
     return caminho
 
 
+ROSTOS_ACHADOS = []
+ROSTOS_PERDIDOS = []
+
+
+def acha_rosto(im):
+    """(centro_x, centro_y, largura, altura) do maior rosto, ou None."""
+    if not TEM_ROSTO:
+        return None
+    cinza = np.array(im.convert("L"))
+    # equalizar ajuda bastante em foto de jogo, com sol estourado ou sombra
+    cinza = cv2.equalizeHist(cinza)
+    alt, larg = cinza.shape
+    lado_menor = min(alt, larg)
+
+    def plausivel(f):
+        """Rosto de retrato fica na metade de cima e tem tamanho de rosto.
+        Sem isso, a passada mais frouxa acha 'rosto' em grama e alambrado."""
+        x, y, w, h = f
+        cy = y + h / 2
+        return (cy < alt * .72                      # não fica lá embaixo
+                and .05 < w / larg < .75            # nem minúsculo nem a foto toda
+                and .5 < w / h < 1.6)               # rosto é quase quadrado
+
+    # afrouxa aos poucos; a foto de corpo inteiro só cai nas últimas
+    for minimo, vizinhos in ((max(40, lado_menor // 8), 6),
+                             (max(28, lado_menor // 16), 5),
+                             (max(20, lado_menor // 22), 4)):
+        for arquivo in ("haarcascade_frontalface_default.xml",
+                        "haarcascade_frontalface_alt2.xml",
+                        "haarcascade_profileface.xml"):
+            cascata = cv2.CascadeClassifier(cv2.data.haarcascades + arquivo)
+            achados = [f for f in cascata.detectMultiScale(
+                cinza, scaleFactor=1.06, minNeighbors=vizinhos,
+                minSize=(minimo, minimo))if plausivel(f)]
+            if achados:
+                x, y, w, h = max(achados, key=lambda f: f[2] * f[3])
+                return x + w / 2, y + h / 2, w, h
+    return None
+
+
 def deriva_retrato(origem, nome):
-    """Recorta quadrado e grava JPEG leve. O rosto costuma estar acima do meio,
-    então o corte puxa para cima em vez de centralizar."""
+    """Recorta quadrado em cima do rosto e grava JPEG leve e tratado."""
     saida = os.path.join(_destino("jogadores"), nome + ".jpg")
     im = Image.open(origem).convert("RGB")
-    lado = min(im.size)
-    x = (im.width - lado) // 2
-    y = max(0, min(int((im.height - lado) * .18), im.height - lado))
+
+    achado = acha_rosto(im)
+    if achado:
+        cx, cy, _, fh = achado
+        # o rosto fica ocupando ~46% da altura do quadro, com ar em cima
+        lado = int(min(min(im.size), fh * 2.2))
+        x, y = int(cx - lado / 2), int(cy - lado * .42)
+        ROSTOS_ACHADOS.append(nome)
+    else:
+        lado = min(im.size)
+        x, y = (im.width - lado) // 2, int((im.height - lado) * .18)
+        ROSTOS_PERDIDOS.append(nome)
+
+    x = max(0, min(x, im.width - lado))
+    y = max(0, min(y, im.height - lado))
     im = im.crop((x, y, x + lado, y + lado))
-    im.thumbnail((420, 420), Image.LANCZOS)
-    im.save(saida, "JPEG", quality=82, optimize=True, progressive=True)
+    im = im.resize((420, 420), Image.LANCZOS)
+
+    # tratamento: nivela exposição, dá contraste e um pouco de nitidez
+    im = ImageOps.autocontrast(im, cutoff=(1, 2))
+    im = ImageEnhance.Color(im).enhance(1.08)
+    im = ImageEnhance.Sharpness(im).enhance(1.4)
+
+    im.save(saida, "JPEG", quality=86, optimize=True, progressive=True)
     return "img/jogadores/%s.jpg" % nome
 
 
@@ -436,13 +507,15 @@ def main():
                   "antigo (as telas de elenco e time já usam as escalações que existem).")
 
     # ---------------- troféus e premiações ----------------
+    # todos são de ouro: é assim que os troféus da copa existem de verdade.
+    # o "modelo" diz qual arte o site desenha.
     trofeus = [
-        {"id": "campeao", "nome": "Campeão do dia", "tier": "ouro"},
-        {"id": "artilheiro", "nome": "Artilheiro", "tier": "ouro"},
-        {"id": "garcom", "nome": "Garçom", "tier": "ouro"},
-        {"id": "craque", "nome": "Craque da copa", "tier": "ouro"},
-        {"id": "paredao", "nome": "Paredão", "tier": "prata"},
-        {"id": "piroquinha", "nome": "Piroquinha", "tier": "zoeira"},
+        {"id": "campeao", "nome": "Campeão do dia", "tier": "ouro", "modelo": "lutador"},
+        {"id": "artilheiro", "nome": "Artilheiro", "tier": "ouro", "modelo": "chuteira"},
+        {"id": "garcom", "nome": "Garçom", "tier": "ouro", "modelo": "bandeja"},
+        {"id": "craque", "nome": "Craque da copa", "tier": "ouro", "modelo": "bola"},
+        {"id": "paredao", "nome": "Paredão", "tier": "ouro", "modelo": "goleiro"},
+        {"id": "piroquinha", "nome": "Piroquinha", "tier": "ouro", "modelo": "piroquinha"},
     ]
     premiacoes = []
     if "TROFEUS" in wb.sheetnames:
@@ -510,6 +583,23 @@ def main():
           f"{len(jogos)} jogos ({com_video} com vídeo)")
     print(f"  {len(escalacoes)} escalações · {len(premiacoes)} troféus · {len(clipes)} clipes")
     print(f"  {len(desempenho)} notas de desempenho por time")
+
+    if not TEM_ROSTO:
+        aviso("opencv não está instalado — o recorte do retrato caiu no "
+              "enquadramento por proporção. Instale com: pip install "
+              "'opencv-python-headless<5'")
+    elif ROSTOS_PERDIDOS:
+        aviso(f"rosto detectado em {len(ROSTOS_ACHADOS)} fotos; nestas o "
+              f"detector não achou e o corte foi por proporção: "
+              + ", ".join(ROSTOS_PERDIDOS))
+    else:
+        print(f"  rosto detectado e centralizado em {len(ROSTOS_ACHADOS)} fotos")
+
+    sem_num = [p["id"] for p in jogadores if not p["numero"]]
+    if sem_num:
+        aviso(f"{len(sem_num)} de {len(jogadores)} jogadores sem número de camisa "
+              "na coluna numero_camisa da aba JOGADORES. Sem ele, o Estúdio usa a "
+              "ordem da lista no lugar do número.")
 
     sem_foto = [p["id"] for p in jogadores if not p["foto"]]
     if sem_foto:
