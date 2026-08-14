@@ -442,11 +442,11 @@ section+section{margin-top:3rem}
               <option value="impedimento">Impedimento</option>
             </select></div>
           <div class="field" data-for="replay"><label for="f-rtxt">Texto</label><input id="f-rtxt" value="MELHOR MOMENTO"></div>
-          <div class="field" data-for="escalacao"><label for="f-esc">Escalação — um por linha: <i>POS Apelido</i></label><textarea id="f-esc"></textarea></div>
+          <div class="field" data-for="escalacao formacao"><label for="f-esc" id="l-esc">Escalação — um por linha: <i>POS Apelido</i></label><textarea id="f-esc"></textarea></div>
           <div class="field" data-for="cartao"><label for="f-cor">Cor</label>
             <select id="f-cor"><option value="amarelo">Amarelo</option><option value="vermelho">Vermelho</option></select></div>
-          <div class="field" data-for="stat"><label for="f-s1">Número 1</label><input id="f-s1" value="9 JOGOS"></div>
-          <div class="field" data-for="stat"><label for="f-s2">Número 2</label><input id="f-s2" value="3 GOLS"></div>
+          <div class="field" data-for="stat"><label for="f-piada">Frase (o que quiser, pode ser zoeira)</label>
+            <textarea id="f-piada" rows="2">Nunca perdeu uma dividida nem uma discussão no grupo.</textarea></div>
           <div class="field" data-for="penaltis"><label for="f-pa">Cobranças — G gol, X erro, · a cobrar</label>
             <div style="display:flex;gap:.4rem"><input id="f-pa" value="GGX··" style="width:50%">
             <input id="f-pb" value="GXG··" style="width:50%"></div></div>
@@ -956,14 +956,13 @@ function renderISS(){
   $('#iss').innerHTML = `
    <div class="iss-bar">
      <div class="who"><span class="badge">1P</span> ${a.nome} ${camp===a.id?'<span class="badge">CAMPEÃO</span>':''}</div>
-     <div class="yr">${a.temporada}</div>
      <div class="who r">${camp===b.id?'<span class="badge">CAMPEÃO</span>':''} ${b.nome} <span class="badge">2P</span></div>
    </div>
    <div class="iss-body">
      ${statcol(a.id)}
      <div class="iss-grid">${times.map(t=>`
         <button class="tsel ${t.id===p1Time?'p1':''} ${(t.id===b.id&&t.id!==p1Time)?'p2':''}" data-tsel="${t.id}">
-          ${escudoHTML(t,44)}<span class="sg">${String(t.temporada).slice(2)}</span></button>`).join('')}</div>
+          ${escudoHTML(t,44)}</button>`).join('')}</div>
      ${statcol(b.id,'r')}
    </div>
    <div class="iss-foot">
@@ -1089,10 +1088,9 @@ function renderTime(id){
       <h1 style="font-size:clamp(1.6rem,4vw,2.6rem);text-transform:uppercase;margin:.1rem 0 0">${t.nome}</h1></div></div>`:''}
     <div class="we">
       <div class="we-top">
-        <div class="we-team">${escudo}<span>${t.nome}<span class="yr">${t.temporada} · ${s.v}V ${s.e}E ${s.d}D</span></span></div>
+        <div class="we-team">${escudo}<span>${t.nome}<span class="yr">${s.v}V ${s.e}E ${s.d}D</span></span></div>
         <div class="we-vs">VS</div>
-        ${riv?`<div class="we-team r">${escudoR}<span style="text-align:right;display:block">${riv.nome}
-          <span class="yr">${riv.temporada}</span></span></div>`:'<div></div>'}
+        ${riv?`<div class="we-team r">${escudoR}<span style="text-align:right;display:block">${riv.nome}</span></div>`:'<div></div>'}
       </div>
       <div class="we-body">
         ${weLista(A,'a',weSel)}
@@ -1236,8 +1234,8 @@ const F = {tipo:$('#f-tipo'),p1:$('#f-p1'),p2:$('#f-p2'),min:$('#f-min'),time:$(
            pa:$('#f-pa'),pb:$('#f-pb'),hist:$('#f-hist'),txt:$('#f-txt'),
            hyper:$('#f-hyper'),dist:$('#f-dist'),xg:$('#f-xg'),
            unif:$('#f-unif'),layout:$('#f-layout'),form:$('#f-form'),
-           arb:$('#f-arb'),var2:$('#f-var2'),fps:$('#f-fps'),
-           cor:$('#f-cor'),s1:$('#f-s1'),s2:$('#f-s2'),rtxt:$('#f-rtxt'),esc:$('#f-esc'),dur:$('#f-dur')};
+           arb:$('#f-arb'),var2:$('#f-var2'),fps:$('#f-fps'),piada:$('#f-piada'),
+           cor:$('#f-cor'),rtxt:$('#f-rtxt'),esc:$('#f-esc'),dur:$('#f-dur')};
 [F.p1,F.p2].forEach((s,i)=>{ s.innerHTML = jog.map(p=>`<option value="${p.id}">${p.apelido}</option>`).join(''); s.selectedIndex=i; });
 
 const optTimes = times.map(t=>`<option value="${t.id}">${t.nome} ${t.temporada}</option>`).join('');
@@ -1254,7 +1252,7 @@ function preencherEscalacao(){
     : jog.slice(0,8).map(p=>`${p.pos||'MEI'} ${p.apelido}`).join('\n');
 }
 preencherEscalacao();
-F.time.addEventListener('change', ()=>{ if(F.tipo.value==='escalacao') preencherEscalacao(); draw(1); });
+F.time.addEventListener('change', ()=>{ if(['escalacao','formacao'].includes(F.tipo.value)) preencherEscalacao(); draw(1); });
 
 const logoImg = new Image(); logoImg.src = LOGO;
 const fotos = {};
@@ -1274,10 +1272,41 @@ function txt(s,x,y,size,color,family,track){
   if('letterSpacing' in ctx) ctx.letterSpacing = (track||0)+'px';
   ctx.fillText(s,x,y); ctx.restore();
 }
+/* quebra texto livre em linhas que cabem na caixa */
+function quebra(texto, largura, maximo){
+  const out=[];
+  (texto||'').split('\n').forEach(par=>{
+    let atual='';
+    par.split(/\s+/).filter(Boolean).forEach(pal=>{
+      if((atual+' '+pal).trim().length>largura){ out.push(atual.trim()); atual=pal; }
+      else atual += ' '+pal;
+    });
+    if(atual.trim()) out.push(atual.trim());
+  });
+  return out.slice(0, maximo||99);
+}
+/* diminui a fonte até o texto caber na largura pedida */
+function fonteQueCabe(s, base, largura, family){
+  let t = base;
+  while(t > 14){
+    ctx.font = (family==='blk' ? '400 '+t+'px "Archivo Black", sans-serif'
+                               : '800 '+t+'px "Barlow Condensed", sans-serif');
+    if(ctx.measureText(s).width <= largura) break;
+    t -= 2;
+  }
+  return t;
+}
 function retrato(p,x,y,w,h,r){
   ctx.save(); rr(x,y,w,h,r||10); ctx.clip();
   const im = foto(p);
-  if(im) ctx.drawImage(im,x,y,w,h);
+  if(im){
+    /* recorte que preenche sem esticar: a foto é quadrada e a caixa nem sempre */
+    const ri = im.naturalWidth/im.naturalHeight, rc = w/h;
+    let sw=im.naturalWidth, sh=im.naturalHeight, sx=0, sy=0;
+    if(ri > rc){ sw = im.naturalHeight*rc; sx = (im.naturalWidth-sw)/2; }
+    else       { sh = im.naturalWidth/rc;  sy = (im.naturalHeight-sh)*.12; }
+    ctx.drawImage(im, sx, sy, sw, sh, x, y, w, h);
+  }
   else{
     const g=ctx.createLinearGradient(x,y,x,y+h); g.addColorStop(0,'#1D2A22'); g.addColorStop(1,'#0E1611');
     ctx.fillStyle=g; ctx.fillRect(x,y,w,h);
@@ -1343,38 +1372,59 @@ function draw(k){
   }
 
   if(t==='sub'){
-    const x=110,y=700,w=1080,h=280;
+    /* mais estreita, e com o escudo do time no lugar da logo da copa */
+    const x=110,y=700,w=760,h=272;
     sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.94)'; rr(x,y,w,h,16); ctx.fill(); });
-    txt('SUBSTITUIÇÃO', x+40, y+56, 30, '#8A9A8C','cond',7);
-    retrato(p1, x+40, y+78, 92, 92, 10);
-    retrato(p2, x+40, y+180, 92, 92, 10);
-    txt('▲', x+152, y+142, 44, '#2BE07A','cond');
-    txt(p1.apelido.toUpperCase(), x+212, y+146, 54, '#F4F1E6','blk');
-    txt('▼', x+152, y+244, 44, '#FF5A2C','cond');
-    txt(p2.apelido.toUpperCase(), x+212, y+248, 54, '#8A9A8C','blk');
-    txt(T.nome.toUpperCase(), x+w-280, y+56, 28, '#F2B01E','cond',6);
-    marca(x+w-150, y+90, 120);
+    ctx.fillStyle=T.c1; rr(x,y,10,h,5); ctx.fill();
+    txt('SUBSTITUIÇÃO', x+36, y+52, 28, '#8A9A8C','cond',7);
+    retrato(p1, x+36, y+74, 86, 86, 10);
+    retrato(p2, x+36, y+172, 86, 86, 10);
+    txt('▲', x+142, y+134, 40, '#2BE07A','cond');
+    txt(p1.apelido.toUpperCase(), x+192, y+138, 48, '#F4F1E6','blk');
+    txt('▼', x+142, y+232, 40, '#FF5A2C','cond');
+    txt(p2.apelido.toUpperCase(), x+192, y+236, 48, '#8A9A8C','blk');
+    crestCv(T, x+w-86, y+h/2, 108);
   }
 
   if(t==='stat'){
-    const x=140,y=300,w=980,h=420;
-    // painel branco
-    sombra(()=>{ ctx.fillStyle='#F4F1E6'; rr(x+430,y,w-430,h,10); ctx.fill(); });
-    // foto + placa verde
-    sombra(()=>{ ctx.fillStyle='#0C120E'; rr(x,y,420,h,10); ctx.fill(); });
-    retrato(p1, x, y, 420, h-92, 10);
-    ctx.fillStyle='#12A150'; rr(x, y+h-92, 420, 92, 10); ctx.fill();
-    txt(p1.apelido.toUpperCase(), x+26, y+h-32, 52, '#F4F1E6','blk');
-    // números
-    const linha = (s, yy) => {
-      const m = String(s).trim().match(/^(\S+)\s+(.*)$/) || [null, s, ''];
-      txt(m[1], x+490, yy, 96, '#0C120E','cond');
-      txt(m[2].toUpperCase(), x+490, yy+44, 34, '#0C120E','cond',7);
-    };
-    linha(F.s1.value, y+130);
-    ctx.fillStyle='#0C120E'; ctx.fillRect(x+490, y+h/2-2, 120, 5);
-    linha(F.s2.value, y+310);
-    marca(x+w-140, y+24, 100);
+    const w=1360, h=660, x=(1920-w)/2, y=(1080-h)/2;
+    const tro = DADOS.premiacoes.filter(a=>a.jogador===p1.id).length;
+    sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.96)'; rr(x,y,w,h,18); ctx.fill(); });
+    ctx.fillStyle=T.c1; rr(x,y,w,10,6); ctx.fill();
+
+    // retrato com proporção respeitada
+    const fw=380, fh=460;
+    retrato(p1, x+40, y+50, fw, fh, 12);
+    ctx.fillStyle='rgba(18,161,80,.95)'; rr(x+40, y+50+fh-76, fw, 76, 12); ctx.fill();
+    txt(p1.apelido.toUpperCase(), x+62, y+50+fh-24, 48, '#F4F1E6','blk');
+
+    const cx=x+460;
+    txt((p1.pos==='GOL'?'GOLEIRO':'JOGADOR DE LINHA')
+        + (p1.numero?('   ·   CAMISA '+p1.numero):''), cx, y+92, 28, '#8A9A8C','cond',8);
+    txt((p1.nome||p1.apelido).toUpperCase(), cx, y+158, 58, '#F4F1E6','blk');
+    txt(T.nome.toUpperCase(), cx, y+200, 28, '#F2B01E','cond',6);
+
+    // números do perfil, incluindo troféus
+    const kpis=[['JOGOS',p1.jogos],['GOLS',p1.gols],['ASSIST',p1.assist],
+                ['TÍTULOS',p1.titulos],['TROFÉUS',tro]];
+    const bw=(w-500)/kpis.length;
+    kpis.forEach(([rot,v],i)=>{
+      const bx=cx+i*bw;
+      ctx.fillStyle='rgba(255,255,255,.05)'; rr(bx, y+236, bw-14, 140, 10); ctx.fill();
+      ctx.textAlign='center';
+      txt(String(v), bx+(bw-14)/2, y+326, 70, '#F2B01E','blk');
+      txt(rot, bx+(bw-14)/2, y+362, 22, '#8A9A8C','cond',6);
+      ctx.textAlign='left';
+    });
+
+    // frase livre
+    const linhasF = quebra(F.piada.value, 54, 3);
+    if(linhasF.length){
+      const bh = 40 + linhasF.length*44;
+      ctx.fillStyle='rgba(255,255,255,.04)'; rr(cx, y+404, w-500, bh, 10); ctx.fill();
+      ctx.fillStyle='#F2B01E'; rr(cx, y+404, 5, bh, 3); ctx.fill();
+      linhasF.forEach((l,i)=> txt(l, cx+26, y+448+i*44, 34, '#D8E4DA','cond',1));
+    }
   }
 
   if(t==='falta'){
@@ -1433,7 +1483,8 @@ function drawGolaco(p,T,k){
 
 /* ---- replay ---- */
 function drawReplay(T,k){
-  const w=760,h=150,x=1920-w-100,y=90;
+  /* caixa menor e só a palavra REPLAY: texto e logo se atropelavam */
+  const w=430,h=124,x=1920-w-100,y=90;
   ctx.save(); ctx.globalAlpha=Math.min(1,k*2);
   ctx.translate((1-ease(clamp01(k*1.4)))*(w+140),0);
   sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.95)'; rr(x,y,w,h,12); ctx.fill(); });
@@ -1446,11 +1497,9 @@ function drawReplay(T,k){
   ctx.restore();
   ctx.fillStyle='#F2B01E'; rr(x,y,w,10,5); ctx.fill();
   ctx.save(); ctx.globalAlpha=.55+.45*Math.abs(Math.sin(k*10));
-  ctx.fillStyle='#E03A2F'; ctx.beginPath(); ctx.arc(x+56,y+80,17,0,7); ctx.fill(); ctx.restore();
-  txt('REPLAY',x+92,y+100,72,'#F4F1E6','blk');
-  txt((F.rtxt.value||'').toUpperCase(),x+380,y+76,30,'#2BE07A','cond',7);
-  txt(T.nome.toUpperCase()+' · '+T.temporada,x+380,y+116,26,'#8A9A8C','cond',5);
-  marca(x+w-118,y+24,104);
+  ctx.fillStyle='#E03A2F'; ctx.beginPath(); ctx.arc(x+48,y+70,15,0,7); ctx.fill(); ctx.restore();
+  txt('REPLAY',x+78,y+88,58,'#F4F1E6','blk');
+  marca(x+w-96,y+26,80);
   ctx.restore();
   if(F.hyper.value==='hyper') drawHyper(pById[F.p1.value], T, k);
 }
@@ -1562,7 +1611,7 @@ function drawEscalacao(T,k){
   crestCv(T, x+58, y+headH/2, 72);
   txt(T.nome.toUpperCase(),x+108,y+62,54,cont,'blk');
   camisaCv(x+w-190, y+18, 54, u);
-  txt(String(T.temporada),x+w-118,y+60,42,cont,'cond',4);
+  
   ctx.restore();
   /* o último jogador entra exatamente em k=1; a sobra de um segundo vem da
      curva kAtSeq, que segura em 1 no fim da animação */
@@ -1618,7 +1667,7 @@ function drawEscalacaoRodape(T,k){
   crestCv(T, 110, y+96, 108);
   ctx.textAlign='center';
   txt(T.nome.toUpperCase(), 110, y+180, 34, '#F4F1E6','blk');
-  txt(String(T.temporada), 110, y+214, 24, '#8A9A8C','cond',6);
+  
   camisaCv(232, y+40, 46, u);
   ctx.textAlign='left';
   // jogadores lado a lado
@@ -1702,8 +1751,8 @@ function drawFormacao(T,k){
   const gk = lista.find(it=>it.pos==='GOL') || lista[0];
   const resto = lista.filter(it=>it!==gk);
 
-  // campo
-  const cw=760, ch=940, cx=(1920-cw)/2, cy=70;
+  // campo à esquerda, painel bem separado à direita
+  const cw=680, ch=940, cx=170, cy=70;
   ctx.save(); ctx.globalAlpha=Math.min(1,k*2.2);
   sombra(()=>{ const g=ctx.createLinearGradient(0,cy,0,cy+ch);
     g.addColorStop(0,'#127A38'); g.addColorStop(1,'#0A5324');
@@ -1764,19 +1813,20 @@ function drawFormacao(T,k){
     ctx.restore();
   });
 
-  // painel lateral com escudo, formação e uniforme
-  const px=cx+cw+40, py=cy+40;
+  // painel lateral, com folga de 140px do campo para nada encostar
+  const px=cx+cw+140, pw=1920-px-100, pmeio=px+pw/2, py=cy+70;
   ctx.save(); ctx.globalAlpha=clamp01((k-.05)/.25);
-  crestCv(T, px+90, py+90, 160);
+  crestCv(T, pmeio, py+90, 180);
   ctx.textAlign='center';
-  txt(T.nome.toUpperCase(), px+90, py+220, 44, '#F4F1E6','blk');
-  txt(nome, px+90, py+300, 72, '#F2B01E','blk');
-  txt('FORMAÇÃO', px+90, py+336, 24, '#8A9A8C','cond',10);
-  camisaCv(px+40, py+380, 100, u);
-  txt('UNIFORME '+u.nome, px+90, py+520, 24, '#8A9A8C','cond',8);
+  const fn=fonteQueCabe(T.nome.toUpperCase(), 52, pw, 'blk');
+  txt(T.nome.toUpperCase(), pmeio, py+240, fn, '#F4F1E6','blk');
+  txt(nome, pmeio, py+340, 76, '#F2B01E','blk');
+  txt('FORMAÇÃO', pmeio, py+378, 24, '#8A9A8C','cond',10);
+  camisaCv(pmeio-55, py+440, 110, u);
+  txt('UNIFORME '+u.nome, pmeio, py+610, 24, '#8A9A8C','cond',8);
   ctx.textAlign='left';
   ctx.restore();
-  ctx.save(); ctx.globalAlpha=clamp01((k-.4)/.3); marca(px+20, py+580, 140); ctx.restore();
+  ctx.save(); ctx.globalAlpha=clamp01((k-.4)/.3); marca(pmeio-70, py+660, 140); ctx.restore();
 }
 
 /* ---- arbitragem e sala do VAR ---- */
@@ -1934,7 +1984,7 @@ function drawPlacar(A,B,k,fim){
   }
   txt(A.nome.toUpperCase(), x+190, y+340, 38, '#F4F1E6','cond',4);
   txt(B.nome.toUpperCase(), x+w-190, y+340, 38, '#F4F1E6','cond',4);
-  const rodape = fim ? (F.min.value||'') : (A.temporada===B.temporada ? 'TEMPORADA '+A.temporada : '');
+  const rodape = fim ? (F.min.value||'') : '';
   if(rodape) txt(rodape, 960, y+h-34, 30, '#8A9A8C','cond',7);
   ctx.textAlign='left';
   marca(x+w/2-55, y+h-150, 110);
@@ -1973,34 +2023,40 @@ function drawHistorico(p,T,k){
   const porAno = golsPorTemporada(p.id), total = p.gols||0;
   ctx.save(); ctx.globalAlpha=Math.min(1,k*2);
   ctx.translate((1-ease(k))*-220,0);
-  const w=1180,h=420,x=(1920-w)/2,y=(1080-h)/2+40;
+  const w=1280,h=440,x=(1920-w)/2,y=(1080-h)/2+40;
   sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.95)'; rr(x,y,w,h,18); ctx.fill(); });
   ctx.fillStyle='#2BE07A'; rr(x,y,w,9,5); ctx.fill();
-  retrato(p, x+34, y+44, 250, 250, 14);
-  txt('NA COPA REVOADA', x+312, y+96, 34, '#2BE07A','cond',10);
-  txt(p.apelido.toUpperCase(), x+312, y+178, 84, '#F4F1E6','blk');
-  // número grande de gols
-  txt(String(total), x+312, y+296, 108, '#F2B01E','blk');
-  const larg = ctx.measureText ? String(total).length*62 : 120;
-  txt(total===1?'GOL':'GOLS', x+312+larg, y+296, 44, '#8A9A8C','cond',8);
-  // barras por temporada
+  retrato(p, x+34, y+48, 250, 250, 14);
+
+  /* colunas com folga: texto até 700, gráfico a partir de 760 */
+  const cx = x+312, limiteTexto = 700 - 312 - 20;
+  txt('NA COPA REVOADA', cx, y+92, 30, '#2BE07A','cond',10);
+  const fn = fonteQueCabe(p.apelido.toUpperCase(), 78, limiteTexto, 'blk');
+  txt(p.apelido.toUpperCase(), cx, y+170, fn, '#F4F1E6','blk');
+
+  // número de gols e a palavra, com espaço de verdade entre os dois
+  ctx.font='400 100px "Archivo Black", sans-serif';
+  const larguraNum = ctx.measureText(String(total)).width;
+  txt(String(total), cx, y+290, 100, '#F2B01E','blk');
+  txt(total===1?'GOL':'GOLS', cx+larguraNum+28, y+290, 42, '#8A9A8C','cond',8);
+  txt(T.nome.toUpperCase(), cx, y+346, 26, '#8A9A8C','cond',6);
+
   if(porAno.length){
+    const gx = x+760, gw = w-760-40+x-x;
     const maxG = Math.max(...porAno.map(a=>a[1]));
-    const bw = Math.min(96, (w-700)/porAno.length), bx = x+700;
+    const bw = Math.min(110, (w-800)/porAno.length);
+    txt('POR TEMPORADA', gx, y+92, 26, '#8A9A8C','cond',8);
     porAno.forEach((a,i)=>{
-      const alt = Math.round((a[1]/maxG)*150*Math.min(1,Math.max(0,(k-.3)/.5)));
-      const cx = bx + i*(bw+10);
-      ctx.fillStyle='rgba(255,255,255,.07)'; rr(cx, y+120, bw-10, 150, 4); ctx.fill();
-      ctx.fillStyle='#2BE07A'; rr(cx, y+270-alt, bw-10, alt, 4); ctx.fill();
+      const alt = Math.round((a[1]/maxG)*160*Math.min(1,Math.max(0,(k-.3)/.5)));
+      const bx = gx + i*bw;
+      ctx.fillStyle='rgba(255,255,255,.07)'; rr(bx, y+128, bw-14, 160, 4); ctx.fill();
+      ctx.fillStyle='#2BE07A'; rr(bx, y+288-alt, bw-14, alt, 4); ctx.fill();
       ctx.textAlign='center';
-      txt(String(a[1]), cx+(bw-10)/2, y+300, 30, '#F4F1E6','cond');
-      txt(String(a[0]).slice(2), cx+(bw-10)/2, y+336, 24, '#8A9A8C','cond',3);
+      txt(String(a[1]), bx+(bw-14)/2, y+320, 30, '#F4F1E6','cond');
+      txt(String(a[0]), bx+(bw-14)/2, y+356, 24, '#8A9A8C','cond',2);
       ctx.textAlign='left';
     });
-    txt('POR TEMPORADA', x+700, y+96, 26, '#8A9A8C','cond',8);
   }
-  txt(T.nome.toUpperCase(), x+312, y+352, 26, '#8A9A8C','cond',6);
-  marca(x+w-140, y+h-136, 110);
   ctx.restore();
 }
 
@@ -2139,8 +2195,11 @@ function syncFields(){
     el.style.display = el.dataset.for.split(' ').includes(t) ? '' : 'none';
   });
   $('#l-p1').textContent = t==='sub' ? 'Entra' : t==='falta' ? 'Quem cometeu' : 'Jogador';
+  $('#l-esc').innerHTML = t==='formacao'
+    ? 'Time em campo — os 7 primeiros entram: <i>POS Apelido</i>'
+    : 'Escalação — um por linha: <i>POS Apelido</i>';
   $('#l-p2').textContent = t==='falta' ? 'Em quem' : 'Sai';
-  if(t==='escalacao' && !F.esc.value.trim()) preencherEscalacao();
+  if(['escalacao','formacao'].includes(t) && !F.esc.value.trim()) preencherEscalacao();
   draw(1);
 }
 Object.values(F).forEach(el=> el.addEventListener('input', el===F.tipo ? syncFields : ()=>draw(1)));

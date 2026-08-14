@@ -87,7 +87,9 @@ FOTO_TIME = {
 }
 # Lançamento errado na planilha antiga: fica lá para conferência, mas não entra
 # no site nem conta estatística. Tirar daqui devolve a pessoa ao ar.
-EXCLUIR_DO_SITE = {"derek"}
+EXCLUIR_DO_SITE = {
+    "derek", "davi", "dereck", "matheus", "luigi", "dereka", "joao", "miniderek",
+}
 # Não são foto de jogador nem de time; ficam de fora do site até alguém dizer
 # o que são. Listados aqui só para não aparecerem como "arquivo sem uso".
 IGNORAR_ASSET = {"logo", "logo-azul", "logo-branco"}
@@ -222,10 +224,56 @@ def deriva_retrato(origem, nome):
     return "img/jogadores/%s.jpg" % nome
 
 
+FUNDO_TIRADO = []
+VAZOU = []
+
+
+def tira_fundo(im):
+    """Escudo que veio em fundo chapado sai com fundo transparente.
+
+    Só age quando (a) a imagem não tem transparência de verdade e (b) a borda
+    é de uma cor só. O preenchimento parte das quatro quinas, então branco de
+    dentro do escudo não é apagado junto.
+    """
+    im = im.convert("RGBA")
+    if not TEM_ROSTO:                      # sem opencv não tem floodFill
+        return im
+    a = np.array(im)
+    if (a[:, :, 3] < 250).mean() > .06:    # já tem alpha; não mexe
+        return im
+    rgb = a[:, :, :3]
+    alt, larg = a.shape[:2]
+    borda = np.concatenate([rgb[0], rgb[-1], rgb[:, 0], rgb[:, -1]]).astype(np.int16)
+    if borda.std(axis=0).max() > 26:       # borda não é chapada
+        return im
+    mascara = np.zeros((alt + 2, larg + 2), np.uint8)
+    bgr = np.ascontiguousarray(rgb[:, :, ::-1])
+    tol = (20, 20, 20)
+    for semente in ((0, 0), (larg - 1, 0), (0, alt - 1), (larg - 1, alt - 1)):
+        cv2.floodFill(bgr, mascara, semente, 0, tol, tol,
+                      4 | (255 << 8) | cv2.FLOODFILL_MASK_ONLY)
+    fundo = mascara[1:-1, 1:-1].astype(bool)
+    if fundo.mean() < .04:                 # não achou fundo que valha a pena
+        return im
+    # trava: logo claro sobre fundo claro faz o preenchimento vazar para dentro
+    # do desenho. Se sobrou pouca coisa opaca, é porque comeu o escudo junto.
+    if 1 - fundo.mean() < .12:
+        VAZOU.append(True)
+        return im
+    a[fundo, 3] = 0
+    return Image.fromarray(a, "RGBA")
+
+
 def deriva_escudo(origem, nome):
     """Escudo mantém transparência; PNG pequeno."""
     saida = os.path.join(_destino("times"), nome + "-escudo.png")
-    im = Image.open(origem).convert("RGBA")
+    bruto = Image.open(origem).convert("RGBA")
+    im = tira_fundo(bruto)
+    if im is not bruto:
+        vazio_antes = (np.array(bruto)[:, :, 3] < 250).mean()
+        vazio_depois = (np.array(im)[:, :, 3] < 250).mean()
+        if vazio_depois - vazio_antes > .02:
+            FUNDO_TIRADO.append(nome)
     caixa = im.getbbox()
     if caixa:
         im = im.crop(caixa)
@@ -605,6 +653,13 @@ def main():
               + ", ".join(ROSTOS_PERDIDOS))
     else:
         print(f"  rosto detectado e centralizado em {len(ROSTOS_ACHADOS)} fotos")
+
+    if FUNDO_TIRADO:
+        print("  fundo chapado removido do escudo de: " + ", ".join(FUNDO_TIRADO))
+    if VAZOU:
+        aviso(f"{len(VAZOU)} escudo(s) com desenho claro sobre fundo claro: tirar o "
+              "fundo comeria o próprio escudo, então ficaram como vieram. "
+              "Se quiser fundo transparente neles, suba o PNG já recortado.")
 
     sem_num = [p["id"] for p in jogadores if not p["numero"]]
     if sem_num:
