@@ -439,8 +439,8 @@ section+section{margin-top:3rem}
           <div class="field" data-for="formacao"><label for="f-form">Formação</label>
             <select id="f-form"><option>3-1-2</option><option>3-2-1</option>
               <option selected>2-2-2</option><option>2-1-3</option><option>2-3-1</option></select></div>
-          <div class="field" data-for="placar fim"><label for="f-time2">Adversário</label><select id="f-time2"></select></div>
-          <div class="field" data-for="placar fim"><label for="f-ga">Placar — casa × fora</label>
+          <div class="field" data-for="placar fim intervalo"><label for="f-time2">Adversário</label><select id="f-time2"></select></div>
+          <div class="field" data-for="placar fim intervalo"><label for="f-ga">Placar — casa × fora</label>
             <div style="display:flex;gap:.4rem"><input id="f-ga" type="number" min="0" value="0" style="width:50%">
             <input id="f-gb" type="number" min="0" value="0" style="width:50%"></div></div>
           <div class="field" data-for="var"><label for="f-vard">Decisão</label>
@@ -463,6 +463,9 @@ section+section{margin-top:3rem}
             <input id="f-pb" value="GXG··" style="width:50%"></div></div>
           <div class="field" data-for="batedor"><label for="f-hist">Histórico de pênaltis</label>
             <input id="f-hist" value="3 de 4 convertidos"></div>
+          <div class="field" data-for="intervalo"><label for="f-fonte">Tamanho do texto</label>
+            <select id="f-fonte"><option value="1">Normal</option>
+              <option value="1.25">Grande</option><option value="1.5">Bem grande</option></select></div>
           <div class="field" data-for="intervalo"><label for="f-txt">Mensagem</label>
             <textarea id="f-txt" rows="3">Time da casa cresceu no fim do tempo e criou as melhores chances.</textarea></div>
           <div class="field" data-for="arbitragem"><label for="f-arb">Arbitragem — um por linha: <i>Função · Nome</i></label>
@@ -487,6 +490,9 @@ Assistente de VAR · Ciclano</textarea></div>
           <div class="field" data-for="replay"><label for="f-dist">Distância (m) e gol esperado</label>
             <div style="display:flex;gap:.4rem"><input id="f-dist" type="number" min="1" max="60" step="0.1" value="22.7" style="width:50%">
             <input id="f-xg" type="number" min="0" max="1" step="0.01" value="0.24" style="width:50%"></div></div>
+          <div class="field"><label for="f-dest">Cor de destaque</label>
+            <select id="f-dest"><option value="amarelo">Amarelo</option>
+              <option value="azul">Azul</option></select></div>
           <div class="field"><label for="f-dur">Duração da animação (s)</label><input id="f-dur" type="number" min="1" max="8" step="0.5" value="3"></div>
           <div class="field"><label for="f-fps">Quadros por segundo da sequência</label>
             <select id="f-fps"><option value="60">60 fps — igual ao seu vídeo</option>
@@ -539,17 +545,37 @@ function forma(p, nota){
   const s = (p.gols+p.assist)/p.jogos*1.6 + p.titulos/p.jogos*1.4;
   return s>1.5?5 : s>1.05?4 : s>.65?3 : s>.3?2 : 1;
 }
-/* ---- paleta segura para chroma key ----
-   Qualquer verde dentro da arte some junto com o fundo quando você aplica o
-   Chroma Key. Com o fundo verde ligado, todo verde vira âmbar/azul. */
+/* ---- paleta ----
+   O WebM sai em fundo verde, então verde dentro da arte é comido pelo Chroma
+   Key junto com o fundo. Por isso o verde só sobrevive nas três artes que
+   representam o gramado — e mesmo nelas cai fora se o fundo verde estiver
+   ligado. Todo o resto usa a cor de destaque, que alterna amarelo e azul. */
 let semVerde = false;
-const PAL = {
-  normal: {ac:'#2BE07A', acFraco:'rgba(43,224,122,.35)', acZero:'rgba(43,224,122,0)',
-           faixa:'rgba(18,161,80,.95)', campo1:'#127A38', campo2:'#0A5324', vazio:'#16241B'},
-  chroma: {ac:'#F2B01E', acFraco:'rgba(242,176,30,.35)', acZero:'rgba(242,176,30,0)',
-           faixa:'rgba(190,120,10,.95)', campo1:'#1E3A63', campo2:'#122641', vazio:'#1B2430'},
+let destaque = 'amarelo';
+const ARTES_COM_VERDE = new Set(['formacao','mapa','chance']);
+/* Não dá pra espiar o F daqui: ele é const declarado mais abaixo, e
+   `typeof` sobre variável em zona morta lança em vez de devolver
+   'undefined'. Quem desenha avisa qual arte está na tela. */
+let ARTE_ATUAL = '';
+function arteAtual(){ return ARTE_ATUAL; }
+function podeVerde(){ return !semVerde && ARTES_COM_VERDE.has(arteAtual()); }
+
+const DESTAQUE = {
+  amarelo: {ac:'#F2B01E', ac2:'#FFD470', esc:'#B8830D', rgb:'242,176,30'},
+  azul:    {ac:'#3EA6FF', ac2:'#9BD2FF', esc:'#1B6FB8', rgb:'62,166,255'},
 };
-function P(){ return semVerde ? PAL.chroma : PAL.normal; }
+const D = () => DESTAQUE[destaque] || DESTAQUE.amarelo;
+const PAL_VERDE = {ac:'#2BE07A', ac2:'#7CEDAC', esc:'#12A150',
+  acFraco:'rgba(43,224,122,.35)', acZero:'rgba(43,224,122,0)',
+  faixa:'rgba(18,161,80,.95)', campo1:'#127A38', campo2:'#0A5324', vazio:'#16241B'};
+function P(){
+  if(podeVerde()) return PAL_VERDE;
+  const d = D();
+  return {ac:d.ac, ac2:d.ac2, esc:d.esc,
+    acFraco:`rgba(${d.rgb},.35)`, acZero:`rgba(${d.rgb},0)`,
+    faixa:`rgba(${d.rgb},.95)`,
+    campo1:'#1E3A63', campo2:'#122641', vazio:'#1B2430'};
+}
 /* time com cor verde (Dentro FC é #12A150) também some no chroma:
    no modo sem verde, a cor vira um azul de brilho equivalente */
 function corSegura(hex){
@@ -1300,7 +1326,7 @@ let ARTES_PRONTAS = null;
 
 /* verde que respeita o modo chroma: no fundo verde, vira âmbar */
 function VD(a){
-  return semVerde ? `rgba(242,176,30,${a})` : `rgba(43,224,122,${a})`;
+  return podeVerde() ? `rgba(43,224,122,${a})` : `rgba(${D().rgb},${a})`;
 }
 
 /* paleta: os tons de grama seguem o modo chroma */
@@ -1308,9 +1334,9 @@ const C = {
   ink:'#050807', panel:'#0C120E', panel2:'#141D17', line:'#22301F',
   chalk:'#F4F1E6', dim:'#8A9A8C', gold:'#F2B01E', goldD:'#B8830D',
   ember:'#FF5A2C', sky:'#4FB3E8',
-  get grass(){  return semVerde ? '#B8830D' : '#12A150'; },
-  get grassL(){ return semVerde ? '#F2B01E' : '#2BE07A'; },
-  get grassD(){ return semVerde ? '#4A3405' : '#0A3A22'; },
+  get grass(){  return podeVerde() ? '#12A150' : D().esc; },
+  get grassL(){ return podeVerde() ? '#2BE07A' : D().ac;  },
+  get grassD(){ return podeVerde() ? '#0A3A22' : '#122641'; },
 };
 
 /* medidas do campo do Paula Ramos, medidas pelo satélite.
@@ -2048,14 +2074,16 @@ function pilula(c,x,y,h,{A,B,gc,gf,relogio,acrescimo,titulo,flashA=0,flashB=0,es
     txt(c,String(gc),0,h*.19,{font:cond(900,h*.60),fill:flashA>.4?C.ink:C.chalk,align:'center'}); c.restore(); };
   golA(); cx+=wGol;
 
-  /* emblema central */
+  /* emblema central: a logo da copa, não uma bola genérica */
   c.save(); c.translate(cx+wEmblema/2,y);
-  c.beginPath(); c.arc(0,0,h*.21,0,7); c.fillStyle=C.grassL; c.fill();
-  c.beginPath(); c.arc(0,0,h*.21,0,7); c.strokeStyle='rgba(5,8,7,.5)'; c.lineWidth=h*.035; c.stroke();
-  c.fillStyle=C.ink;
-  for(let i=0;i<5;i++){ const a=i*2*Math.PI/5-Math.PI/2;
-    c.beginPath(); c.arc(Math.cos(a)*h*.11,Math.sin(a)*h*.11,h*.038,0,7); c.fill(); }
-  c.beginPath(); c.arc(0,0,h*.045,0,7); c.fill();
+  const lg = (typeof logoImg!=='undefined' && logoImg.complete && logoImg.naturalWidth) ? logoImg : null;
+  if(lg){
+    const ls=h*.52;
+    c.drawImage(lg,-ls/2,-ls/2,ls,ls);
+  } else {
+    c.beginPath(); c.arc(0,0,h*.21,0,7); c.fillStyle=C.grassL; c.fill();
+    c.beginPath(); c.arc(0,0,h*.21,0,7); c.strokeStyle='rgba(5,8,7,.5)'; c.lineWidth=h*.035; c.stroke();
+  }
   c.restore(); cx+=wEmblema;
 
   const golB=()=>{ c.save(); c.translate(cx+wGol/2,y); c.scale(escB,escB);
@@ -2139,10 +2167,9 @@ function desenhaPlacar(c,u){
     faixaGol=0;
   }
 
-  const env=envelope(u,.20,.14);
+  /* o scorebug fica no ar o jogo inteiro, então não entra nem sai:
+     só as animações de gol acontecem em cima dele */
   c.save();
-  c.globalAlpha=env.a;
-  c.translate(placar.pos==='topo-esq' ? -(1-env.e)*260 : 0, placar.pos==='rodape' ? (1-env.e)*90 : -(1-env.e)*90);
   const cx = pilula(c,posXY[0],posXY[1],h,{
     A,B,gc,gf, relogio:placar.relogio, acrescimo:placar.acrescimo,
     titulo:`${placar.competicao}${placar.fase?' — '+placar.fase:''}`,
@@ -2813,7 +2840,7 @@ const F = {tipo:$('#f-tipo'),p1:$('#f-p1'),p2:$('#f-p2'),min:$('#f-min'),time:$(
            pa:$('#f-pa'),pb:$('#f-pb'),hist:$('#f-hist'),txt:$('#f-txt'),
            hyper:$('#f-hyper'),dist:$('#f-dist'),xg:$('#f-xg'),
            unif:$('#f-unif'),layout:$('#f-layout'),form:$('#f-form'),
-           arb:$('#f-arb'),var2:$('#f-var2'),fps:$('#f-fps'),piada:$('#f-piada'),escala:$('#f-escala'),
+           arb:$('#f-arb'),var2:$('#f-var2'),fps:$('#f-fps'),piada:$('#f-piada'),escala:$('#f-escala'),dest:$('#f-dest'),fonte:$('#f-fonte'),
            marconum:$('#f-marconum'),marcotit:$('#f-marcotit'),marcosub:$('#f-marcosub'),
            cor:$('#f-cor'),rtxt:$('#f-rtxt'),esc:$('#f-esc'),dur:$('#f-dur')};
 [F.p1,F.p2].forEach((s,i)=>{ s.innerHTML = jog.map(p=>`<option value="${p.id}">${p.apelido}</option>`).join(''); s.selectedIndex=i; });
@@ -2911,7 +2938,7 @@ function retrato(p,x,y,w,h,r){
 }
 function drawFace(n,x,y,r){
   ctx.save(); ctx.beginPath(); ctx.arc(x,y,r,0,7);
-  ctx.fillStyle=(semVerde && FCOR[n-1]==='#45C97A') ? '#E8B33A' : FCOR[n-1]; ctx.fill();
+  ctx.fillStyle=(FCOR[n-1]==='#45C97A' && !podeVerde()) ? P().ac2 : FCOR[n-1]; ctx.fill();
   ctx.lineWidth=Math.max(1,r*.1); ctx.strokeStyle='rgba(0,0,0,.45)'; ctx.stroke();
   ctx.fillStyle='#101010';
   ctx.beginPath(); ctx.arc(x-r*.32,y-r*.18,r*.15,0,7); ctx.fill();
@@ -2932,6 +2959,7 @@ function draw(k){
   k = k===undefined ? 1 : k;
   ctx.clearRect(0,0,1920,1080);
   const t = F.tipo.value, p1 = pById[F.p1.value], p2 = pById[F.p2.value], T = timeAtual();
+  ARTE_ATUAL = t;
   ctx.textAlign='left'; ctx.textBaseline='alphabetic';
   /* as artes de Lances desenham o quadro inteiro e fazem a própria
      entrada e saída, então recebem u cru e cuidam do resto */
@@ -2961,7 +2989,7 @@ function draw(k){
     sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.94)'; rr(x,y,w,h,16); ctx.fill(); });
     ctx.fillStyle=corSegura(T.c1); rr(x,y,16,h,8); ctx.fill();
     retrato(p1, x+46, y+22, 136, 136, 12);
-    txt('GOL DA COPA REVOADA', x+218, y+62, 32, P().ac,'cond',7);
+    txt('GOL NA COPA REVOADA', x+218, y+62, 32, P().ac,'cond',7);
     txt(p1.apelido.toUpperCase(), x+218, y+134, 70, '#F4F1E6','blk');
     txt(T.nome.toUpperCase()+'   ·   '+F.min.value, x+220, y+170, 28, '#8A9A8C','cond',5);
     marca(x+w-120, y+34, 112);
@@ -2975,7 +3003,7 @@ function draw(k){
     txt('SUBSTITUIÇÃO', x+36, y+52, 28, '#8A9A8C','cond',7);
     retrato(p1, x+36, y+74, 86, 86, 10);
     retrato(p2, x+36, y+172, 86, 86, 10);
-    txt('▲', x+142, y+134, 40, P().ac,'cond');
+    txt('▲', x+142, y+134, 40, '#3EA6FF','cond');
     txt(p1.apelido.toUpperCase(), x+192, y+138, 48, '#F4F1E6','blk');
     txt('▼', x+142, y+232, 40, '#FF5A2C','cond');
     txt(p2.apelido.toUpperCase(), x+192, y+236, 48, '#8A9A8C','blk');
@@ -2983,43 +3011,39 @@ function draw(k){
   }
 
   if(t==='stat'){
-    const w=1360, h=660, x=(1920-w)/2, y=(1080-h)/2;
+    /* enxuta de propósito: o nome já está na faixa da foto, então some daqui
+       a posição, o nome repetido e o time. A caixa da foto encosta na base. */
+    const w=1360, h=560, x=(1920-w)/2, y=(1080-h)/2;
     const tro = DADOS.premiacoes.filter(a=>a.jogador===p1.id).length;
     sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.96)'; rr(x,y,w,h,18); ctx.fill(); });
     ctx.fillStyle=corSegura(T.c1); rr(x,y,w,10,6); ctx.fill();
 
-    // retrato com proporção respeitada
-    const fw=380, fh=460;
+    const fw=380, fh=h-100;
     retrato(p1, x+40, y+50, fw, fh, 12);
-    ctx.fillStyle=P().faixa; rr(x+40, y+50+fh-76, fw, 76, 12); ctx.fill();
-    txt(p1.apelido.toUpperCase(), x+62, y+50+fh-24, 48, '#F4F1E6','blk');
+    // faixa do nome: amarela com texto preto
+    ctx.fillStyle=P().ac; rr(x+40, y+50+fh-82, fw, 82, 12); ctx.fill();
+    const fn = fonteQueCabe(p1.apelido.toUpperCase(), 52, fw-44, 'blk');
+    txt(p1.apelido.toUpperCase(), x+62, y+50+fh-26, fn, '#0B0B0B','blk');
 
     const cx=x+460;
-    txt((p1.pos==='GOL'?'GOLEIRO':'JOGADOR DE LINHA')
-        + (p1.numero?('   ·   CAMISA '+p1.numero):''), cx, y+92, 28, '#8A9A8C','cond',8);
-    txt((p1.nome||p1.apelido).toUpperCase(), cx, y+158, 58, '#F4F1E6','blk');
-    txt(T.nome.toUpperCase(), cx, y+200, 28, '#F2B01E','cond',6);
-
-    // números do perfil, incluindo troféus
     const kpis=[['JOGOS',p1.jogos],['GOLS',p1.gols],['ASSIST',p1.assist],
                 ['TÍTULOS',p1.titulos],['TROFÉUS',tro]];
     const bw=(w-500)/kpis.length;
     kpis.forEach(([rot,v],i)=>{
       const bx=cx+i*bw;
-      ctx.fillStyle='rgba(255,255,255,.05)'; rr(bx, y+236, bw-14, 140, 10); ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,.05)'; rr(bx, y+60, bw-14, 160, 10); ctx.fill();
       ctx.textAlign='center';
-      txt(String(v), bx+(bw-14)/2, y+326, 70, '#F2B01E','blk');
-      txt(rot, bx+(bw-14)/2, y+362, 22, '#8A9A8C','cond',6);
+      txt(String(v), bx+(bw-14)/2, y+162, 78, P().ac,'blk');
+      txt(rot, bx+(bw-14)/2, y+198, 22, '#8A9A8C','cond',6);
       ctx.textAlign='left';
     });
 
-    // frase livre
-    const linhasF = quebra(F.piada.value, 54, 3);
+    const linhasF = quebra(F.piada.value, 54, 4);
     if(linhasF.length){
-      const bh = 40 + linhasF.length*44;
-      ctx.fillStyle='rgba(255,255,255,.04)'; rr(cx, y+404, w-500, bh, 10); ctx.fill();
-      ctx.fillStyle='#F2B01E'; rr(cx, y+404, 5, bh, 3); ctx.fill();
-      linhasF.forEach((l,i)=> txt(l, cx+26, y+448+i*44, 34, '#D8E4DA','cond',1));
+      const bh = 44 + linhasF.length*46;
+      ctx.fillStyle='rgba(255,255,255,.04)'; rr(cx, y+250, w-500, bh, 10); ctx.fill();
+      ctx.fillStyle=P().ac; rr(cx, y+250, 5, bh, 3); ctx.fill();
+      linhasF.forEach((l,i)=> txt(l, cx+26, y+298+i*46, 34, '#D8E4DA','cond',1));
     }
   }
 
@@ -3615,8 +3639,8 @@ function drawPlacar(A,B,k,fim){
   ctx.strokeStyle='#F2B01E'; ctx.lineWidth=4; rr(x,y,w,h,20); ctx.stroke();
   ctx.textAlign='center';
   txt(fim ? 'FIM DE JOGO' : 'COPA REVOADA', 960, y+72, 40, '#F2B01E','cond',12);
-  escudoCv(A, x+190, y+215, 150);
-  escudoCv(B, x+w-190, y+215, 150);
+  crestCv(A, x+190, y+215, 150);
+  crestCv(B, x+w-190, y+215, 150);
   if(fim){
     const ga=+F.ga.value||0, gb=+F.gb.value||0;
     txt(String(ga), 960-118, y+250, 150, ga>gb?'#F2B01E':'#F4F1E6','blk');
@@ -3646,8 +3670,10 @@ function drawArtilheiro(p,T,k){
   txt('ARTILHEIRO DO DIA', x+382, y+118, 38, '#F2B01E','cond',10);
   txt(p.apelido.toUpperCase(), x+382, y+216, 96, '#F4F1E6','blk');
   const g = p.gols||0;
+  ctx.font='400 92px "Archivo Black", sans-serif';
+  const wG = ctx.measureText(String(g)).width;
   txt(String(g), x+382, y+330, 92, P().ac,'blk');
-  txt(g===1?'GOL':'GOLS', x+382+(String(g).length*56), y+330, 44, '#8A9A8C','cond',6);
+  txt(g===1?'GOL':'GOLS', x+382+wG+30, y+330, 44, '#8A9A8C','cond',6);
   txt(T.nome.toUpperCase(), x+382, y+372, 28, '#8A9A8C','cond',6);
   marca(x+w-150, y+60, 120);
   ctx.restore();
@@ -3673,7 +3699,7 @@ function drawHistorico(p,T,k){
 
   /* colunas com folga: texto até 700, gráfico a partir de 760 */
   const cx = x+312, limiteTexto = 700 - 312 - 20;
-  txt('NA COPA REVOADA', cx, y+92, 30, P().ac,'cond',10);
+  txt('GOL NA COPA REVOADA', cx, y+92, 30, P().ac,'cond',10);
   const fn = fonteQueCabe(p.apelido.toUpperCase(), 78, limiteTexto, 'blk');
   txt(p.apelido.toUpperCase(), cx, y+170, fn, '#F4F1E6','blk');
 
@@ -3720,10 +3746,9 @@ function drawPenaltis(A,B,k){
   const seqA=(F.pa.value||'').trim(), seqB=(F.pb.value||'').trim();
   const n = Math.max(5, seqA.length, seqB.length);
   const conta = s => (s.match(/[Gg]/g)||[]).length;
-  ctx.save(); ctx.globalAlpha=Math.min(1,k*2);
+  /* o quadro fica parado: quem anima é cada cobrança, uma de cada vez */
+  ctx.save();
   const w=1280,h=470,x=(1920-w)/2,y=(1080-h)/2-20;
-  const esc=.92+ease(Math.min(1,k*1.6))*.08;
-  ctx.translate(960,y+h/2); ctx.scale(esc,esc); ctx.translate(-960,-(y+h/2));
   sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.95)'; rr(x,y,w,h,20); ctx.fill(); });
   ctx.strokeStyle='#F2B01E'; ctx.lineWidth=4; rr(x,y,w,h,20); ctx.stroke();
   ctx.textAlign='center';
@@ -3738,8 +3763,15 @@ function drawPenaltis(A,B,k){
     const r=30, esp=(meia-60)/n;
     for(let i=0;i<n;i++){
       const cx = bx+30+esp*i+esp/2, ch = seq[i]||'.';
-      const vis = Math.min(1, Math.max(0,(k-.25-i*.08)/.25));
-      ctx.save(); ctx.globalAlpha=ctx.globalAlpha*vis;
+      ctx.save();
+      const marcada = ch==='G'||ch==='g'||ch==='X'||ch==='x';
+      const passo = 1/Math.max(n,1);
+      const vis = marcada ? clamp01((k - i*passo)/(passo*.7)) : 1;
+      if(vis<=0){ ctx.restore(); continue; }
+      /* a última a entrar dá um pulo, pra chamar o olho na hora da cobrança */
+      const pop = marcada && vis<1 ? 1 + Math.sin(vis*Math.PI)*.45 : 1;
+      ctx.save();
+      ctx.translate(cx, y+340); ctx.scale(pop,pop); ctx.translate(-cx, -(y+340));
       marcaPenal(ch, cx, y+340, r);
       if(ch!=='G'&&ch!=='g'&&ch!=='X'&&ch!=='x'){
         txt(String(i+1), cx, y+350, 26, '#6B7A6E','cond');
@@ -3771,8 +3803,8 @@ function drawBatedor(p,T,k){
     ctx.textAlign='left';
   }
   ctx.fillStyle='rgba(255,255,255,.08)'; rr(x+322, y+240, w-390, 76, 10); ctx.fill();
-  txt('HISTÓRICO', x+346, y+272, 24, '#8A9A8C','cond',8);
-  txt(F.hist.value.toUpperCase(), x+346, y+306, 38, P().ac,'cond',3);
+  txt('HISTÓRICO', x+346, y+272, 24, P().ac,'cond',8);
+  txt(F.hist.value.toUpperCase(), x+346, y+306, 38, '#F4F1E6','cond',3);
   txt(T.nome.toUpperCase(), x+322, y+364, 28, '#8A9A8C','cond',6);
   marca(x+w-136, y+h-128, 104);
   ctx.restore();
@@ -3780,21 +3812,15 @@ function drawBatedor(p,T,k){
 
 /* ---- fim do primeiro tempo, com recado ---- */
 function drawIntervalo(A,B,k){
-  const linhas = (F.txt.value||'').split('\n').flatMap(l=>{
-    const out=[]; let atual='';
-    l.split(' ').forEach(pal=>{
-      if((atual+' '+pal).trim().length>62){ out.push(atual.trim()); atual=pal; }
-      else atual+=' '+pal;
-    });
-    out.push(atual.trim()); return out;
-  }).filter(Boolean).slice(0,4);
-  const h = 300 + linhas.length*46;
+  const m = +F.fonte.value || 1;            // botão de fonte maior
+  const linhas = quebra(F.txt.value, Math.round(62/m), 4);
+  const h = 300 + linhas.length*46*m;
   const w=1500, x=(1920-w)/2, y=1040-h;
   ctx.save(); ctx.globalAlpha=Math.min(1,k*2);
   ctx.translate(0,(1-ease(clamp01(k*1.3)))*(h+40));
   sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.96)'; rr(x,y,w,h,18); ctx.fill(); });
-  ctx.fillStyle='#F2B01E'; rr(x,y,w,10,6); ctx.fill();
-  txt('FIM DO 1º TEMPO', x+44, y+80, 44, '#F2B01E','cond',12);
+  ctx.fillStyle=P().ac; rr(x,y,w,10,6); ctx.fill();
+  txt('FIM DO 1º TEMPO', x+44, y+80, 44, P().ac,'cond',12);
   // placar compacto
   const ga=+F.ga.value||0, gb=+F.gb.value||0;
   ctx.textAlign='right';
@@ -3806,7 +3832,7 @@ function drawIntervalo(A,B,k){
   linhas.forEach((l,i)=>{
     const vis = Math.min(1, Math.max(0,(k-.3-i*.1)/.3));
     ctx.save(); ctx.globalAlpha=ctx.globalAlpha*vis;
-    txt(l, x+44, y+180+i*46, 38, '#D8E4DA','cond',1);
+    txt(l, x+44, y+180+i*46*m, Math.round(38*m), '#D8E4DA','cond',1);
     ctx.restore();
   });
   marca(x+w-136, y+h-124, 104);
@@ -3835,6 +3861,7 @@ function curva(prog){
 
 function syncFields(){
   const t = F.tipo.value;
+  ARTE_ATUAL = t;
   document.querySelectorAll('[data-for]').forEach(el=>{
     el.style.display = el.dataset.for.split(' ').includes(t) ? '' : 'none';
   });
@@ -3853,6 +3880,7 @@ function syncFields(){
   if(['escalacao','formacao'].includes(t) && !F.esc.value.trim()) preencherEscalacao();
   draw(1);
 }
+F.dest.addEventListener('change', ()=>{ destaque = F.dest.value; draw(1); });
 Object.values(F).forEach(el=> el.addEventListener('input', el===F.tipo ? syncFields : ()=>draw(1)));
 /* As artes de Lances fazem a própria entrada e saída dentro de u. Parado,
    elas querem u=null (estado assentado); só durante a animação recebem o u

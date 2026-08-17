@@ -196,3 +196,30 @@ Duas limitações que valem saber antes de montar a timeline:
 Fora esses casos, o Estúdio já gera tudo **sem nenhum verde dentro da arte**
 quando o fundo verde está ligado — inclusive trocando a cor do Dentro FC, que é
 verde, por um azul de brilho equivalente.
+
+---
+
+## Estúdio — o que o feedback pediu e ainda não entrou
+
+O grosso do feedback já está no ar: o verde saiu de 24 das 26 artes, entrou o
+toggle amarelo/azul, o Dentro FC deixou de ser verde na aba TIMES, e os ajustes
+de texto, escudo e layout foram aplicados. Continua aberto:
+
+| item | o que falta |
+|---|---|
+| Ficha do jogador | modo de comparação, dois jogadores lado a lado, um em amarelo e outro em azul |
+| Marco da copinha | animação em sequência passando por temporadas, jogos, gols e artilheiro, terminando na foto do Garopaba |
+| Chance de gol | trocar os círculos pelas fotos dos jogadores e animar a entrada das peças |
+| Mapa tático | botões de salvar e carregar na planilha |
+| Análise do jogo | chave de administração e gravação dos lances na planilha |
+| Tela Análise Tática | mover Mapa tático, Chance de gol e Análise do jogo do Estúdio para tela própria |
+
+## Onde o verde ainda existe, de propósito
+
+**Formação no campo** e **Chance de gol** mantêm o gramado verde, como combinado.
+Se um dia precisar exportar essas duas em WebM verde, ligue o **fundo verde** no
+Estúdio antes: o verde delas também sai.
+
+Fora isso, cinco fotos de jogador foram tiradas contra parede verde — Garopaba,
+Borba, Bala, Leo Godinho e Vitor. Isso nenhuma paleta resolve: em arte que mostre
+essas fotos, use a sequência PNG em vez do WebM verde.
