@@ -1571,16 +1571,18 @@ const mapa = {
   pecas:[]
 };
 
-function novaPeca(tipo, nome, cor, x, y){
-  const p={id:Math.random().toString(36).slice(2,8), tipo, nome, cor, pos:[]};
+function novaPeca(tipo, nome, cor, x, y, pid){
+  const p={id:Math.random().toString(36).slice(2,8), tipo, nome, cor, pid:pid||'', pos:[]};
   for(let i=0;i<8;i++) p.pos[i]={x,y};
   return p;
 }
 function seedMapa(){
+  const nomes = DADOS.jogadores.filter(p=>p.foto).slice(0,6);
+  const pid = i => (nomes[i] ? nomes[i].id : '');
   mapa.pecas=[
-    novaPeca('a','Letti',   C.grassL, -12,-6), novaPeca('a','Vitao',  C.grassL, -4, 4),
-    novaPeca('a','Glauber', C.grassL,   8,-3), novaPeca('b','Zaga',   C.ember,   2, 0),
-    novaPeca('b','Nathan',  C.ember,   14, 2), novaPeca('g','Merizi', C.gold,   25, 0),
+    novaPeca('a','Letti',   C.grassL, -12,-6, pid(0)), novaPeca('a','Vitao',  C.grassL, -4, 4, pid(1)),
+    novaPeca('a','Glauber', C.grassL,   8,-3, pid(2)), novaPeca('b','Zaga',   C.ember,   2, 0, pid(3)),
+    novaPeca('b','Nathan',  C.ember,   14, 2, pid(4)), novaPeca('g','Merizi', C.gold,   25, 0, pid(5)),
     novaPeca('o','Bola',    C.chalk,  -12,-5)
   ];
   const rota={
@@ -1599,6 +1601,30 @@ function posNoTempo(p,t){
   const i=clamp(Math.floor(t),0,mapa.nq-2), f=easeIO(clamp(t-i,0,1));
   const a=p.pos[i], b=p.pos[i+1];
   return {x:lerp(a.x,b.x,f), y:lerp(a.y,b.y,f)};
+}
+
+/* foto do jogador dentro de um círculo: é o que troca a bolinha lisa pelo
+   rosto, no mapa e na chance de gol. Sem foto, cai nas iniciais. */
+function discoJogador(c, pid, nome, px, py, r, cor){
+  const p = pid ? pById[pid] : null;
+  const im = p ? foto(p) : null;
+  c.save();
+  c.shadowColor='rgba(0,0,0,.65)'; c.shadowBlur=18; c.shadowOffsetY=4;
+  c.beginPath(); c.arc(px,py,r,0,7); c.fillStyle=cor; c.fill();
+  c.restore();
+  if(im){
+    c.save(); c.beginPath(); c.arc(px,py,r-3,0,7); c.clip();
+    const lado=(r-3)*2;
+    c.drawImage(im, px-r+3, py-r+3, lado, lado);
+    c.restore();
+  } else if(nome){
+    c.save(); c.textAlign='center'; c.textBaseline='middle';
+    c.fillStyle=contraste(cor); c.font=black(r*.7);
+    c.fillText(nome.slice(0,2).toUpperCase(), px, py);
+    c.restore();
+  }
+  c.beginPath(); c.arc(px,py,r,0,7);
+  c.strokeStyle=cor; c.lineWidth=Math.max(3,r*.16); c.stroke();
 }
 
 /* a cor da peça foi congelada quando o mapa foi semeado; no modo chroma
@@ -1645,12 +1671,14 @@ function desenhaMapa(c,u){
       c.beginPath(); c.arc(px,py,13,0,7); c.fillStyle=C.chalk; c.fill(); c.restore();
       c.beginPath(); c.arc(px,py,13,0,7); c.strokeStyle=C.ink; c.lineWidth=3; c.stroke();
     }else{
-      const r=25;
-      c.save(); c.shadowColor='rgba(0,0,0,.65)'; c.shadowBlur=20; c.shadowOffsetY=5;
-      c.beginPath(); c.arc(px,py,r,0,7); c.fillStyle=corPeca(p.cor); c.fill(); c.restore();
-      c.beginPath(); c.arc(px,py,r,0,7);
-      c.strokeStyle = p.tipo==='g' ? C.ink : 'rgba(5,8,7,.6)'; c.lineWidth=4; c.stroke();
-      if(mapa.numeros) txt(c,String(idx+1),px,py+9,{font:cond(900,27),fill:C.ink,align:'center'});
+      const r=27;
+      discoJogador(c, p.pid, p.pid?'':p.nome, px, py, r, corPeca(p.cor));
+      if(mapa.numeros){
+        c.beginPath(); c.arc(px+r*.72,py-r*.72,r*.44,0,7);
+        c.fillStyle=corPeca(p.cor); c.fill();
+        txt(c,String(idx+1),px+r*.72,py-r*.72+7,
+          {font:cond(900,20),fill:contraste(corPeca(p.cor)),align:'center'});
+      }
       const nw=larguraTxt(c,p.nome.toUpperCase(),cond(700,20),1.5)+18;
       c.fillStyle='rgba(5,8,7,.82)'; roundRect(c,px-nw/2,py+r+7,nw,27,6); c.fill();
       txt(c,p.nome.toUpperCase(),px,py+r+27,{font:cond(700,20),fill:C.chalk,align:'center',track:1.5});
@@ -1677,8 +1705,8 @@ const chute = {
   visao:'meia',        // meia | inteira
   lado:1,              // +1 ataca o gol da direita, -1 o da esquerda
   bola:{x:14, y:-5.5},
-  gk:{x:26.4, y:-.8},
-  zag:[{x:18,y:-3.4},{x:19.5,y:-6.2}],
+  gk:{x:26.4, y:-.8, pid:''},
+  zag:[{x:18,y:-3.4,pid:''},{x:19.5,y:-6.2,pid:''}],
   batedor:'Glauber', qualidade:3, execucao:0,
   parte:'bom', jogada:'aberta', posGk:0,
   explica:false, minuto:"27'"
@@ -1807,19 +1835,13 @@ function desenhaChute(c){
 
   chute.zag.forEach((z,i)=>{
     const [zx,zy]=P.px(z.x,z.y);
-    c.save(); c.shadowColor='rgba(0,0,0,.6)'; c.shadowBlur=16;
-    c.beginPath(); c.arc(zx,zy,22,0,7); c.fillStyle=C.ember; c.fill(); c.restore();
-    c.beginPath(); c.arc(zx,zy,22,0,7); c.strokeStyle='rgba(5,8,7,.6)'; c.lineWidth=4; c.stroke();
-    txt(c,'Z'+(i+1),zx,zy+8,{font:cond(900,22),fill:C.ink,align:'center'});
+    discoJogador(c, z.pid, z.pid?'':'Z'+(i+1), zx, zy, 26, C.ember);
   });
 
   const [gkx,gky]=P.px(chute.gk.x,chute.gk.y);
   c.save(); c.setLineDash([8,7]); c.strokeStyle='rgba(242,176,30,.55)'; c.lineWidth=3;
   c.beginPath(); c.arc(gkx,gky,r.rGk*P.s,0,7); c.stroke(); c.restore();
-  c.save(); c.shadowColor='rgba(0,0,0,.6)'; c.shadowBlur=18;
-  c.beginPath(); c.arc(gkx,gky,26,0,7); c.fillStyle=C.gold; c.fill(); c.restore();
-  c.beginPath(); c.arc(gkx,gky,26,0,7); c.strokeStyle=C.ink; c.lineWidth=4; c.stroke();
-  txt(c,'GK',gkx,gky+9,{font:cond(900,25),fill:C.ink,align:'center'});
+  discoJogador(c, chute.gk.pid, chute.gk.pid?'':'GK', gkx, gky, 30, C.gold);
 
   c.save(); c.shadowColor='rgba(0,0,0,.8)'; c.shadowBlur=20;
   c.beginPath(); c.arc(bx,by,15,0,7); c.fillStyle=C.chalk; c.fill(); c.restore();
@@ -2584,6 +2606,14 @@ return {
    repintado a cada tecla, senão o input perde o foco no meio da digitação.
    Quem atualiza os números da leitura é atualizaLeitura(). */
 function campoL(c){
+  if(c.ator){
+    return `<div class="field"><label>${c.rot}</label>
+      <select data-ator="${c.ator}">
+        <option value="">— sem foto, só a marca —</option>
+        ${jog.filter(p=>p.foto).map(p=>
+          `<option value="${p.id}"${p.id===c.val?' selected':''}>${p.apelido}</option>`).join('')}
+      </select></div>`;
+  }
   const alvo = `data-alvo="${c.alvo}"`;
   if(c.tipo==='select'){
     return `<div class="field"><label>${c.rot}</label><select ${alvo}>${
@@ -2622,6 +2652,9 @@ function specLances(t){
   const E = LANCES.estado;
   if(t==='chance') return [
     {alvo:'chute.batedor', rot:'Quem chutou', tipo:'select', ops:OPS_JOGADOR(), val:E.chute.batedor},
+    {ator:'gk', rot:'Quem é o goleiro', val:E.chute.gk.pid},
+    {ator:'z0', rot:'Zagueiro 1', val:E.chute.zag[0]?E.chute.zag[0].pid:''},
+    {ator:'z1', rot:'Zagueiro 2', val:E.chute.zag[1]?E.chute.zag[1].pid:''},
     {alvo:'chute.qualidade', rot:'Nota do batedor', tipo:'faixa', min:1, max:5, val:E.chute.qualidade},
     {alvo:'chute.parte', rot:'Como chutou', tipo:'select', val:E.chute.parte,
      ops:Object.entries(LANCES.PARTE).map(([k,v])=>[k,v.rot])},
@@ -2691,6 +2724,7 @@ function montaPainelLances(t){
         .map(n=>`<option value="${n}">${n}</option>`).join('')}</select></div>` : '';
   const leitura = t==='chance'
     ? `<div class="card" style="padding:.7rem .8rem;margin-top:.6rem" id="leitura-xg"></div>` : '';
+  const pecas = t==='mapa' ? painelPecas() : '';
   const lances = t==='ficha' ? painelLancesLista() : '';
   const planilha = t==='ficha' ? painelPlanilha() : '';
   const fundo = `<div class="field"><label>Fundo da arte</label>
@@ -2710,7 +2744,7 @@ function montaPainelLances(t){
       <div style="display:flex;gap:.4rem;margin-top:.4rem">
         <button class="btn" data-cod-gerar style="flex:1">Gerar</button>
         <button class="btn" data-cod-ler style="flex:1">Aplicar</button></div></div>` : '';
-  cx.innerHTML = campos + fundo + medidas + leitura + buscar + planilha + lances + codigo;
+  cx.innerHTML = campos + fundo + medidas + leitura + buscar + planilha + pecas + lances + codigo;
   if(t==='chance') atualizaLeitura();
   if(t==='ficha') pintaListaLances();
 }
@@ -2737,6 +2771,36 @@ function painelPlanilha(){
       <button class="btn" data-pl-ler style="flex:1">Carregar</button>
       <button class="btn primary" data-pl-gravar style="flex:1">Gravar</button></div>
       <p data-pl-msg style="font-size:.78rem;color:var(--dim);margin:.5rem 0 0"></p></div>`;
+}
+
+/* Editor das peças do mapa: quem é cada bolinha. Escolher o jogador troca a
+   bolinha lisa pela foto dele. */
+function painelPecas(){
+  const M = LANCES.estado.mapa;
+  const ops = p => jog.filter(j=>j.foto).map(j=>
+    `<option value="${j.id}"${j.id===p.pid?' selected':''}>${j.apelido}</option>`).join('');
+  return `<div class="field"><label>Quem é cada peça</label>
+    <div style="border:1px solid var(--line);border-radius:8px;max-height:230px;overflow:auto">
+    ${M.pecas.map((p,i)=>`
+      <div style="display:flex;gap:.35rem;align-items:center;padding:.28rem .4rem;
+        border-bottom:1px solid rgba(255,255,255,.05)">
+        <b style="width:1.3rem;color:var(--gold);font-family:'Barlow Condensed',sans-serif">${i+1}</b>
+        <select data-peca="${i}" data-campo-peca="tipo" style="width:5.2rem">
+          <option value="a"${p.tipo==='a'?' selected':''}>Ataque</option>
+          <option value="b"${p.tipo==='b'?' selected':''}>Defesa</option>
+          <option value="g"${p.tipo==='g'?' selected':''}>Goleiro</option>
+          <option value="o"${p.tipo==='o'?' selected':''}>Bola</option>
+        </select>
+        <select data-peca="${i}" data-campo-peca="pid" style="flex:1"
+          ${p.tipo==='o'?'disabled':''}>
+          <option value="">— só o nome —</option>${ops(p)}
+        </select>
+        <button class="btn ghost" data-peca-del="${i}"
+          style="padding:.1rem .42rem;font-size:.72rem">×</button>
+      </div>`).join('')}
+    </div>
+    <button class="btn" data-peca-add style="width:100%;margin-top:.4rem">Acrescentar peça</button>
+  </div>`;
 }
 
 function painelLancesLista(){
@@ -2811,6 +2875,29 @@ document.addEventListener('input', e=>{
     }
     draw(1); atualizaLeitura();
   }
+  if(el.dataset.ator){
+    const E = LANCES.estado.chute;
+    if(el.dataset.ator==='gk') E.gk.pid = el.value;
+    else { const i = +el.dataset.ator.slice(1); if(E.zag[i]) E.zag[i].pid = el.value; }
+    draw(1); atualizaLeitura();
+  }
+  if(el.dataset.peca!==undefined && el.dataset.campoPeca){
+    const M = LANCES.estado.mapa, pc = M.pecas[+el.dataset.peca];
+    if(pc){
+      if(el.dataset.campoPeca==='pid'){
+        pc.pid = el.value;
+        const j = el.value ? pById[el.value] : null;
+        if(j) pc.nome = j.apelido;
+      } else {
+        pc.tipo = el.value;
+        pc.cor = pc.tipo==='g' ? '#F2B01E' : pc.tipo==='b' ? '#FF5A2C'
+               : pc.tipo==='o' ? '#F4F1E6' : LANCES.C.grassL;
+        if(pc.tipo==='o'){ pc.pid=''; pc.nome='Bola'; }
+        montaPainelLances('mapa');
+      }
+      draw(1);
+    }
+  }
   if(el.dataset.fundo!==undefined){
     LANCES.setFundo(F.tipo.value, el.value==='1');
     draw(1);
@@ -2835,6 +2922,18 @@ document.addEventListener('click', async e=>{
   const plMsg = m => { const el=document.querySelector('[data-pl-msg]'); if(el) el.textContent=m; };
   const plVal = k => { const el=document.querySelector(`[data-pl="${k}"]`); return el?el.value.trim():''; };
 
+  if(b.hasAttribute('data-peca-add')){
+    const M = LANCES.estado.mapa;
+    const livre = jog.find(j=>j.foto && !M.pecas.some(p=>p.pid===j.id));
+    M.pecas.push(LANCES.novaPeca('a', livre?livre.apelido:'Novo', LANCES.C.grassL, 0, 0,
+      livre?livre.id:''));
+    montaPainelLances('mapa'); draw(1); return;
+  }
+  if(b.hasAttribute('data-peca-del')){
+    const M = LANCES.estado.mapa;
+    M.pecas.splice(+b.getAttribute('data-peca-del'), 1);
+    montaPainelLances('mapa'); draw(1); return;
+  }
   if(b.hasAttribute('data-pl-ler')){
     const url=(DADOS.copa&&DADOS.copa.lancesUrl)||'', jogo=plVal('jogo');
     if(!url) return;
