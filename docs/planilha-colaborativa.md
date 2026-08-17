@@ -35,8 +35,15 @@ e aí não é mais um site estático.
 ### 1. Suba a planilha para o Google Sheets
 
 Se ainda não fez: suba `dados/COPA_REVOADA_planilha.xlsx` para o Drive e abra
-com Google Sheets. Ela já vem com as abas **LANCES 2026-04** e **LANCES 2026-08**,
-cada uma com a chave preenchida na célula B2.
+com Google Sheets. Ela já vem com as abas **LANCES 2026-04** e **LANCES 2026-08**.
+
+**Antes de usar, troque a chave.** A célula **B2** de cada aba vem com o
+marcador `TROQUE-ESTA-CHAVE`. Digite ali a chave que vocês quiserem — ela só
+existe de verdade na planilha do Drive.
+
+> Por que não já vem preenchida: o `.xlsx` deste repositório é **público**.
+> Chave que passa por repositório público deixa de ser chave. Eu cheguei a
+> gerar duas e tive que descartá-las por isso mesmo.
 
 > As abas dos jogos seguintes o próprio script cria, com uma chave nova, na
 > primeira vez que alguém gravar naquele jogo.
@@ -121,9 +128,10 @@ gravou e quando, então dá para saber o que aconteceu.
 
 ---
 
-## As chaves de hoje
+## As chaves
 
-Estão na célula B2 de cada aba. Não vou repeti-las aqui — este arquivo está num
-repositório **público**, e chave em repositório público não é chave.
+Ficam na célula **B2** de cada aba, e só na planilha do Drive. No repositório
+elas nunca existem: o `.xlsx` versionado carrega apenas o marcador.
 
-Para trocar uma chave, basta digitar outra na célula B2. Vale na hora.
+Escolha algo fácil de ditar no grupo e difícil de adivinhar. Trocar é digitar
+outra coisa na B2 — vale na hora, sem republicar nada.

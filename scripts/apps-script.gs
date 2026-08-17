@@ -1,6 +1,10 @@
 /**
  * Copa Revoada — ponte entre o app e a planilha.
  *
+ * ATENÇÃO: a chave de cada jogo mora na célula B2 da aba daquele jogo, na
+ * planilha do Google. O .xlsx deste repositório é público, então lá a B2 vem
+ * com um marcador. Digite a chave de verdade só depois de subir pro Drive.
+ *
  * Cole este arquivo em Extensões > Apps Script da planilha e publique como
  * Web App. O passo a passo está em docs/planilha-colaborativa.md.
  *
