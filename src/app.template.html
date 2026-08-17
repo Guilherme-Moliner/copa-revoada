@@ -459,6 +459,7 @@ section+section{margin-top:3rem}
               <optgroup label="Lances">
                 <option value="mapa">Mapa tático do lance</option>
                 <option value="chance">Chance de gol (xG)</option>
+                <option value="jogada">Jogada completa — mapa + xG</option>
                 <option value="ficha">Análise do jogo</option>
               </optgroup>
               <optgroup label="Especiais">
@@ -506,6 +507,8 @@ section+section{margin-top:3rem}
           <div class="field" data-for="escalacao formacao"><label for="f-esc" id="l-esc">Escalação — um por linha: <i>POS Apelido</i></label><textarea id="f-esc"></textarea></div>
           <div class="field" data-for="cartao"><label for="f-cor">Cor</label>
             <select id="f-cor"><option value="amarelo">Amarelo</option><option value="vermelho">Vermelho</option></select></div>
+          <div class="field" data-for="stat"><label for="f-comp">Comparar com</label>
+            <select id="f-comp"></select></div>
           <div class="field" data-for="stat"><label for="f-piada">Frase (o que quiser, pode ser zoeira)</label>
             <textarea id="f-piada" rows="2">Nunca perdeu uma dividida nem uma discussão no grupo.</textarea></div>
           <div class="field" data-for="penaltis"><label for="f-pa">Cobranças — G gol, X erro, · a cobrar</label>
@@ -752,7 +755,7 @@ $('#nav').innerHTML = MENU.map(m=>`<button data-go="${m.id}">${m.lbl}</button>`)
 /* Análise Tática e Estúdio são a mesma tela: mesmo canvas, mesmos botões de
    exportar. O que muda é quais artes aparecem no seletor. Separar em duas
    telas de verdade significaria duplicar a máquina de exportação inteira. */
-const ARTES_ANALISE = ['mapa','chance','ficha'];
+const ARTES_ANALISE = ['mapa','chance','jogada','ficha'];
 function filtraArtes(grupo){
   const sel = $('#f-tipo');
   let primeira = null;
@@ -2594,6 +2597,231 @@ function usaEstadio(nome){
   return true;
 }
 
+
+/* =====================================================================
+   JOGADA COMPLETA — o mapa e a chance de gol na mesma arte.
+   As peças andam no tempo como no mapa; a peça marcada como finalizador
+   define de onde sai o chute, e a geometria do xG é calculada em cima
+   das posições do último momento. É a leitura inteira do lance num quadro.
+   ================================================================== */
+const jogada = {
+  nq:3, k:0, segundos:1, rastro:true, numeros:true, tamPeca:1,
+  titulo:'A JOGADA DO GOL', sub:'', autor:'',
+  lado:1, visao:'meia', minuto:"27'",
+  parte:'bom', tipoJogada:'aberta', posGk:0, execucao:0, explica:true,
+  pecas:[]
+};
+
+function seedJogada(){
+  const comFoto = DADOS.jogadores.filter(x=>x.foto);
+  const id = i => (comFoto[i] ? comFoto[i].id : '');
+  const nome = i => (comFoto[i] ? comFoto[i].apelido : 'Jogador '+(i+1));
+  const nova = (tipo,i,cor,x,y,fin) => {
+    const q = novaPeca(tipo, tipo==='o'?'Bola':nome(i), cor, x, y, tipo==='o'?'':id(i));
+    q.finaliza = !!fin;
+    return q;
+  };
+  jogada.pecas = [
+    nova('a',0,C.grassL, 6,-4, true),
+    nova('a',1,C.grassL, 2, 5, false),
+    nova('b',2,C.ember, 12,-2, false),
+    nova('b',3,C.ember, 16, 3, false),
+    nova('g',4,C.gold,  26, 0, false),
+    nova('o',0,C.chalk,  4,-3, false)
+  ];
+  const rota = {
+    0:[[6,-4],[2,5],[12,-2],[16,3],[26,0],[4,-3]],
+    1:[[12,-3],[7,4],[15,-1],[18,2],[26.5,-.5],[11,-2]],
+    2:[[18,-1.5],[12,3],[19,0],[20,2],[27,-1],[18,-1]]
+  };
+  Object.entries(rota).forEach(([k,arr])=>arr.forEach((xy,i)=>{
+    if(jogada.pecas[i]) jogada.pecas[i].pos[+k] = {x:xy[0], y:xy[1]};
+  }));
+}
+seedJogada();
+
+function posJogada(pc, t){
+  const i = clamp(Math.floor(t), 0, jogada.nq-2), f = easeIO(clamp(t-i,0,1));
+  const a = pc.pos[i], b = pc.pos[i+1];
+  return {x:lerp(a.x,b.x,f), y:lerp(a.y,b.y,f)};
+}
+
+/* Monta um "chute" com as peças e reaproveita a mesma matemática do xG.
+   Nada de segunda implementação: o número tem que ser o mesmo. */
+function xgDaJogada(t){
+  const guardado = {bola:chute.bola, gk:chute.gk, zag:chute.zag, batedor:chute.batedor,
+    lado:chute.lado, parte:chute.parte, jogada:chute.jogada, posGk:chute.posGk,
+    execucao:chute.execucao, qualidade:chute.qualidade, visao:chute.visao};
+  const fin  = jogada.pecas.find(x=>x.finaliza) || jogada.pecas.find(x=>x.tipo==='a');
+  const bola = jogada.pecas.find(x=>x.tipo==='o');
+  const gk   = jogada.pecas.find(x=>x.tipo==='g');
+  const zag  = jogada.pecas.filter(x=>x.tipo==='b');
+  chute.lado = jogada.lado;
+  chute.visao = jogada.visao;
+  chute.bola = bola ? posJogada(bola,t) : (fin ? posJogada(fin,t) : {x:0,y:0});
+  chute.gk = gk ? Object.assign(posJogada(gk,t), {pid:gk.pid})
+                : {x:jogada.lado*CAMPO.comp/2-1, y:0, pid:''};
+  chute.zag = zag.map(z=>Object.assign(posJogada(z,t), {pid:z.pid}));
+  chute.batedor = fin ? fin.nome : '';
+  chute.parte = jogada.parte; chute.jogada = jogada.tipoJogada;
+  chute.posGk = jogada.posGk; chute.execucao = jogada.execucao;
+  chute.qualidade = (fin && fin.pid && pById[fin.pid])
+    ? notaBatedor(pById[fin.pid].apelido) : 3;
+  const r = calculaXG();
+  const peças = {fin, bola, gk, zag};
+  Object.assign(chute, guardado);
+  return Object.assign(r, {peças});
+}
+
+function projJogada(){
+  return jogada.visao==='meia'
+    ? projecao({metade:true, lado:jogada.lado, pad:110, padR:520})
+    : projecao({pad:100, padR:500});
+}
+
+function desenhaJogada(c,u){
+  const tt = (u===null) ? jogada.k : clamp(u,0,1)*(jogada.nq-1);
+  const r = xgDaJogada(tt);
+  moldura(c,{titulo:jogada.titulo,
+    sub: jogada.sub || (r.peças.fin ? r.peças.fin.nome+' · '+jogada.minuto : jogada.minuto),
+    tag:'JOGADA COMPLETA'});
+  const P = projJogada();
+  desenhaCampo(c,P,{escuro:true});
+
+  const [bx,by] = P.px(chute.bola.x !== undefined && u===undefined ? chute.bola.x : 0, 0);
+  /* recalcula os pontos com o estado real do lance */
+  const bola = r.peças.bola ? posJogada(r.peças.bola, tt)
+             : (r.peças.fin ? posJogada(r.peças.fin, tt) : {x:0,y:0});
+  const [ox,oy] = P.px(bola.x, bola.y);
+  const [p1x,p1y] = P.px(r.gxr,-r.gh), [p2x,p2y] = P.px(r.gxr, r.gh);
+
+  /* cone de visão do gol, e a sombra de quem está na frente */
+  c.save();
+  c.beginPath(); c.moveTo(ox,oy); c.lineTo(p1x,p1y); c.lineTo(p2x,p2y); c.closePath();
+  const gg = c.createRadialGradient(ox,oy,10,ox,oy,Math.max(Math.hypot(p1x-ox,p1y-oy),20));
+  gg.addColorStop(0,VD(.42)); gg.addColorStop(1,VD(.10));
+  c.fillStyle=gg; c.fill(); c.restore();
+  r.sTudo.forEach(([a,z])=>{
+    const [xa,ya]=P.px(r.gxr,a), [xz,yz]=P.px(r.gxr,z);
+    c.beginPath(); c.moveTo(ox,oy); c.lineTo(xa,ya); c.lineTo(xz,yz); c.closePath();
+    c.fillStyle='rgba(255,90,44,.45)'; c.fill();
+  });
+  c.strokeStyle=VD(.75); c.lineWidth=3;
+  c.beginPath(); c.moveTo(ox,oy); c.lineTo(p1x,p1y);
+  c.moveTo(ox,oy); c.lineTo(p2x,p2y); c.stroke();
+
+  /* rastro de cada peça até o momento atual */
+  if(jogada.rastro){
+    jogada.pecas.forEach(pc=>{
+      c.save();
+      c.strokeStyle = pc.tipo==='o' ? 'rgba(244,241,230,.85)' : corPeca(pc.cor)+'70';
+      c.lineWidth = pc.tipo==='o' ? 5 : 3.5;
+      c.setLineDash(pc.tipo==='o' ? [14,10] : []);
+      c.lineCap='round'; c.beginPath();
+      let primeiro=true;
+      for(let v=0; v<=tt+1e-6; v+=.06){
+        const q=posJogada(pc, Math.min(v, jogada.nq-1)); const [qx,qy]=P.px(q.x,q.y);
+        primeiro ? (c.moveTo(qx,qy), primeiro=false) : c.lineTo(qx,qy);
+      }
+      c.stroke(); c.restore();
+    });
+  }
+
+  /* alcance do goleiro */
+  if(r.peças.gk){
+    const g=posJogada(r.peças.gk,tt), [gx,gy]=P.px(g.x,g.y);
+    c.save(); c.setLineDash([8,7]); c.strokeStyle='rgba(242,176,30,.55)'; c.lineWidth=3;
+    c.beginPath(); c.arc(gx,gy,r.rGk*P.s,0,7); c.stroke(); c.restore();
+  }
+
+  /* as peças */
+  const esc = jogada.tamPeca||1;
+  jogada.pecas.forEach((pc,idx)=>{
+    const q=posJogada(pc,tt), [qx,qy]=P.px(q.x,q.y);
+    if(pc.tipo==='o'){
+      const rb=14*esc;
+      c.save(); c.shadowColor='rgba(0,0,0,.7)'; c.shadowBlur=18;
+      c.beginPath(); c.arc(qx,qy,rb,0,7); c.fillStyle=C.chalk; c.fill(); c.restore();
+      c.beginPath(); c.arc(qx,qy,rb,0,7); c.strokeStyle=C.ink; c.lineWidth=3; c.stroke();
+      return;
+    }
+    const rr0 = (pc.tipo==='g' ? 30 : 27)*esc;
+    discoJogador(c, pc.pid, pc.pid?'':pc.nome, qx, qy, rr0, corPeca(pc.cor));
+    if(pc.finaliza){
+      c.save(); c.setLineDash([6,5]); c.strokeStyle=C.gold; c.lineWidth=4;
+      c.beginPath(); c.arc(qx,qy,rr0+9,0,7); c.stroke(); c.restore();
+      txt(c,'FINALIZA',qx,qy+rr0+30,{font:cond(900,17),fill:C.gold,align:'center',track:3});
+    } else {
+      const nw=larguraTxt(c,pc.nome.toUpperCase(),cond(700,18),1.4)+16;
+      c.fillStyle='rgba(5,8,7,.82)'; roundRect(c,qx-nw/2,qy+rr0+6,nw,24,6); c.fill();
+      txt(c,pc.nome.toUpperCase(),qx,qy+rr0+23,
+        {font:cond(700,18),fill:C.chalk,align:'center',track:1.4});
+    }
+  });
+
+  /* painel do xG, o mesmo da chance de gol */
+  const pw=420, ph=jogada.explica?560:400, px=1920-pw-70, py=1080-ph-70;
+  c.fillStyle='rgba(12,18,14,.94)'; roundRect(c,px,py,pw,ph,14); c.fill();
+  c.strokeStyle=C.line; c.lineWidth=2; roundRect(c,px,py,pw,ph,14); c.stroke();
+  txt(c,'GOL ESPERADO',px+24,py+40,{font:cond(700,18),fill:C.dim,track:5});
+  const pct=r.xg*100, ptxt=pct.toFixed(pct<10?1:0);
+  txt(c,ptxt,px+24,py+124,{font:cond(900,92),fill:C.gold});
+  txt(c,'%',px+30+larguraTxt(c,ptxt,cond(900,92)),py+124,{font:cond(900,46),fill:C.goldD});
+  txt(c,rotuloChance(r.xg),px+24,py+156,{font:cond(800,22),fill:C.chalk,track:3});
+  c.fillStyle=C.panel2; roundRect(c,px+24,py+172,pw-48,13,6); c.fill();
+  c.fillStyle=C.gold; roundRect(c,px+24,py+172,(pw-48)*clamp(r.xg,.02,1),13,6); c.fill();
+  [['Distância', r.d.toFixed(1)+' m'],
+   ['Goleiro tapa', (r.fGk*100).toFixed(0)+'%'],
+   ['Marcação tapa', (r.fZag*100).toFixed(0)+'%'],
+   ['Gol livre', (100-r.fTot*100).toFixed(0)+'%'],
+   ['Depois do chute', (r.xgot*100).toFixed(r.xgot<.1?1:0)+'%']
+  ].forEach((l,i)=>{
+    const y=py+218+i*27;
+    txt(c,l[0],px+24,y,{font:body(500,19),fill:C.dim});
+    txt(c,l[1],px+pw-24,y,{font:cond(800,22),fill:i>=3?C.grassL:C.chalk,align:'right'});
+  });
+  if(jogada.explica){
+    let y=py+382;
+    c.strokeStyle=C.line; c.lineWidth=1;
+    c.beginPath(); c.moveTo(px+24,y-14); c.lineTo(px+pw-24,y-14); c.stroke();
+    txt(c,'DE ONDE VEM ESSE NÚMERO',px+24,y+4,{font:cond(700,16),fill:C.dim,track:4});
+    y+=26;
+    txt(c,'Posição no campo',px+24,y+8,{font:body(500,17),fill:C.chalk});
+    txt(c,(r.base*100).toFixed(0)+'%',px+pw-24,y+8,{font:cond(800,19),fill:C.chalk,align:'right'});
+    y+=22;
+    r.passos.slice(0,5).forEach(pa=>{
+      const v=(pa.pp>=0?'+':'')+pa.pp.toFixed(1);
+      txt(c,pa.nome,px+24,y+8,{font:body(400,16),fill:C.dim});
+      txt(c,v,px+pw-24,y+8,{font:cond(800,18),fill:pa.pp>=0?C.grassL:C.ember,align:'right'});
+      y+=21;
+    });
+  }
+
+  /* linha do tempo dos momentos */
+  const bx0=140,bx1=1920-pw-140,byy=1080-64;
+  c.strokeStyle=C.line; c.lineWidth=4;
+  c.beginPath(); c.moveTo(bx0,byy); c.lineTo(bx1,byy); c.stroke();
+  c.strokeStyle=C.gold;
+  c.beginPath(); c.moveTo(bx0,byy);
+  c.lineTo(bx0+(bx1-bx0)*(tt/Math.max(jogada.nq-1,1)),byy); c.stroke();
+  for(let k=0;k<jogada.nq;k++){
+    const x=bx0+(bx1-bx0)*(k/Math.max(jogada.nq-1,1)), passou=k<=tt+.001;
+    c.beginPath(); c.arc(x,byy,12,0,7); c.fillStyle=passou?C.gold:C.panel2; c.fill();
+    c.strokeStyle=passou?C.gold:C.line; c.lineWidth=3; c.stroke();
+  }
+}
+
+function pontosJogada(){
+  const P=projJogada();
+  const k=Math.round(clamp(jogada.k,0,jogada.nq-1));
+  return jogada.pecas.map(pc=>({
+    get:()=>P.px(pc.pos[k].x,pc.pos[k].y),
+    set:(mx,my)=>{pc.pos[k]={x:clamp(mx,-CAMPO.comp/2-1,CAMPO.comp/2+1),
+                             y:clamp(my,-CAMPO.larg/2-1,CAMPO.larg/2+1)};},
+    m:P.mx, r:pc.tipo==='o'?30:34
+  }));
+}
+
 /* ---- peças que dá pra arrastar na prévia ---- */
 function pontosArrastaveis(tipo){
   if(tipo==='mapa'){
@@ -2606,6 +2834,7 @@ function pontosArrastaveis(tipo){
       m:P.mx, r:p.tipo==='o'?30:34
     }));
   }
+  if(tipo==='jogada') return pontosJogada();
   if(tipo==='chance'){
     const P=projChute(), L=chute.lado, meia=CAMPO.comp/2;
     const lo = chute.visao==='meia' ? (L>0?0:-meia+.3) : -meia+.3;
@@ -2628,11 +2857,13 @@ const ARTES = ARTES_PRONTAS = {
   placar2: {desenha:desenhaPlacar,  dur:()=> placar.dur,                fundo:false},
   clima:   {desenha:desenhaClima,   dur:()=>6,                          fundo:true},
   ficha:   {desenha:desenhaAnalise, dur:()=>7,                          fundo:true},
+  jogada:  {desenha:desenhaJogada,  dur:()=> (jogada.nq-1)*jogada.segundos, fundo:true},
 };
 
 return {
   ARTES, CAMPO, MEDIDAS_ESTADIO, usaEstadio, notaBatedor,
-  estado: {mapa, chute, clima, placar, analise},
+  estado: {mapa, chute, clima, placar, analise, jogada},
+  seedJogada, xgDaJogada,
   calculaXG, geometria, rotuloChance, estatisticas, TIPOS, PARTE, JOGADA,
   projecao, projChute, seedMapa, novaPeca, posNoTempo, buscaClima,
   fazCodigo, leCodigo, ELENCO, timeById, C,
@@ -2723,7 +2954,7 @@ function regResumo(){
 }
 
 function regListaEventos(){
-  const E = LANCES.estado.analise.eventos.slice().sort((a,b)=>a.min-b.min);
+  const E = LANCES.estado.analise.eventos.filter(e=>e.t!=='M').slice().sort((a,b)=>a.min-b.min);
   if(!E.length) return '<div class="empty" style="padding:1.6rem">Nenhum lance marcado ainda.</div>';
   const corDe = t => (tById[t==='A'?REG.timeA:REG.timeB]||{}).c1 || '#8A9A8C';
   return '<div class="reg-lista">' + E.map((e,i)=>{
@@ -2928,6 +3159,27 @@ function specLances(t){
     {alvo:'chute.minuto', rot:'Minuto', val:E.chute.minuto},
     {alvo:'chute.explica', rot:'Mostrar a conta na arte', tipo:'check', val:E.chute.explica},
   ];
+  if(t==='jogada') return [
+    {alvo:'jogada.titulo', rot:'Título', val:E.jogada.titulo},
+    {alvo:'jogada.sub', rot:'Subtítulo (vazio usa o finalizador)', val:E.jogada.sub},
+    {alvo:'jogada.nq', rot:'Quantos momentos', tipo:'faixa', min:2, max:6, val:E.jogada.nq},
+    {alvo:'jogada.k', rot:'Momento mostrado', tipo:'faixa', min:0, max:E.jogada.nq-1, passo:.05, val:E.jogada.k},
+    {alvo:'jogada.segundos', rot:'Segundos por momento', tipo:'number', min:.5, max:4, passo:.5, val:E.jogada.segundos},
+    {alvo:'jogada.tamPeca', rot:'Tamanho das peças', tipo:'faixa', min:.5, max:2.2, passo:.1, val:E.jogada.tamPeca},
+    {alvo:'jogada.visao', rot:'Enquadramento', tipo:'select', val:E.jogada.visao,
+     ops:[['meia','Meia quadra'],['inteira','Campo inteiro']]},
+    {alvo:'jogada.lado', rot:'Ataca o gol', tipo:'select', val:E.jogada.lado,
+     ops:[[1,'Da direita'],[-1,'Da esquerda']]},
+    {alvo:'jogada.parte', rot:'Como finalizou', tipo:'select', val:E.jogada.parte,
+     ops:Object.entries(LANCES.PARTE).map(([k,v])=>[k,v.rot])},
+    {alvo:'jogada.tipoJogada', rot:'Situação', tipo:'select', val:E.jogada.tipoJogada,
+     ops:Object.entries(LANCES.JOGADA).map(([k,v])=>[k,v.rot])},
+    {alvo:'jogada.posGk', rot:'Colocação do goleiro', tipo:'faixa', min:-1, max:1, passo:.5, val:E.jogada.posGk},
+    {alvo:'jogada.execucao', rot:'Execução (xGOT)', tipo:'faixa', min:-2, max:2, passo:.5, val:E.jogada.execucao},
+    {alvo:'jogada.minuto', rot:'Minuto', val:E.jogada.minuto},
+    {alvo:'jogada.rastro', rot:'Mostrar o rastro', tipo:'check', val:E.jogada.rastro},
+    {alvo:'jogada.explica', rot:'Mostrar a conta na arte', tipo:'check', val:E.jogada.explica},
+  ];
   if(t==='mapa') return [
     {alvo:'mapa.titulo', rot:'Título', val:E.mapa.titulo},
     {alvo:'mapa.sub', rot:'Subtítulo', val:E.mapa.sub},
@@ -2985,7 +3237,9 @@ function montaPainelLances(t){
         .map(n=>`<option value="${n}">${n}</option>`).join('')}</select></div>` : '';
   const leitura = t==='chance'
     ? `<div class="card" style="padding:.7rem .8rem;margin-top:.6rem" id="leitura-xg"></div>` : '';
-  const pecas = t==='mapa' ? painelPecas() : t==='chance' ? painelZagueiros() : '';
+  const pecas = t==='mapa' ? painelPecas()
+              : t==='chance' ? painelZagueiros()
+              : t==='jogada' ? painelPecasJogada() : '';
   const lances = t==='ficha' ? painelLancesLista() : '';
   const planilha = t==='ficha' ? painelPlanilha() : '';
   const fundo = `<div class="field"><label>Fundo da arte</label>
@@ -2999,13 +3253,14 @@ function montaPainelLances(t){
       <p style="font-size:.76rem;color:var(--dim);margin:.5rem 0 0">
       Dados do Open-Meteo, sem cadastro. Antes de ~80 dias atrás ele usa o
       arquivo histórico ERA5.</p></div>` : '';
+  const naPlanilha = (t==='mapa'||t==='jogada') ? painelMapaPlanilha(t) : '';
   const codigo = (t==='mapa'||t==='ficha') ? `
     <div class="field"><label>Código para mandar no grupo</label>
       <textarea data-cod rows="2" placeholder="cole aqui um código recebido"></textarea>
       <div style="display:flex;gap:.4rem;margin-top:.4rem">
         <button class="btn" data-cod-gerar style="flex:1">Gerar</button>
         <button class="btn" data-cod-ler style="flex:1">Aplicar</button></div></div>` : '';
-  cx.innerHTML = campos + fundo + medidas + leitura + buscar + planilha + pecas + lances + codigo;
+  cx.innerHTML = campos + fundo + medidas + leitura + buscar + planilha + pecas + lances + naPlanilha + codigo;
   if(t==='chance') atualizaLeitura();
   if(t==='ficha') pintaListaLances();
 }
@@ -3059,6 +3314,84 @@ function painelZagueiros(){
   </div>`;
 }
 
+/* Mesmo editor do mapa, com uma coluna a mais: quem finaliza. É essa peça
+   que define de onde sai o chute na conta do xG. */
+/* O mapa vai para a mesma aba do jogo, como uma linha especial de evento:
+   t='M', com o código RVD1 no lugar do nome. Assim não precisa mexer no
+   Apps Script nem republicar nada — o gravar e o ler que já existem servem.
+   Essas linhas são filtradas das estatísticas e das listas. */
+function painelMapaPlanilha(t){
+  const url = (DADOS.copa && DADOS.copa.lancesUrl) || '';
+  if(!url) return '';
+  const de2026 = jogos.filter(g=>g.temporada>=2026);
+  const lista = de2026.length ? de2026 : jogos;
+  return '<div class="field"><label>Guardar na planilha</label>'
+    + '<select data-mp-jogo>'
+    + lista.map(g=>'<option value="'+g.id+'">'+g.id+'</option>').join('')
+    + '</select>'
+    + '<input type="password" data-mp-chave placeholder="chave, só para gravar"'
+    + ' value="'+(sessionStorage.getItem('rvd-chave')||'')+'" style="margin-top:.4rem">'
+    + '<div style="display:flex;gap:.4rem;margin-top:.4rem">'
+    + '<button class="btn" data-mp-ler style="flex:1">Carregar mapa</button>'
+    + '<button class="btn primary" data-mp-gravar style="flex:1">Gravar mapa</button></div>'
+    + '<p data-mp-msg style="font-size:.78rem;color:var(--dim);margin:.5rem 0 0"></p></div>';
+}
+
+function pacoteDoMapa(t){
+  if(t==='jogada'){
+    const J = LANCES.estado.jogada;
+    return {tit:J.titulo, sub:J.sub, nq:J.nq, seg:J.segundos, lado:J.lado, visao:J.visao,
+      campo:LANCES.CAMPO,
+      pc:J.pecas.map(p=>[p.tipo,p.nome,p.cor,p.pid||'',p.finaliza?1:0,
+        p.pos.map(q=>[+q.x.toFixed(2),+q.y.toFixed(2)])])};
+  }
+  const M = LANCES.estado.mapa;
+  return {tit:M.titulo, sub:M.sub, aut:M.autor, nq:M.nq, seg:M.segundos, campo:LANCES.CAMPO,
+    pc:M.pecas.map(p=>[p.tipo,p.nome,p.cor,p.pid||'',0,
+      p.pos.map(q=>[+q.x.toFixed(2),+q.y.toFixed(2)])])};
+}
+function aplicaPacoteMapa(t, d){
+  const pecas = d.pc.map(([tipo,nome,cor,pid,fin,pos])=>({
+    id:Math.random().toString(36).slice(2,8), tipo, nome, cor, pid:pid||'',
+    finaliza:!!fin, pos:pos.map(([x,y])=>({x,y}))}));
+  Object.assign(LANCES.CAMPO, d.campo||{});
+  if(t==='jogada'){
+    const J = LANCES.estado.jogada;
+    Object.assign(J, {titulo:d.tit, sub:d.sub||'', nq:d.nq, segundos:d.seg,
+      lado:d.lado||1, visao:d.visao||'meia', pecas});
+  } else {
+    const M = LANCES.estado.mapa;
+    Object.assign(M, {titulo:d.tit, sub:d.sub, autor:d.aut||'', nq:d.nq, segundos:d.seg, pecas});
+  }
+}
+
+function painelPecasJogada(){
+  const J = LANCES.estado.jogada;
+  const ops = pc => jog.filter(j=>j.foto).map(j=>
+    '<option value="'+j.id+'"'+(j.id===pc.pid?' selected':'')+'>'+j.apelido+'</option>').join('');
+  return '<div class="field"><label>Quem está no lance</label>'
+    + '<div style="border:1px solid var(--line);border-radius:8px;max-height:250px;overflow:auto">'
+    + J.pecas.map((pc,i)=>
+        '<div style="display:flex;gap:.3rem;align-items:center;padding:.28rem .4rem;'
+        + 'border-bottom:1px solid rgba(255,255,255,.05)">'
+        + '<input type="radio" name="finaliza" data-fin="'+i+'"'+(pc.finaliza?' checked':'')
+        + (pc.tipo==='o'||pc.tipo==='g'?' disabled':'')+' title="quem finaliza" style="width:auto;margin:0">'
+        + '<select data-pj="'+i+'" data-campo-pj="tipo" style="width:5rem">'
+        + '<option value="a"'+(pc.tipo==='a'?' selected':'')+'>Ataque</option>'
+        + '<option value="b"'+(pc.tipo==='b'?' selected':'')+'>Marcação</option>'
+        + '<option value="g"'+(pc.tipo==='g'?' selected':'')+'>Goleiro</option>'
+        + '<option value="o"'+(pc.tipo==='o'?' selected':'')+'>Bola</option>'
+        + '</select>'
+        + '<select data-pj="'+i+'" data-campo-pj="pid" style="flex:1"'+(pc.tipo==='o'?' disabled':'')+'>'
+        + '<option value="">— só o nome —</option>'+ops(pc)+'</select>'
+        + '<button class="btn ghost" data-pj-del="'+i+'" style="padding:.1rem .4rem;font-size:.72rem">×</button>'
+        + '</div>').join('')
+    + '</div>'
+    + '<p style="font-size:.74rem;color:var(--dim);margin:.4rem 0 0">O botão redondo marca quem finaliza. '
+    + 'Arraste as peças na prévia para montar cada momento.</p>'
+    + '<button class="btn" data-pj-add style="width:100%;margin-top:.4rem">Acrescentar peça</button></div>';
+}
+
 function painelPecas(){
   const M = LANCES.estado.mapa;
   const ops = p => jog.filter(j=>j.foto).map(j=>
@@ -3106,7 +3439,7 @@ function painelLancesLista(){
 function pintaListaLances(){
   const el = $('#lista-lances'); if(!el) return;
   const E = LANCES.estado.analise;
-  el.innerHTML = E.eventos.slice().sort((a,b)=>a.min-b.min).map((e,i)=>
+  el.innerHTML = E.eventos.filter(e=>e.t!=='M').slice().sort((a,b)=>a.min-b.min).map((e,i)=>
     `<div style="display:flex;gap:.5rem;align-items:center;padding:.28rem .5rem;
        border-bottom:1px solid rgba(255,255,255,.05);font-family:'Barlow Condensed',sans-serif">
       <b style="color:var(--gold);width:2.2rem">${e.min}'</b>
@@ -3165,6 +3498,29 @@ document.addEventListener('input', e=>{
     else { const i = +el.dataset.ator.slice(1); if(E.zag[i]) E.zag[i].pid = el.value; }
     draw(1); atualizaLeitura();
   }
+  if(el.dataset.fin!==undefined){
+    const J = LANCES.estado.jogada;
+    J.pecas.forEach((pc,i)=>{ pc.finaliza = (i === +el.dataset.fin); });
+    draw(1); atualizaLeitura();
+  }
+  if(el.dataset.pj!==undefined && el.dataset.campoPj){
+    const J = LANCES.estado.jogada, pc = J.pecas[+el.dataset.pj];
+    if(pc){
+      if(el.dataset.campoPj==='pid'){
+        pc.pid = el.value;
+        const j = el.value ? pById[el.value] : null;
+        if(j) pc.nome = j.apelido;
+      } else {
+        pc.tipo = el.value;
+        pc.cor = pc.tipo==='g' ? '#F2B01E' : pc.tipo==='b' ? '#FF5A2C'
+               : pc.tipo==='o' ? '#F4F1E6' : LANCES.C.grassL;
+        if(pc.tipo==='o'){ pc.pid=''; pc.nome='Bola'; pc.finaliza=false; }
+        if(pc.tipo==='g') pc.finaliza=false;
+        montaPainelLances('jogada');
+      }
+      draw(1); atualizaLeitura();
+    }
+  }
   if(el.dataset.zag!==undefined){
     const Z = LANCES.estado.chute.zag, i = +el.dataset.zag;
     if(Z[i]){ Z[i].pid = el.value; draw(1); atualizaLeitura(); }
@@ -3210,6 +3566,62 @@ document.addEventListener('click', async e=>{
   const plMsg = m => { const el=document.querySelector('[data-pl-msg]'); if(el) el.textContent=m; };
   const plVal = k => { const el=document.querySelector(`[data-pl="${k}"]`); return el?el.value.trim():''; };
 
+  const mpMsg = m => { const el=document.querySelector('[data-mp-msg]'); if(el) el.textContent=m; };
+  if(b.hasAttribute('data-mp-gravar') || b.hasAttribute('data-mp-ler')){
+    const url=(DADOS.copa&&DADOS.copa.lancesUrl)||''; if(!url) return;
+    const t=F.tipo.value;
+    const jogo=document.querySelector('[data-mp-jogo]').value;
+    const gravando = b.hasAttribute('data-mp-gravar');
+    b.disabled=true; mpMsg(gravando?'gravando…':'carregando…');
+    try{
+      if(gravando){
+        const chave=document.querySelector('[data-mp-chave]').value.trim();
+        if(!chave){ mpMsg('digite a chave para gravar'); b.disabled=false; return; }
+        const cod = await LANCES.fazCodigo(t, pacoteDoMapa(t));
+        const res0 = await fetch(url+'?acao=ler&jogo='+encodeURIComponent(jogo));
+        const j0 = await res0.json();
+        const outros = (j0.ok?j0.eventos:[]).filter(e=>!(e.t==='M' && e.tipo===t));
+        const eventos = outros.map(e=>({min:e.min,t:e.t,tipo:e.tipo,j:e.j,xg:e.xg}));
+        eventos.push({min:0, t:'M', tipo:t, j:cod, xg:0});
+        const res = await fetch(url,{method:'POST',
+          headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body:JSON.stringify({acao:'gravar',jogo,chave,
+            por:localStorage.getItem('rvd-por')||'', eventos})});
+        const j = await res.json();
+        if(!j.ok) throw new Error(j.erro||'deu erro');
+        sessionStorage.setItem('rvd-chave',chave);
+        mpMsg('mapa guardado em '+jogo+' ('+cod.length+' caracteres)');
+      } else {
+        const res = await fetch(url+'?acao=ler&jogo='+encodeURIComponent(jogo));
+        const j = await res.json();
+        if(!j.ok) throw new Error(j.erro||'deu erro');
+        const linha = (j.eventos||[]).find(e=>e.t==='M' && e.tipo===t);
+        if(!linha) throw new Error('não há mapa guardado neste jogo');
+        const pac = await LANCES.leCodigo(linha.j);
+        aplicaPacoteMapa(t, pac.d);
+        montaPainelLances(t); draw(1);
+        mpMsg('mapa carregado de '+jogo);
+      }
+    }catch(err){ mpMsg('não deu: '+err.message); }
+    b.disabled=false; return;
+  }
+  if(b.hasAttribute('data-pj-add')){
+    const J = LANCES.estado.jogada;
+    const livre = jog.find(j=>j.foto && !J.pecas.some(x=>x.pid===j.id));
+    const nova = LANCES.novaPeca('a', livre?livre.apelido:'Novo', LANCES.C.grassL, 0, 0,
+      livre?livre.id:'');
+    nova.finaliza=false;
+    J.pecas.push(nova);
+    montaPainelLances('jogada'); draw(1); return;
+  }
+  if(b.hasAttribute('data-pj-del')){
+    const J = LANCES.estado.jogada;
+    J.pecas.splice(+b.getAttribute('data-pj-del'),1);
+    if(!J.pecas.some(x=>x.finaliza)){
+      const a = J.pecas.find(x=>x.tipo==='a'); if(a) a.finaliza=true;
+    }
+    montaPainelLances('jogada'); draw(1); return;
+  }
   if(b.hasAttribute('data-zag-add')){
     const Z = LANCES.estado.chute.zag;
     Z.push({x:18+Z.length*1.6, y:-3.4+Z.length*1.4, pid:''});
@@ -3334,9 +3746,11 @@ const F = {tipo:$('#f-tipo'),p1:$('#f-p1'),p2:$('#f-p2'),min:$('#f-min'),time:$(
            hyper:$('#f-hyper'),dist:$('#f-dist'),xg:$('#f-xg'),
            unif:$('#f-unif'),layout:$('#f-layout'),form:$('#f-form'),
            arb:$('#f-arb'),var2:$('#f-var2'),fps:$('#f-fps'),piada:$('#f-piada'),escala:$('#f-escala'),dest:$('#f-dest'),fonte:$('#f-fonte'),
-           marconum:$('#f-marconum'),marcotit:$('#f-marcotit'),marcosub:$('#f-marcosub'),
+           marconum:$('#f-marconum'),marcotit:$('#f-marcotit'),marcosub:$('#f-marcosub'),comp:$('#f-comp'),
            cor:$('#f-cor'),rtxt:$('#f-rtxt'),esc:$('#f-esc'),dur:$('#f-dur')};
 [F.p1,F.p2].forEach((s,i)=>{ s.innerHTML = jog.map(p=>`<option value="${p.id}">${p.apelido}</option>`).join(''); s.selectedIndex=i; });
+F.comp.innerHTML = '<option value="">— sem comparação —</option>' +
+  jog.map(p=>`<option value="${p.id}">${p.apelido}</option>`).join('');
 
 const optTimes = times.map(t=>`<option value="${t.id}">${t.nome} ${t.temporada}</option>`).join('');
 F.time.innerHTML = optTimes;
@@ -3505,6 +3919,9 @@ function draw(k){
   }
 
   if(t==='stat'){
+    const rival = F.comp.value ? pById[F.comp.value] : null;
+    if(rival && rival.id !== p1.id){ drawComparacao(p1, rival, T); }
+    else {
     /* enxuta de propósito: o nome já está na faixa da foto, então some daqui
        a posição, o nome repetido e o time. A caixa da foto encosta na base. */
     const w=1360, h=560, x=(1920-w)/2, y=(1080-h)/2;
@@ -3514,7 +3931,6 @@ function draw(k){
 
     const fw=380, fh=h-100;
     retrato(p1, x+40, y+50, fw, fh, 12);
-    // faixa do nome: amarela com texto preto
     ctx.fillStyle=P().ac; rr(x+40, y+50+fh-82, fw, 82, 12); ctx.fill();
     const fn = fonteQueCabe(p1.apelido.toUpperCase(), 52, fw-44, 'blk');
     txt(p1.apelido.toUpperCase(), x+62, y+50+fh-26, fn, '#0B0B0B','blk');
@@ -3538,6 +3954,7 @@ function draw(k){
       ctx.fillStyle='rgba(255,255,255,.04)'; rr(cx, y+250, w-500, bh, 10); ctx.fill();
       ctx.fillStyle=P().ac; rr(cx, y+250, 5, bh, 3); ctx.fill();
       linhasF.forEach((l,i)=> txt(l, cx+26, y+298+i*46, 34, '#D8E4DA','cond',1));
+    }
     }
   }
 
@@ -3565,6 +3982,63 @@ function draw(k){
   }
   ctx.restore();
 }
+
+/* ---- comparação de dois jogadores, um lado amarelo e outro azul ----
+   Sem verde nenhum: é arte de transmissão e sai em fundo verde. */
+function drawComparacao(a, b, T){
+  const AM = DESTAQUE.amarelo.ac, AZ = DESTAQUE.azul.ac;
+  const w=1560, h=720, x=(1920-w)/2, y=(1080-h)/2;
+  sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.96)'; rr(x,y,w,h,20); ctx.fill(); });
+  ctx.fillStyle=AM; rr(x,y,w/2,10,6); ctx.fill();
+  ctx.fillStyle=AZ; rr(x+w/2,y,w/2,10,6); ctx.fill();
+
+  const troA = DADOS.premiacoes.filter(z=>z.jogador===a.id).length;
+  const troB = DADOS.premiacoes.filter(z=>z.jogador===b.id).length;
+  const fw=300, fh=330;
+
+  /* retratos e nomes, cada um na sua cor */
+  [[a,AM,x+40,'left'],[b,AZ,x+w-40-fw,'left']].forEach(([p,cor,px])=>{
+    retrato(p, px, y+48, fw, fh, 12);
+    ctx.fillStyle=cor; rr(px, y+48+fh-70, fw, 70, 12); ctx.fill();
+    const f = fonteQueCabe(p.apelido.toUpperCase(), 44, fw-32, 'blk');
+    ctx.textAlign='center';
+    txt(p.apelido.toUpperCase(), px+fw/2, y+48+fh-22, f, '#0B0B0B','blk');
+    ctx.textAlign='left';
+  });
+
+  ctx.textAlign='center';
+  txt('COMPARAÇÃO', 960, y+64, 30, '#8A9A8C','cond',12);
+  txt('×', 960, y+230, 72, '#8A9A8C','blk');
+
+  /* barras espelhadas: quem tem mais puxa a barra do seu lado */
+  const linhas = [
+    ['JOGOS', a.jogos, b.jogos],
+    ['GOLS', a.gols, b.gols],
+    ['ASSISTÊNCIAS', a.assist, b.assist],
+    ['TÍTULOS', a.titulos, b.titulos],
+    ['TROFÉUS', troA, troB],
+    ['GOLS POR JOGO', a.jogos?+(a.gols/a.jogos).toFixed(2):0, b.jogos?+(b.gols/b.jogos).toFixed(2):0],
+  ];
+  const meio=960, larg=(w-2*fw-200)/2, y0=y+420;
+  linhas.forEach(([rot,va,vb],i)=>{
+    const yy=y0+i*48, max=Math.max(va,vb,1);
+    txt(rot, meio, yy-14, 22, '#8A9A8C','cond',6);
+    const la=larg*(va/max), lb=larg*(vb/max);
+    ctx.fillStyle='rgba(255,255,255,.06)';
+    rr(meio-14-larg, yy, larg, 20, 5); ctx.fill();
+    rr(meio+14, yy, larg, 20, 5); ctx.fill();
+    ctx.fillStyle=AM; rr(meio-14-la, yy, la, 20, 5); ctx.fill();
+    ctx.fillStyle=AZ; rr(meio+14, yy, lb, 20, 5); ctx.fill();
+    ctx.textAlign='right';
+    txt(String(va), meio-24-larg, yy+18, 30, va>=vb?AM:'#8A9A8C','cond');
+    ctx.textAlign='left';
+    txt(String(vb), meio+24+larg, yy+18, 30, vb>=va?AZ:'#8A9A8C','cond');
+    ctx.textAlign='center';
+  });
+  ctx.textAlign='left';
+  marca(960-52, y+h-108, 104);
+}
+
 function sombra(fn){
   ctx.save(); ctx.shadowColor='rgba(0,0,0,.55)'; ctx.shadowBlur=38; ctx.shadowOffsetY=12; fn(); ctx.restore();
 }
