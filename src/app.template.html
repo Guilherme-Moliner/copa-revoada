@@ -2657,6 +2657,7 @@ function montaPainelLances(t){
   const leitura = t==='chance'
     ? `<div class="card" style="padding:.7rem .8rem;margin-top:.6rem" id="leitura-xg"></div>` : '';
   const lances = t==='ficha' ? painelLancesLista() : '';
+  const planilha = t==='ficha' ? painelPlanilha() : '';
   const fundo = `<div class="field"><label>Fundo da arte</label>
       <select data-fundo>
         <option value="1"${LANCES.fundoDe(t)?' selected':''}>Sólido — tela cheia</option>
@@ -2674,9 +2675,33 @@ function montaPainelLances(t){
       <div style="display:flex;gap:.4rem;margin-top:.4rem">
         <button class="btn" data-cod-gerar style="flex:1">Gerar</button>
         <button class="btn" data-cod-ler style="flex:1">Aplicar</button></div></div>` : '';
-  cx.innerHTML = campos + fundo + medidas + leitura + buscar + lances + codigo;
+  cx.innerHTML = campos + fundo + medidas + leitura + buscar + planilha + lances + codigo;
   if(t==='chance') atualizaLeitura();
   if(t==='ficha') pintaListaLances();
+}
+
+/* A chave não fica no código do site: quem vai marcar digita na hora, o
+   Apps Script confere contra a célula B2 da aba daquele jogo, e só então
+   grava. Ler é livre — abrir o app já mostra o que o grupo marcou. */
+function painelPlanilha(){
+  const url = (DADOS.copa && DADOS.copa.lancesUrl) || '';
+  if(!url) return `<div class="field"><div class="card empty" style="padding:.8rem;text-align:left">
+    A gravação na planilha ainda não está ligada. Falta publicar o Apps Script e
+    criar a variável <b>LANCES_URL</b> — o passo a passo está em
+    <b>docs/planilha-colaborativa.md</b>. Até lá a marcação vive só nesta aba.</div></div>`;
+  const jogos2026 = jogos.filter(g=>g.temporada>=2026).map(g=>g.id);
+  return `<div class="field"><label>Jogo na planilha</label>
+      <select data-pl="jogo">${(jogos2026.length?jogos2026:jogos.map(g=>g.id))
+        .map(id=>`<option value="${id}">${id}</option>`).join('')}</select></div>
+    <div class="field"><label>Quem está marcando</label>
+      <input data-pl="por" value="${localStorage.getItem('rvd-por')||''}" placeholder="seu nome"></div>
+    <div class="field"><label>Chave de acesso — só para gravar</label>
+      <input type="password" data-pl="chave" placeholder="RVD-XXXX-XXXX"
+        value="${sessionStorage.getItem('rvd-chave')||''}"></div>
+    <div class="field"><div style="display:flex;gap:.4rem">
+      <button class="btn" data-pl-ler style="flex:1">Carregar</button>
+      <button class="btn primary" data-pl-gravar style="flex:1">Gravar</button></div>
+      <p data-pl-msg style="font-size:.78rem;color:var(--dim);margin:.5rem 0 0"></p></div>`;
 }
 
 function painelLancesLista(){
@@ -2772,6 +2797,43 @@ document.addEventListener('click', async e=>{
   const b = e.target.closest && e.target.closest('#painel-lances button');
   if(!b) return;
   const E = LANCES.estado.analise;
+  const plMsg = m => { const el=document.querySelector('[data-pl-msg]'); if(el) el.textContent=m; };
+  const plVal = k => { const el=document.querySelector(`[data-pl="${k}"]`); return el?el.value.trim():''; };
+
+  if(b.hasAttribute('data-pl-ler')){
+    const url=(DADOS.copa&&DADOS.copa.lancesUrl)||'', jogo=plVal('jogo');
+    if(!url) return;
+    b.disabled=true; plMsg('carregando…');
+    try{
+      const res = await fetch(`${url}?acao=ler&jogo=${encodeURIComponent(jogo)}`);
+      const j = await res.json();
+      if(!j.ok) throw new Error(j.erro||'deu erro');
+      LANCES.estado.analise.eventos = j.eventos.map(e=>({min:e.min,t:e.t,tipo:e.tipo,j:e.j,xg:e.xg}));
+      pintaListaLances(); draw(1);
+      plMsg(j.existe ? `${j.eventos.length} lances carregados de ${jogo}`
+                     : `a aba de ${jogo} ainda não existe; ela nasce na primeira gravação`);
+    }catch(e){ plMsg('não deu para carregar: '+e.message); }
+    b.disabled=false; return;
+  }
+  if(b.hasAttribute('data-pl-gravar')){
+    const url=(DADOS.copa&&DADOS.copa.lancesUrl)||'';
+    const jogo=plVal('jogo'), chave=plVal('chave'), por=plVal('por');
+    if(!url) return;
+    if(!chave){ plMsg('digite a chave daquele jogo — está na célula B2 da aba'); return; }
+    b.disabled=true; plMsg('gravando…');
+    try{
+      /* text/plain evita o preflight de CORS, que o Apps Script não responde */
+      const res = await fetch(url, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({acao:'gravar', jogo, chave, por,
+          eventos: LANCES.estado.analise.eventos})});
+      const j = await res.json();
+      if(!j.ok) throw new Error(j.erro||'deu erro');
+      sessionStorage.setItem('rvd-chave', chave);
+      localStorage.setItem('rvd-por', por);
+      plMsg(`${j.gravados} lances gravados em ${jogo} às ${j.em}`);
+    }catch(e){ plMsg('não deu para gravar: '+e.message); }
+    b.disabled=false; return;
+  }
   if(b.hasAttribute('data-clima')){
     b.textContent='buscando…';
     await LANCES.buscaClima();

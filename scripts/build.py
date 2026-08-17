@@ -52,6 +52,11 @@ PLAYLIST = "PLSnrz0oA5cB49hSu2rMMCCtbXZOK6l9hq"
 #   https://docs.google.com/spreadsheets/d/<ID>/export?format=xlsx
 PLANILHA_URL = os.environ.get("PLANILHA_URL", "").strip()
 
+# Endereço do Apps Script publicado como Web App. É por ele que o app grava e
+# lê os lances marcados. Sem ele, a Análise do jogo funciona só na memória da
+# aba. Ver docs/planilha-colaborativa.md.
+LANCES_URL = os.environ.get("LANCES_URL", "").strip()
+
 # Nos três primeiros jogos ninguém anotou gol nem assistência por jogador, só
 # quem foi campeão. Decisão do grupo: esses jogos contam título e nada mais.
 # É o que faz cada um ter 10 jogos válidos e 13 presenças.
@@ -652,7 +657,8 @@ def main():
     jogadores.sort(key=lambda p: (-p["jogos"], -p["gols"], p["apelido"]))
 
     dados = {
-        "copa": {"nome": "Copa Revoada", "antigo": "Milior Fut", "playlist": PLAYLIST},
+        "copa": {"nome": "Copa Revoada", "antigo": "Milior Fut", "playlist": PLAYLIST,
+                 "lancesUrl": LANCES_URL},
         "jogadores": jogadores, "times": times, "jogos": jogos,
         "trofeus": trofeus, "escalacoes": escalacoes, "desempenho": desempenho,
         "premiacoes": premiacoes, "clipes": clipes,
@@ -687,6 +693,10 @@ def main():
               + ", ".join(ROSTOS_PERDIDOS))
     else:
         print(f"  rosto detectado e centralizado em {len(ROSTOS_ACHADOS)} fotos")
+
+    if not LANCES_URL:
+        aviso("LANCES_URL não está definida — a Análise do jogo não grava na "
+              "planilha, só na memória da aba. Ver docs/planilha-colaborativa.md")
 
     if FUNDO_TIRADO:
         print("  fundo chapado removido do escudo de: " + ", ".join(FUNDO_TIRADO))
