@@ -95,7 +95,26 @@ faz sentido dentro de um time, não na média da vida inteira.
 
 ## Estúdio
 
-Treze artes, em quatro grupos:
+Vinte e seis artes. As cinco de **Lances** vieram do protótipo `estudio-lances`
+e trazem cálculo junto com desenho:
+
+| arte | o que faz |
+|---|---|
+| Mapa tático do lance | peças arrastáveis com rastro e linha do tempo |
+| Chance de gol (xG) | mede o ângulo do gol e a sombra de goleiro e zagueiros |
+| Análise do jogo | corrida de xG, números espelhados e linha de finalizações |
+| Placar de transmissão | pílula de scorebug com animação de gol |
+| Condições de jogo | boletim do dia, buscado no Open-Meteo |
+
+O racional do xG está em [docs/lances-racional.md](docs/lances-racional.md), e a
+explicação para mandar no grupo em
+[docs/como-funciona-a-chance-de-gol.md](docs/como-funciona-a-chance-de-gol.md).
+
+No mapa e na chance de gol dá para **arrastar as peças direto na prévia**, e o
+número recalcula na hora. O mapa e a análise viajam num código de texto
+(`RVD1.…`) que cabe numa mensagem de WhatsApp.
+
+As outras vinte e uma, em quatro grupos:
 
 - **Gol** — barra inferior, tela cheia, artilheiro do dia.
 - **Arbitragem** — falta, checagem do VAR, pênalti, cartão.

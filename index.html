@@ -281,7 +281,7 @@ section+section{margin-top:3rem}
 .stage{border:1px solid var(--line);border-radius:14px;overflow:hidden;
   background:conic-gradient(from 90deg at 50% 50%,#141D17 25%,#0C120E 0 50%,#141D17 0 75%,#0C120E 0) 0 0/22px 22px}
 .stage.chroma{background:#00B140}
-.stage canvas{display:block;width:100%;height:auto}
+.stage canvas{touch-action:none;display:block;width:100%;height:auto}
 .stage-bar{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-top:.8rem}
 .hint{font-size:.85rem;color:var(--dim);margin-top:.7rem;line-height:1.55}
 .hint b{color:var(--chalk)}
@@ -407,7 +407,14 @@ section+section{margin-top:3rem}
                 <option value="formacao">Formação no campo</option>
                 <option value="sub">Substituição</option>
               </optgroup>
+              <optgroup label="Lances">
+                <option value="mapa">Mapa tático do lance</option>
+                <option value="chance">Chance de gol (xG)</option>
+                <option value="ficha">Análise do jogo</option>
+              </optgroup>
               <optgroup label="Especiais">
+                <option value="placar2">Placar de transmissão</option>
+                <option value="clima">Condições de jogo</option>
                 <option value="marco">Marco da copinha</option>
               </optgroup>
               <optgroup label="Equipe">
@@ -419,6 +426,7 @@ section+section{margin-top:3rem}
                 <option value="stat">Ficha do jogador</option>
               </optgroup>
             </select></div>
+          <div id="painel-lances" style="display:none"></div>
           <div class="field" data-for="gol golaco sub stat cartao falta var penalti artilheiro batedor historico"><label for="f-p1" id="l-p1">Jogador</label><select id="f-p1"></select></div>
           <div class="field" data-for="sub falta"><label for="f-p2" id="l-p2">Sai</label><select id="f-p2"></select></div>
           <div class="field" data-for="gol golaco cartao falta var penalti fim"><label for="f-min">Minuto</label><input id="f-min" value="27'"></div>
@@ -1267,6 +1275,1539 @@ document.addEventListener('click', e=>{
 });
 renderVideos();
 
+
+/* ======================================================================
+   LANCES — mapa tático, chance de gol, placar de transmissão, clima e
+   análise do jogo.
+
+   O miolo de cálculo e desenho veio do protótipo estudio-lances.html e
+   está isolado aqui dentro de propósito: ele tem helpers com a mesma
+   assinatura de nomes que o resto do Estúdio usa de outro jeito
+   (txt, roundRect, clamp). Fechando num escopo só, os dois convivem sem
+   se atropelar e o código do protótipo entra praticamente como veio.
+
+   O que sai daqui está em window.LANCES, no fim do arquivo.
+   ================================================================== */
+const LANCES = (function(){
+
+/* ---- o que o núcleo espera encontrar ---- */
+let REDESENHA = ()=>{};
+/* fundo sólido ou transparente. O placar é overlay e sai transparente;
+   as telas cheias saem com fundo, senão viram texto solto no vídeo. */
+let SEM_FUNDO = false;
+let chromaOn = false;
+function pintaPainel(){ if(typeof montaPainelLances==='function' && typeof F!=='undefined')
+  { const t=F.tipo.value; if(ARTES_PRONTAS && ARTES_PRONTAS[t]) montaPainelLances(t); } }
+let ARTES_PRONTAS = null;
+
+/* verde que respeita o modo chroma: no fundo verde, vira âmbar */
+function VD(a){
+  return semVerde ? `rgba(242,176,30,${a})` : `rgba(43,224,122,${a})`;
+}
+
+/* paleta: os tons de grama seguem o modo chroma */
+const C = {
+  ink:'#050807', panel:'#0C120E', panel2:'#141D17', line:'#22301F',
+  chalk:'#F4F1E6', dim:'#8A9A8C', gold:'#F2B01E', goldD:'#B8830D',
+  ember:'#FF5A2C', sky:'#4FB3E8',
+  get grass(){  return semVerde ? '#B8830D' : '#12A150'; },
+  get grassL(){ return semVerde ? '#F2B01E' : '#2BE07A'; },
+  get grassD(){ return semVerde ? '#4A3405' : '#0A3A22'; },
+};
+
+/* medidas do campo do Paula Ramos, medidas pelo satélite.
+   Trave de vez com a régua do Google Earth Pro em -27.5933, -48.5175. */
+const CAMPO = { comp:57, larg:24, gol:4 };
+const MEDIDAS_ESTADIO = {
+  'Paula Ramos':   {comp:57, larg:24, gol:4},
+  'Elase':         {comp:57, larg:24, gol:4},
+  'Kretzer Indor': {comp:40, larg:20, gol:3},
+};
+
+/* times e elenco saem do DADOS de verdade, não da lista do protótipo */
+const timeById = id => (typeof tById!=='undefined' && tById[id]) || DADOS.times[DADOS.times.length-1];
+const ELENCO = () => DADOS.jogadores.map(p=>p.apelido);
+
+/* ---------- utilidades ---------- */
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const easeIO=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+const easeOut=t=>1-Math.pow(1-t,3);
+const easeBack=t=>{const c=1.70158+1; return 1+ (c+1)*Math.pow(t-1,3)+c*Math.pow(t-1,2);};
+const sig=z=>1/(1+Math.exp(-z));
+const deg=r=>r*180/Math.PI;
+
+/* envelope de entrada e saída: devolve opacidade e deslocamento */
+function envelope(u, ent=.14, sai=.14){
+  if(u===null) return {a:1, e:1, s:0};
+  const A = u<ent ? easeOut(u/ent) : 1;
+  const B = u>1-sai ? 1-easeIO((u-(1-sai))/sai) : 1;
+  return {a:clamp(A*B,0,1), e:A, s:(1-A)};
+}
+
+function roundRect(c,x,y,w,h,r){
+  c.beginPath();
+  if(c.roundRect) c.roundRect(x,y,w,h,r);
+  else{ r=Math.min(r,Math.abs(w)/2,Math.abs(h)/2);
+    c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);
+    c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath(); }
+}
+function txt(c,s,x,y,{font,fill,align='left',base='alphabetic',track=0}={}){
+  c.save(); c.font=font; c.fillStyle=fill; c.textBaseline=base;
+  if(!track){ c.textAlign=align; c.fillText(s,x,y); c.restore(); return c.measureText(s).width; }
+  c.textAlign='left';
+  const w=[...s].reduce((a,ch)=>a+c.measureText(ch).width+track,0)-track;
+  let cx = align==='center'? x-w/2 : align==='right'? x-w : x;
+  for(const ch of s){ c.fillText(ch,cx,y); cx+=c.measureText(ch).width+track; }
+  c.restore(); return w;
+}
+function larguraTxt(c,s,font,track=0){
+  c.save(); c.font=font;
+  const w = track ? [...s].reduce((a,ch)=>a+c.measureText(ch).width+track,0)-track
+                  : c.measureText(s).width;
+  c.restore(); return w;
+}
+const cond=(w,s)=>`${w} ${s}px 'Barlow Condensed', sans-serif`;
+const black=s=>`${s}px 'Archivo Black', sans-serif`;
+const body=(w,s)=>`${w} ${s}px 'Barlow', sans-serif`;
+
+/* cor legível sobre um fundo */
+function contraste(hex){
+  const n=parseInt(hex.slice(1),16);
+  const L=(0.2126*(n>>16&255)+0.7152*(n>>8&255)+0.0722*(n&255))/255;
+  return L>0.55 ? C.ink : C.chalk;
+}
+
+
+/* ======================= CÓDIGO DE COMPARTILHAMENTO =======================
+   JSON -> deflate (nativo, sem biblioteca) -> base64 url-safe.
+   Prefixo RVD1 = comprimido, RVD0 = cru (navegador sem CompressionStream).
+   ====================================================================== */
+const b64 = bytes => {
+  let s=''; const CH=0x8000;
+  for(let i=0;i<bytes.length;i+=CH) s+=String.fromCharCode.apply(null,bytes.subarray(i,i+CH));
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+};
+const unb64 = str => {
+  const s=atob(str.replace(/-/g,'+').replace(/_/g,'/'));
+  const a=new Uint8Array(s.length);
+  for(let i=0;i<s.length;i++) a[i]=s.charCodeAt(i);
+  return a;
+};
+async function fazCodigo(tipo, dados){
+  const bytes = new TextEncoder().encode(JSON.stringify({t:tipo, v:2, d:dados}));
+  if(typeof CompressionStream==='function'){
+    const cs=new CompressionStream('deflate-raw');
+    const w=cs.writable.getWriter(); w.write(bytes); w.close();
+    const buf=await new Response(cs.readable).arrayBuffer();
+    return 'RVD1.'+b64(new Uint8Array(buf));
+  }
+  return 'RVD0.'+b64(bytes);
+}
+async function leCodigo(codigo){
+  const limpo = codigo.trim().replace(/\s+/g,'');
+  const p = limpo.indexOf('.');
+  if(p<0) throw new Error('esse código não parece da Revoada');
+  const tag=limpo.slice(0,p), dados=unb64(limpo.slice(p+1));
+  let json;
+  if(tag==='RVD1'){
+    if(typeof DecompressionStream!=='function') throw new Error('este navegador não abre código comprimido');
+    const ds=new DecompressionStream('deflate-raw');
+    const w=ds.writable.getWriter(); w.write(dados); w.close();
+    json=new TextDecoder().decode(await new Response(ds.readable).arrayBuffer());
+  } else if(tag==='RVD0'){
+    json=new TextDecoder().decode(dados);
+  } else throw new Error('versão de código desconhecida: '+tag);
+  return JSON.parse(json);
+}
+
+/* ======================= DESENHO DO CAMPO ======================= */
+function projecao({metade=false, lado=1, pad=90, padR=null}={}){
+  const meia = CAMPO.comp/2;
+  const x0 = metade ? (lado>0 ? 0 : -meia) : -meia;
+  const x1 = metade ? (lado>0 ? meia : 0) :  meia;
+  const compVis = x1-x0;
+  const pR = padR==null ? pad : padR;
+  const s = Math.min((1920-pad-pR)/compVis, (1080-2*pad-70)/CAMPO.larg);
+  const ox = pad + (compVis/2)*s - ((x0+x1)/2)*s;
+  const oy = 1080/2 + 18;
+  return { s, x0, x1,
+    px:(x,y)=>[ox + x*s, oy + y*s],
+    mx:(px,py)=>[(px-ox)/s, (py-oy)/s] };
+}
+
+function desenhaCampo(c,P,{escuro=false}={}){
+  const [ax,ay]=P.px(P.x0,-CAMPO.larg/2), [bx,by]=P.px(P.x1,CAMPO.larg/2);
+  const w=bx-ax, h=by-ay;
+
+  const g=c.createLinearGradient(ax,ay,ax,by);
+  g.addColorStop(0, escuro?'#08150E':'#0C2417'); g.addColorStop(1, escuro?'#050D08':'#081A10');
+  c.fillStyle=g; roundRect(c,ax,ay,w,h,10); c.fill();
+  c.save(); roundRect(c,ax,ay,w,h,10); c.clip();
+  const faixa = 6*P.s;
+  for(let i=0,x=ax;x<bx;i++,x+=faixa){
+    c.fillStyle = i%2 ? VD(.035) : VD(.012);
+    c.fillRect(x,ay,faixa,h);
+  }
+  c.restore();
+
+  c.strokeStyle='rgba(244,241,230,.34)'; c.lineWidth=Math.max(2,P.s*.09); c.lineJoin='round';
+  roundRect(c,ax,ay,w,h,10); c.stroke();
+
+  if(P.x0 < -0.01 && P.x1 > 0.01){
+    const [mx0,my0]=P.px(0,-CAMPO.larg/2), [,my1]=P.px(0,CAMPO.larg/2);
+    c.beginPath(); c.moveTo(mx0,my0); c.lineTo(mx0,my1); c.stroke();
+    const [cx,cy]=P.px(0,0);
+    c.beginPath(); c.arc(cx,cy,5*P.s,0,7); c.stroke();
+    c.fillStyle='rgba(244,241,230,.34)';
+    c.beginPath(); c.arc(cx,cy,.35*P.s,0,7); c.fill();
+  }
+
+  const areaProf=7, areaLarg=Math.min(CAMPO.larg-2, CAMPO.gol+8);
+  [[1,CAMPO.comp/2],[-1,-CAMPO.comp/2]].forEach(([sgn,xl])=>{
+    if(xl < P.x0-0.01 || xl > P.x1+0.01) return;
+    const [x1p,y1p]=P.px(xl - sgn*areaProf, -areaLarg/2);
+    const [x2p,y2p]=P.px(xl,                areaLarg/2);
+    c.strokeRect(Math.min(x1p,x2p),Math.min(y1p,y2p),Math.abs(x2p-x1p),Math.abs(y2p-y1p));
+    const [pmx,pmy]=P.px(xl - sgn*(areaProf-1.5),0);
+    c.fillStyle='rgba(244,241,230,.34)';
+    c.beginPath(); c.arc(pmx,pmy,.32*P.s,0,7); c.fill();
+    const [gx0,gy0]=P.px(xl,-CAMPO.gol/2), [gx1,gy1]=P.px(xl+sgn*1.6, CAMPO.gol/2);
+    c.save();
+    c.fillStyle='rgba(244,241,230,.10)';
+    c.fillRect(Math.min(gx0,gx1),Math.min(gy0,gy1),Math.abs(gx1-gx0),Math.abs(gy1-gy0));
+    c.strokeStyle=C.chalk; c.lineWidth=Math.max(3,P.s*.13);
+    c.beginPath(); c.moveTo(gx0,gy0); c.lineTo(gx0,gy1); c.stroke();
+    c.restore();
+  });
+  return {ax,ay,bx,by,w,h};
+}
+
+function moldura(c,{titulo,sub,tag}={}){
+  if(!SEM_FUNDO){
+    c.fillStyle=C.ink; c.fillRect(0,0,1920,1080);
+    c.fillStyle=VD(.05);
+    for(let y=0;y<1080;y+=4) c.fillRect(0,y,1920,1);
+  }
+  if(titulo){
+    c.fillStyle=C.gold; c.fillRect(84,74,7,44);
+    txt(c,titulo,108,112,{font:black(38),fill:C.chalk});
+    if(sub) txt(c,sub.toUpperCase(),110,142,{font:cond(700,21),fill:C.dim,track:4});
+  }
+  if(tag){
+    const tw=larguraTxt(c,tag,cond(800,20),3)+36;
+    c.fillStyle=C.gold; roundRect(c,1920-84-tw,76,tw,40,8); c.fill();
+    txt(c,tag,1920-84-tw/2,104,{font:cond(800,20),fill:C.ink,align:'center',track:3});
+  }
+}
+
+/* =====================================================================
+   MÓDULO 1 — MAPA TÁTICO
+   ================================================================== */
+const mapa = {
+  nq:4, k:0, segundos:1, rastro:true, numeros:true,
+  titulo:'A JOGADA DO GOL',
+  sub:'Dentro FC 1×1 Ferroviagra · 2º tempo',
+  autor:'',
+  pecas:[]
+};
+
+function novaPeca(tipo, nome, cor, x, y){
+  const p={id:Math.random().toString(36).slice(2,8), tipo, nome, cor, pos:[]};
+  for(let i=0;i<8;i++) p.pos[i]={x,y};
+  return p;
+}
+function seedMapa(){
+  mapa.pecas=[
+    novaPeca('a','Letti',   C.grassL, -12,-6), novaPeca('a','Vitao',  C.grassL, -4, 4),
+    novaPeca('a','Glauber', C.grassL,   8,-3), novaPeca('b','Zaga',   C.ember,   2, 0),
+    novaPeca('b','Nathan',  C.ember,   14, 2), novaPeca('g','Merizi', C.gold,   25, 0),
+    novaPeca('o','Bola',    C.chalk,  -12,-5)
+  ];
+  const rota={
+    0:[[-12,-6],[-4,4],[8,-3],[2,0],[14,2],[25,0],[-12,-5]],
+    1:[[-6,-7],[0,3],[12,-4],[4,-1],[16,1],[25,-1],[-5,-6]],
+    2:[[0,-6],[6,1],[17,-2],[9,-2],[18,0],[25,1],[6,0]],
+    3:[[4,-4],[11,0],[21,1],[15,-1],[20,2],[25,2],[26,.5]]
+  };
+  Object.entries(rota).forEach(([k,arr])=>arr.forEach((xy,i)=>{
+    if(mapa.pecas[i]) mapa.pecas[i].pos[+k]={x:xy[0],y:xy[1]};
+  }));
+}
+seedMapa();
+
+function posNoTempo(p,t){
+  const i=clamp(Math.floor(t),0,mapa.nq-2), f=easeIO(clamp(t-i,0,1));
+  const a=p.pos[i], b=p.pos[i+1];
+  return {x:lerp(a.x,b.x,f), y:lerp(a.y,b.y,f)};
+}
+
+/* a cor da peça foi congelada quando o mapa foi semeado; no modo chroma
+   ela precisa deixar de ser verde igual ao resto */
+function corPeca(hex){
+  if(!semVerde || typeof hex!=='string' || hex[0]!=='#' || hex.length<7) return hex;
+  const R=parseInt(hex.slice(1,3),16), G=parseInt(hex.slice(3,5),16), B=parseInt(hex.slice(5,7),16);
+  if(!(G>80 && G>R*1.25 && G>B*1.25)) return hex;
+  const l=R*.3+G*.59+B*.11;
+  const f=v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0');
+  return '#'+f(l*.30)+f(l*.58)+f(Math.min(255,l*1.20));
+}
+function desenhaMapa(c,u){
+  const tt = (u===null) ? mapa.k : clamp(u,0,1)*(mapa.nq-1);
+  moldura(c,{titulo:mapa.titulo, sub:mapa.sub, tag: mapa.autor ? 'POR '+mapa.autor.toUpperCase() : 'MAPA DO LANCE'});
+  const P=projecao({pad:110});
+  desenhaCampo(c,P);
+
+  if(mapa.rastro){
+    mapa.pecas.forEach(p=>{
+      c.save();
+      c.strokeStyle = p.tipo==='o' ? 'rgba(244,241,230,.85)' : corPeca(p.cor)+'70';
+      c.lineWidth = p.tipo==='o' ? 5 : 3.5;
+      c.setLineDash(p.tipo==='o' ? [14,10] : []);
+      c.lineCap='round'; c.beginPath();
+      let first=true;
+      for(let v=0;v<=tt+1e-6;v+=.06){
+        const q=posNoTempo(p,Math.min(v,mapa.nq-1)); const [px,py]=P.px(q.x,q.y);
+        first ? (c.moveTo(px,py),first=false) : c.lineTo(px,py);
+      }
+      c.stroke(); c.restore();
+      for(let k=0;k<=Math.floor(tt);k++){
+        const [gx,gy]=P.px(p.pos[k].x,p.pos[k].y);
+        c.beginPath(); c.arc(gx,gy,p.tipo==='o'?7:11,0,7);
+        c.fillStyle=corPeca(p.cor)+'28'; c.fill();
+      }
+    });
+  }
+
+  mapa.pecas.forEach((p,idx)=>{
+    const q=posNoTempo(p,tt), [px,py]=P.px(q.x,q.y);
+    if(p.tipo==='o'){
+      c.save(); c.shadowColor='rgba(0,0,0,.7)'; c.shadowBlur=18;
+      c.beginPath(); c.arc(px,py,13,0,7); c.fillStyle=C.chalk; c.fill(); c.restore();
+      c.beginPath(); c.arc(px,py,13,0,7); c.strokeStyle=C.ink; c.lineWidth=3; c.stroke();
+    }else{
+      const r=25;
+      c.save(); c.shadowColor='rgba(0,0,0,.65)'; c.shadowBlur=20; c.shadowOffsetY=5;
+      c.beginPath(); c.arc(px,py,r,0,7); c.fillStyle=corPeca(p.cor); c.fill(); c.restore();
+      c.beginPath(); c.arc(px,py,r,0,7);
+      c.strokeStyle = p.tipo==='g' ? C.ink : 'rgba(5,8,7,.6)'; c.lineWidth=4; c.stroke();
+      if(mapa.numeros) txt(c,String(idx+1),px,py+9,{font:cond(900,27),fill:C.ink,align:'center'});
+      const nw=larguraTxt(c,p.nome.toUpperCase(),cond(700,20),1.5)+18;
+      c.fillStyle='rgba(5,8,7,.82)'; roundRect(c,px-nw/2,py+r+7,nw,27,6); c.fill();
+      txt(c,p.nome.toUpperCase(),px,py+r+27,{font:cond(700,20),fill:C.chalk,align:'center',track:1.5});
+    }
+  });
+
+  const bx0=140,bx1=1920-140,by=1080-92;
+  c.strokeStyle=C.line; c.lineWidth=4; c.beginPath(); c.moveTo(bx0,by); c.lineTo(bx1,by); c.stroke();
+  c.strokeStyle=C.gold; c.beginPath(); c.moveTo(bx0,by);
+  c.lineTo(bx0+(bx1-bx0)*(tt/(mapa.nq-1)),by); c.stroke();
+  for(let k=0;k<mapa.nq;k++){
+    const x=bx0+(bx1-bx0)*(k/(mapa.nq-1)), passou=k<=tt+.001;
+    c.beginPath(); c.arc(x,by,13,0,7); c.fillStyle=passou?C.gold:C.panel2; c.fill();
+    c.strokeStyle=passou?C.gold:C.line; c.lineWidth=3; c.stroke();
+    txt(c,(k*mapa.segundos).toFixed(mapa.segundos%1?1:0)+'s',x,by+38,
+      {font:cond(800,20),fill:passou?C.chalk:C.dim,align:'center',track:2});
+  }
+}
+
+/* =====================================================================
+   MÓDULO 2 — CHUTE E CHANCE DE GOL
+   ================================================================== */
+const chute = {
+  visao:'meia',        // meia | inteira
+  lado:1,              // +1 ataca o gol da direita, -1 o da esquerda
+  bola:{x:14, y:-5.5},
+  gk:{x:26.4, y:-.8},
+  zag:[{x:18,y:-3.4},{x:19.5,y:-6.2}],
+  batedor:'Glauber', qualidade:3, execucao:0,
+  parte:'bom', jogada:'aberta', posGk:0,
+  explica:false, minuto:"27'"
+};
+const ENVERGADURA = 1.9;
+const RAIO_ZAG    = 0.55;
+const alcanceUtil = d => ENVERGADURA * (1 - Math.exp(-d/8));
+
+function geometria(){
+  const L=chute.lado, gxr=L*CAMPO.comp/2, gh=CAMPO.gol/2, b=chute.bola;
+  const dx=(gxr-b.x)*L;                       // >0 quando a bola está antes do gol
+  const d=Math.hypot(gxr-b.x, b.y);
+  const theta=Math.abs(Math.atan2(gh-b.y,Math.max(dx,.01))-Math.atan2(-gh-b.y,Math.max(dx,.01)));
+
+  const sombra=(o,r)=>{
+    const ox=(o.x-b.x)*L;
+    if(ox<=0.20 || ox>=dx) return null;
+    const k=dx/ox, yc=b.y+(o.y-b.y)*k, meia=r*k;
+    const a=Math.max(yc-meia,-gh), z=Math.min(yc+meia,gh);
+    return z>a ? [a,z] : null;
+  };
+  const uniao=its=>{const v=its.filter(Boolean).sort((p,q)=>p[0]-q[0]),o=[];
+    v.forEach(i=>{const l=o[o.length-1];
+      if(l&&i[0]<=l[1]) l[1]=Math.max(l[1],i[1]); else o.push([...i]);}); return o;};
+  const larg=a=>a.reduce((s,i)=>s+(i[1]-i[0]),0);
+
+  const rGk=alcanceUtil(d);
+  const sGk=uniao([sombra(chute.gk,rGk)]);
+  const sZag=uniao(chute.zag.map(z=>sombra(z,RAIO_ZAG)));
+  const sTudo=uniao([...sGk,...sZag]);
+  const boca=2*gh;
+
+  const cega=chute.zag.some(z=>
+    Math.hypot(z.x-chute.gk.x,z.y-chute.gk.y)<3.2 && !!sombra(z,RAIO_ZAG));
+  const pressao=chute.zag.filter(z=>Math.hypot(z.x-b.x,z.y-b.y)<2.2).length;
+
+  return {d, theta, thetaDeg:Math.max(deg(theta),0.4), rGk, gxr, gh, dx,
+    sGk, sZag, sTudo,
+    fGk:clamp(larg(sGk)/boca,0,1), fZag:clamp(larg(sZag)/boca,0,1),
+    fTot:clamp(larg(sTudo)/boca,0,1), cega, pressao};
+}
+
+const PARTE = {
+  bom:{rot:'Pé bom',w:0}, ruim:{rot:'Pé ruim',w:-0.35},
+  cabeca:{rot:'Cabeça',w:-0.45}, primeira:{rot:'De primeira',w:-0.28}
+};
+const JOGADA = {
+  aberta:{rot:'Jogada aberta',w:0}, contra:{rot:'Contra-ataque',w:0.40},
+  parada:{rot:'Bola parada',w:-0.20}, rebote:{rot:'Rebote',w:0.30},
+  dividida:{rot:'Dividida com o gol',w:0.55}
+};
+const K_BASE = -4.21;
+
+function calculaXG(){
+  const g=geometria();
+  const z0 = 1.47*Math.log(g.thetaDeg) - 0.080*g.d + K_BASE;
+  const m = {
+    'Goleiro tapando o gol': -1.70*g.fGk,
+    'Defesa na frente':      -1.15*g.fZag,
+    'Colocação do goleiro':  -0.55*chute.posGk,
+    'Goleiro sem visão':      g.cega ? 0.30 : 0,
+    'Pressão no batedor':    -0.32*Math.min(g.pressao,2),
+    'Quem chutou':            0.30*(chute.qualidade-3),
+    'Como chutou':            PARTE[chute.parte].w,
+    'Situação da jogada':     JOGADA[chute.jogada].w
+  };
+  const zPre = z0 + Object.values(m).reduce((a,b)=>a+b,0);
+  const xg=sig(zPre), xgot=sig(zPre + 0.62*chute.execucao);
+
+  /* decomposição em pontos percentuais: quanto cada fator move o número,
+     partindo da base geométrica e aplicando um de cada vez */
+  const passos=[]; let z=z0, ant=sig(z0);
+  for(const [nome,w] of Object.entries(m)){
+    if(Math.abs(w)<1e-9) continue;
+    z+=w; const agora=sig(z);
+    passos.push({nome, w, pp:(agora-ant)*100});
+    ant=agora;
+  }
+  return {...g, z0, base:sig(z0), m, passos, zPre, xg, xgot};
+}
+
+function rotuloChance(p){
+  if(p>=.55) return 'CHANCE CLARÍSSIMA';
+  if(p>=.33) return 'GRANDE CHANCE';
+  if(p>=.18) return 'BOA CHANCE';
+  if(p>=.08) return 'CHANCE DIFÍCIL';
+  return 'CHUTE DE FÉ';
+}
+
+function projChute(){
+  return chute.visao==='meia'
+    ? projecao({metade:true, lado:chute.lado, pad:110, padR:560})
+    : projecao({pad:100, padR:540});
+}
+
+function desenhaChute(c){
+  const r=calculaXG();
+  moldura(c,{titulo:'CHANCE DE GOL', sub:`${chute.batedor} · ${chute.minuto}`, tag:'ANÁLISE DO LANCE'});
+  const P=projChute();
+  desenhaCampo(c,P,{escuro:true});
+
+  const [bx,by]=P.px(chute.bola.x,chute.bola.y);
+  const [p1x,p1y]=P.px(r.gxr,-r.gh), [p2x,p2y]=P.px(r.gxr,r.gh);
+
+  c.save();
+  c.beginPath(); c.moveTo(bx,by); c.lineTo(p1x,p1y); c.lineTo(p2x,p2y); c.closePath();
+  const gg=c.createRadialGradient(bx,by,10,bx,by,Math.max(Math.hypot(p1x-bx,p1y-by),20));
+  gg.addColorStop(0,VD(.42)); gg.addColorStop(1,VD(.10));
+  c.fillStyle=gg; c.fill();
+  c.restore();
+  r.sTudo.forEach(([a,z])=>{
+    const [xa,ya]=P.px(r.gxr,a), [xz,yz]=P.px(r.gxr,z);
+    c.beginPath(); c.moveTo(bx,by); c.lineTo(xa,ya); c.lineTo(xz,yz); c.closePath();
+    c.fillStyle='rgba(255,90,44,.45)'; c.fill();
+  });
+  c.strokeStyle=VD(.75); c.lineWidth=3;
+  c.beginPath(); c.moveTo(bx,by); c.lineTo(p1x,p1y); c.moveTo(bx,by); c.lineTo(p2x,p2y); c.stroke();
+
+  const [cgx,cgy]=P.px(r.gxr,0);
+  c.save(); c.setLineDash([12,10]); c.strokeStyle=C.gold; c.lineWidth=3.5;
+  c.beginPath(); c.moveTo(bx,by); c.lineTo(cgx,cgy); c.stroke(); c.restore();
+  const mxp=(bx+cgx)/2, myp=(by+cgy)/2;
+  const dtxt=r.d.toFixed(1)+' M', dw=larguraTxt(c,dtxt,cond(800,30),2)+26;
+  c.fillStyle=C.gold; roundRect(c,mxp-dw/2,myp-24,dw,44,8); c.fill();
+  txt(c,dtxt,mxp,myp+8,{font:cond(800,30),fill:C.ink,align:'center',track:2});
+
+  chute.zag.forEach((z,i)=>{
+    const [zx,zy]=P.px(z.x,z.y);
+    c.save(); c.shadowColor='rgba(0,0,0,.6)'; c.shadowBlur=16;
+    c.beginPath(); c.arc(zx,zy,22,0,7); c.fillStyle=C.ember; c.fill(); c.restore();
+    c.beginPath(); c.arc(zx,zy,22,0,7); c.strokeStyle='rgba(5,8,7,.6)'; c.lineWidth=4; c.stroke();
+    txt(c,'Z'+(i+1),zx,zy+8,{font:cond(900,22),fill:C.ink,align:'center'});
+  });
+
+  const [gkx,gky]=P.px(chute.gk.x,chute.gk.y);
+  c.save(); c.setLineDash([8,7]); c.strokeStyle='rgba(242,176,30,.55)'; c.lineWidth=3;
+  c.beginPath(); c.arc(gkx,gky,r.rGk*P.s,0,7); c.stroke(); c.restore();
+  c.save(); c.shadowColor='rgba(0,0,0,.6)'; c.shadowBlur=18;
+  c.beginPath(); c.arc(gkx,gky,26,0,7); c.fillStyle=C.gold; c.fill(); c.restore();
+  c.beginPath(); c.arc(gkx,gky,26,0,7); c.strokeStyle=C.ink; c.lineWidth=4; c.stroke();
+  txt(c,'GK',gkx,gky+9,{font:cond(900,25),fill:C.ink,align:'center'});
+
+  c.save(); c.shadowColor='rgba(0,0,0,.8)'; c.shadowBlur=20;
+  c.beginPath(); c.arc(bx,by,15,0,7); c.fillStyle=C.chalk; c.fill(); c.restore();
+  c.beginPath(); c.arc(bx,by,15,0,7); c.strokeStyle=C.ink; c.lineWidth=3.5; c.stroke();
+
+  /* painel */
+  const pw=440, ph=chute.explica?600:452, pxx=1920-pw-84, pyy=1080-ph-64;
+  c.fillStyle='rgba(12,18,14,.94)'; roundRect(c,pxx,pyy,pw,ph,14); c.fill();
+  c.strokeStyle=C.line; c.lineWidth=2; roundRect(c,pxx,pyy,pw,ph,14); c.stroke();
+
+  txt(c,'GOL ESPERADO',pxx+26,pyy+42,{font:cond(700,19),fill:C.dim,track:5});
+  const pct=r.xg*100, ptxt=pct.toFixed(pct<10?1:0);
+  txt(c,ptxt,pxx+26,pyy+130,{font:cond(900,96),fill:C.gold});
+  txt(c,'%',pxx+32+larguraTxt(c,ptxt,cond(900,96)),pyy+130,{font:cond(900,50),fill:C.goldD});
+  txt(c,rotuloChance(r.xg),pxx+26,pyy+162,{font:cond(800,23),fill:C.chalk,track:3});
+  c.fillStyle=C.panel2; roundRect(c,pxx+26,pyy+180,pw-52,14,7); c.fill();
+  c.fillStyle=C.gold; roundRect(c,pxx+26,pyy+180,(pw-52)*clamp(r.xg,.02,1),14,7); c.fill();
+
+  txt(c,'BOCA DO GOL',pxx+26,pyy+228,{font:cond(700,18),fill:C.dim,track:5});
+  const bx0=pxx+26,bwid=pw-52,bhh=26,byy=pyy+240;
+  c.fillStyle=C.grassL; roundRect(c,bx0,byy,bwid,bhh,5); c.fill();
+  r.sTudo.forEach(([a,z])=>{
+    const u0=(a+r.gh)/(2*r.gh), u1=(z+r.gh)/(2*r.gh);
+    c.fillStyle=C.ember; c.fillRect(bx0+bwid*u0,byy,bwid*(u1-u0),bhh);
+  });
+  c.strokeStyle=C.line; c.lineWidth=2; roundRect(c,bx0,byy,bwid,bhh,5); c.stroke();
+  txt(c,(100-r.fTot*100).toFixed(0)+'% LIVRE',pxx+pw-26,byy+bhh+26,
+    {font:cond(800,21),fill:C.grassL,align:'right',track:2});
+
+  [['Distância',r.d.toFixed(1)+' m'],
+   ['Goleiro tapa',(r.fGk*100).toFixed(0)+'%'],
+   ['Defesa tapa',(r.fZag*100).toFixed(0)+'%'],
+   ['Após o chute (xGOT)',(r.xgot*100).toFixed(r.xgot<.1?1:0)+'%']
+  ].forEach((l,i)=>{
+    const y=pyy+322+i*28;
+    txt(c,l[0],pxx+26,y,{font:body(500,20),fill:C.dim});
+    txt(c,l[1],pxx+pw-26,y,{font:cond(800,23),fill:i===3?C.grassL:C.chalk,align:'right'});
+  });
+
+  if(chute.explica){
+    let y=pyy+458;
+    c.strokeStyle=C.line; c.lineWidth=1;
+    c.beginPath(); c.moveTo(pxx+26,y-16); c.lineTo(pxx+pw-26,y-16); c.stroke();
+    txt(c,'DE ONDE VEM ESSE NÚMERO',pxx+26,y+4,{font:cond(700,17),fill:C.dim,track:4});
+    y+=28;
+    txt(c,'Posição no campo',pxx+26,y+10,{font:body(500,18),fill:C.chalk});
+    txt(c,(r.base*100).toFixed(0)+'%',pxx+pw-26,y+10,{font:cond(800,20),fill:C.chalk,align:'right'});
+    y+=24;
+    r.passos.slice(0,5).forEach(p=>{
+      const s=(p.pp>=0?'+':'')+p.pp.toFixed(1);
+      txt(c,p.nome,pxx+26,y+10,{font:body(400,17),fill:C.dim});
+      txt(c,s,pxx+pw-26,y+10,{font:cond(800,19),fill:p.pp>=0?C.grassL:C.ember,align:'right'});
+      y+=23;
+    });
+  }
+}
+
+/* =====================================================================
+   MÓDULO 3 — CLIMA DO JOGO
+   ================================================================== */
+const clima = {
+  data:'2026-08-08', hora:12, horas:3,
+  lat:-27.5933, lon:-48.5175, local:'Trindade · Florianópolis',
+  dados:null, estado:'vazio', erro:'', dur:5
+};
+const WMO = {
+  0:['Céu limpo','sol'],1:['Predominante sol','sol'],2:['Parcialmente nublado','nuvem'],
+  3:['Encoberto','nuvem'],45:['Névoa','nuvem'],48:['Névoa gelada','nuvem'],
+  51:['Garoa fraca','chuva'],53:['Garoa','chuva'],55:['Garoa forte','chuva'],
+  61:['Chuva fraca','chuva'],63:['Chuva','chuva'],65:['Chuva forte','chuva'],
+  71:['Neve','nuvem'],77:['Granizo miúdo','nuvem'],
+  80:['Pancadas','chuva'],81:['Pancadas fortes','chuva'],82:['Temporal','chuva'],
+  95:['Trovoada','tempestade'],96:['Trovoada com granizo','tempestade'],99:['Trovoada forte','tempestade']
+};
+
+async function buscaClima(){
+  clima.estado='carregando'; clima.erro=''; pintaPainel(); REDESENHA();
+  const p=new URLSearchParams({
+    latitude:clima.lat, longitude:clima.lon,
+    start_date:clima.data, end_date:clima.data,
+    hourly:'temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,cloud_cover',
+    timezone:'America/Sao_Paulo'
+  });
+  const recente=(Date.now()-new Date(clima.data+'T12:00:00').getTime())<80*864e5;
+  const url=(recente?'https://api.open-meteo.com/v1/forecast?':'https://archive-api.open-meteo.com/v1/archive?')+p;
+  try{
+    const res=await fetch(url);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const j=await res.json();
+    if(!j.hourly||!j.hourly.time) throw new Error('sem dados para esta data');
+    clima.dados=j.hourly; clima.estado='ok';
+  }catch(e){
+    clima.estado='erro';
+    clima.erro='Não deu pra buscar: '+e.message+'. Confere a data e a conexão.';
+  }
+  pintaPainel(); REDESENHA();
+}
+
+function iconeClima(c,x,y,s,tipo){
+  c.save(); c.translate(x,y); c.lineWidth=s*.09; c.lineCap='round';
+  if(tipo==='sol'){
+    c.fillStyle=C.gold; c.beginPath(); c.arc(0,0,s*.34,0,7); c.fill();
+    c.strokeStyle=C.gold;
+    for(let i=0;i<8;i++){const a=i*Math.PI/4;
+      c.beginPath(); c.moveTo(Math.cos(a)*s*.48,Math.sin(a)*s*.48);
+      c.lineTo(Math.cos(a)*s*.66,Math.sin(a)*s*.66); c.stroke();}
+  }else{
+    if(tipo==='nuvem'){c.fillStyle=C.gold; c.beginPath(); c.arc(s*.22,-s*.22,s*.26,0,7); c.fill();}
+    c.fillStyle = tipo==='tempestade' ? '#7E8C80' : C.dim;
+    c.beginPath();
+    c.arc(-s*.22,s*.06,s*.24,0,7); c.arc(s*.02,-s*.10,s*.32,0,7);
+    c.arc(s*.28,s*.06,s*.22,0,7); c.fillRect(-s*.22,s*.06,s*.5,s*.24); c.fill();
+    if(tipo==='chuva'){c.strokeStyle=C.sky;
+      for(let i=-1;i<=1;i++){c.beginPath(); c.moveTo(i*s*.2,s*.38);
+        c.lineTo(i*s*.2-s*.07,s*.62); c.stroke();}}
+    if(tipo==='tempestade'){c.fillStyle=C.gold;
+      c.beginPath(); c.moveTo(s*.02,s*.34); c.lineTo(-s*.14,s*.66);
+      c.lineTo(s*.0,s*.62); c.lineTo(-s*.08,s*.86); c.lineTo(s*.2,s*.5);
+      c.lineTo(s*.06,s*.54); c.closePath(); c.fill();}
+  }
+  c.restore();
+}
+
+/* cada bloco entra escalonado: atraso i*0.055 dentro do trecho de entrada */
+function entra(u, i, total, ent=.30){
+  if(u===null) return 1;
+  const passo = ent/Math.max(total,1);
+  const t = (u - i*passo) / (ent - passo*(total-1)/2 || ent);
+  return clamp(easeOut(clamp(t,0,1)),0,1);
+}
+
+function desenhaClima(c,u){
+  const env=envelope(u,.34,.16);
+  moldura(c,{titulo:'CONDIÇÕES DE JOGO', sub:clima.local, tag:'BOLETIM'});
+  if(clima.estado!=='ok'){
+    const msg = clima.estado==='carregando' ? 'Buscando o boletim…'
+              : clima.estado==='erro' ? clima.erro
+              : 'Escolhe a data e toca em Buscar clima.';
+    txt(c,msg,1920/2,1080/2,{font:cond(700,40),fill:C.dim,align:'center',track:2});
+    return;
+  }
+  const h=clima.dados, i0=clamp(clima.hora,0,23);
+  const [rot,tipo]=WMO[h.weather_code[i0]]||['Tempo fechado','nuvem'];
+  const saida = u!==null && u>.84 ? env.a : 1;
+
+  const bloco=(i,fn)=>{
+    const a=entra(u,i,6)*saida;
+    if(a<=0.001) return;
+    c.save(); c.globalAlpha=a; c.translate(0,(1-a)*26); fn(); c.restore();
+  };
+
+  bloco(0,()=>{
+    iconeClima(c,300,400,190,tipo);
+    const t0=Math.round(h.temperature_2m[i0])+'°';
+    txt(c,t0,470,452,{font:cond(900,190),fill:C.chalk});
+    txt(c,'SENSAÇÃO '+Math.round(h.apparent_temperature[i0])+'°',
+      470+larguraTxt(c,t0,cond(900,190))+30,452,{font:cond(700,30),fill:C.dim,track:3});
+    txt(c,rot.toUpperCase(),470,512,{font:cond(800,34),fill:C.gold,track:4});
+  });
+
+  [['Vento',Math.round(h.wind_speed_10m[i0])+' km/h'],
+   ['Umidade',Math.round(h.relative_humidity_2m[i0])+'%'],
+   ['Chuva',(h.precipitation[i0]||0).toFixed(1)+' mm'],
+   ['Nuvens',Math.round(h.cloud_cover[i0])+'%']
+  ].forEach((cd,i)=>bloco(1+i,()=>{
+    const x=180+i*400,y=600;
+    c.fillStyle=C.panel; roundRect(c,x,y,340,124,12); c.fill();
+    c.strokeStyle=C.line; c.lineWidth=2; roundRect(c,x,y,340,124,12); c.stroke();
+    txt(c,cd[0].toUpperCase(),x+26,y+40,{font:cond(700,20),fill:C.dim,track:4});
+    txt(c,cd[1],x+26,y+100,{font:cond(900,52),fill:C.chalk});
+  }));
+
+  bloco(5,()=>{
+    const a=clamp(i0-1,0,23), b=clamp(i0+clima.horas,0,23);
+    const serie=h.temperature_2m.slice(a,b+1), chuva=h.precipitation.slice(a,b+1);
+    const gx0=180,gx1=1920-180,gy0=790,gy1=960;
+    const mn=Math.min(...serie)-1.2, mx=Math.max(...serie)+1.2;
+    const X=i=>gx0+(gx1-gx0)*(serie.length<2?.5:i/(serie.length-1));
+    const Y=v=>gy1-(gy1-gy0)*((v-mn)/Math.max(mx-mn,.1));
+    /* a linha se desenha da esquerda pra direita durante a entrada */
+    const av = u===null ? 1 : clamp((u-.30)/.28,0,1);
+    txt(c,'AO LONGO DO JOGO',gx0,gy0-24,{font:cond(700,20),fill:C.dim,track:5});
+    chuva.forEach((v,i)=>{ if(v>0 && i/(serie.length-1)<=av+1e-6){
+      const bw=(gx1-gx0)/Math.max(serie.length,1)*.36;
+      c.fillStyle='rgba(79,179,232,.30)';
+      c.fillRect(X(i)-bw/2,gy1-clamp(v*26,6,150),bw,clamp(v*26,6,150));}});
+    c.save(); c.beginPath();
+    c.rect(gx0-20,gy0-60,(gx1-gx0+40)*easeOut(av),gy1-gy0+120); c.clip();
+    c.beginPath(); serie.forEach((v,i)=> i?c.lineTo(X(i),Y(v)):c.moveTo(X(i),Y(v)));
+    c.strokeStyle=C.gold; c.lineWidth=6; c.lineJoin='round'; c.stroke();
+    c.restore();
+    serie.forEach((v,i)=>{
+      if(i/(serie.length-1) > easeOut(av)+1e-6) return;
+      c.beginPath(); c.arc(X(i),Y(v),9,0,7); c.fillStyle=C.ink; c.fill();
+      c.strokeStyle=C.gold; c.lineWidth=4; c.stroke();
+      txt(c,Math.round(v)+'°',X(i),Y(v)-22,{font:cond(800,24),fill:C.chalk,align:'center'});
+      txt(c,String(a+i).padStart(2,'0')+'h',X(i),gy1+34,{font:cond(700,20),fill:C.dim,align:'center',track:2});
+    });
+  });
+}
+
+
+/* =====================================================================
+   MÓDULO 4 — PLACAR DE TRANSMISSÃO
+   ================================================================== */
+const placar = {
+  modo:'jogo',                 // jogo | rodada
+  competicao:'COPA REVOADA 2026',
+  fase:'FINAL',
+  casa:'dentro26', fora:'ferro26',
+  gc:1, gf:1,
+  relogio:'22:36', acrescimo:0,
+  pos:'topo-esq',              // topo-esq | topo-centro | rodape
+  escala:1,
+  evento:'nenhum',             // nenhum | golCasa | golFora
+  dur:5,
+  rodada:[
+    {casa:'dentro26', fora:'ferro26',  gc:1, gf:1, hora:'09:00'},
+    {casa:'milan25',  fora:'jumen25',  gc:3, gf:2, hora:'10:00'},
+    {casa:'branco24', fora:'preto24',  gc:5, gf:3, hora:'11:00'}
+  ]
+};
+
+/* escudo simplificado: brasão com as duas cores do time e a sigla */
+let escudo = function(c,x,y,r,t){
+  c.save(); c.translate(x,y);
+  c.beginPath();
+  c.moveTo(-r,-r*.92); c.lineTo(r,-r*.92); c.lineTo(r,r*.18);
+  c.quadraticCurveTo(r,r*.82, 0,r*1.05);
+  c.quadraticCurveTo(-r,r*.82, -r,r*.18); c.closePath();
+  c.fillStyle=corPeca(t.c1); c.fill();
+  c.save(); c.clip();
+  c.fillStyle=corPeca(t.c2); c.fillRect(-r,-r*.92,r*2,r*.34);
+  c.restore();
+  c.strokeStyle='rgba(0,0,0,.45)'; c.lineWidth=Math.max(1.5,r*.09); c.stroke();
+  txt(c,t.sigla.slice(0,3),0,r*.42,{font:cond(900,r*.92),fill:contraste(corPeca(t.c1)),align:'center',track:0});
+  c.restore();
+};
+
+/* a pílula do placar. Devolve a largura desenhada. */
+function pilula(c,x,y,h,{A,B,gc,gf,relogio,acrescimo,titulo,flashA=0,flashB=0,escA=1,escB=1,alinha='centro'}){
+  const R=h/2;
+  const wCrest=h*.78, wSigla=h*1.42, wGol=h*.62, wEmblema=h*.66;
+  const wPill = wCrest*2 + wSigla*2 + wGol*2 + wEmblema + h*.5;
+  const wRelog = relogio ? h*2.05 : 0;
+  const gap = relogio ? h*.14 : 0;
+  const total = wPill + gap + wRelog;
+  const x0 = alinha==='esq' ? x : x - total/2;
+  const xc = x0 + wPill/2;                 // centro da pílula, sem o relógio
+
+  /* faixa do campeonato */
+  if(titulo){
+    const tw=larguraTxt(c,titulo,cond(800,h*.30),h*.055)+h*.7;
+    c.fillStyle='rgba(5,8,7,.92)';
+    roundRect(c,xc-tw/2,y-h/2-h*.46,tw,h*.44,h*.16); c.fill();
+    txt(c,titulo,xc,y-h/2-h*.16,{font:cond(800,h*.30),fill:C.chalk,align:'center',track:h*.055});
+  }
+
+  /* corpo */
+  c.save();
+  c.shadowColor='rgba(0,0,0,.55)'; c.shadowBlur=h*.3; c.shadowOffsetY=h*.07;
+  c.fillStyle='#0A0F0C'; roundRect(c,x0,y-h/2,wPill,h,R); c.fill();
+  c.restore();
+
+  c.save(); roundRect(c,x0,y-h/2,wPill,h,R); c.clip();
+  const meio = x0 + wCrest + wSigla + wGol + wEmblema/2;
+  /* blocos de cor por time */
+  const gA=c.createLinearGradient(x0,0,meio,0);
+  gA.addColorStop(0,corPeca(A.c1)); gA.addColorStop(1,corPeca(A.c1)+'00');
+  c.fillStyle=gA; c.fillRect(x0,y-h/2,meio-x0,h);
+  const gB=c.createLinearGradient(x0+wPill,0,meio,0);
+  gB.addColorStop(0,corPeca(B.c1)); gB.addColorStop(1,corPeca(B.c1)+'00');
+  c.fillStyle=gB; c.fillRect(meio,y-h/2,x0+wPill-meio,h);
+  /* flash de gol */
+  if(flashA>0){ c.fillStyle=C.gold; c.globalAlpha=flashA*.85; c.fillRect(x0,y-h/2,meio-x0,h); c.globalAlpha=1; }
+  if(flashB>0){ c.fillStyle=C.gold; c.globalAlpha=flashB*.85; c.fillRect(meio,y-h/2,x0+wPill-meio,h); c.globalAlpha=1; }
+  c.restore();
+  c.strokeStyle='rgba(244,241,230,.13)'; c.lineWidth=Math.max(1,h*.02);
+  roundRect(c,x0,y-h/2,wPill,h,R); c.stroke();
+
+  let cx=x0;
+  escudo(c,cx+wCrest/2, y, h*.30, A); cx+=wCrest;
+  txt(c,A.sigla,cx+wSigla/2,y+h*.14,{font:black(h*.34),fill:flashA>.4?C.ink:C.chalk,align:'center'});
+  cx+=wSigla;
+
+  const golA=()=>{ c.save(); c.translate(cx+wGol/2,y); c.scale(escA,escA);
+    txt(c,String(gc),0,h*.19,{font:cond(900,h*.60),fill:flashA>.4?C.ink:C.chalk,align:'center'}); c.restore(); };
+  golA(); cx+=wGol;
+
+  /* emblema central */
+  c.save(); c.translate(cx+wEmblema/2,y);
+  c.beginPath(); c.arc(0,0,h*.21,0,7); c.fillStyle=C.grassL; c.fill();
+  c.beginPath(); c.arc(0,0,h*.21,0,7); c.strokeStyle='rgba(5,8,7,.5)'; c.lineWidth=h*.035; c.stroke();
+  c.fillStyle=C.ink;
+  for(let i=0;i<5;i++){ const a=i*2*Math.PI/5-Math.PI/2;
+    c.beginPath(); c.arc(Math.cos(a)*h*.11,Math.sin(a)*h*.11,h*.038,0,7); c.fill(); }
+  c.beginPath(); c.arc(0,0,h*.045,0,7); c.fill();
+  c.restore(); cx+=wEmblema;
+
+  const golB=()=>{ c.save(); c.translate(cx+wGol/2,y); c.scale(escB,escB);
+    txt(c,String(gf),0,h*.19,{font:cond(900,h*.60),fill:flashB>.4?C.ink:C.chalk,align:'center'}); c.restore(); };
+  golB(); cx+=wGol;
+
+  txt(c,B.sigla,cx+wSigla/2,y+h*.14,{font:black(h*.34),fill:flashB>.4?C.ink:C.chalk,align:'center'});
+  cx+=wSigla;
+  escudo(c,cx+wCrest/2, y, h*.30, B);
+
+  /* relógio, em pastilha separada como no modelo da Copa */
+  if(relogio){
+    const rx=x0+wPill+gap;
+    c.save(); c.shadowColor='rgba(0,0,0,.5)'; c.shadowBlur=h*.25;
+    c.fillStyle=C.chalk; roundRect(c,rx,y-h/2,wRelog,h,R); c.fill(); c.restore();
+    const temAcr = acrescimo>0;
+    txt(c,relogio, rx+wRelog*(temAcr?.40:.5), y+h*.16,
+      {font:cond(900,h*.44),fill:C.ink,align:'center'});
+    if(temAcr){
+      c.fillStyle=C.ember;
+      roundRect(c,rx+wRelog*.70,y-h*.22,wRelog*.24,h*.44,h*.1); c.fill();
+      txt(c,'+'+acrescimo, rx+wRelog*.82, y+h*.13,
+        {font:cond(900,h*.32),fill:C.chalk,align:'center'});
+    }
+  }
+  return {total, x0, wPill, xc};
+}
+
+function desenhaPlacar(c,u){
+  c.clearRect(0,0,1920,1080);
+  if(!chromaOn){
+    const g=c.createRadialGradient(1920/2,1080*.42,80,1920/2,1080*.42,1920*.72);
+    g.addColorStop(0,'#141D17'); g.addColorStop(1,C.ink);
+    c.fillStyle=g; c.fillRect(0,0,1920,1080);
+  }
+
+  if(placar.modo==='rodada'){
+    const env=envelope(u,.22,.16);
+    const n=placar.rodada.length, h=Math.min(104,(1080-360)/n);
+    const gap=h*.62, total=n*h+(n-1)*gap;
+    let y=(1080-total)/2 - 20 + h/2;
+    txt(c,placar.competicao,1920/2,y-h/2-90,{font:black(40),fill:C.chalk,align:'center'});
+    placar.rodada.forEach((L,i)=>{
+      const a=entra(u,i,n,.34)*(u!==null&&u>.84?env.a:1);
+      c.save(); c.globalAlpha=a; c.translate((1-a)*-40,0);
+      pilula(c,1920/2,y,h,{A:timeById(L.casa),B:timeById(L.fora),gc:L.gc,gf:L.gf,
+        relogio:L.hora, acrescimo:0, titulo:null});
+      c.restore();
+      y+=h+gap;
+    });
+    return;
+  }
+
+  /* ---- placar de um jogo ---- */
+  const A=timeById(placar.casa), B=timeById(placar.fora);
+  const h=112*placar.escala;
+  /* a altura acompanha o tamanho pra faixa do campeonato e a de gol
+     não vazarem do quadro quando o placar cresce */
+  const esq = placar.pos==='topo-esq';
+  const posXY = {
+    'topo-esq':    [96,     60 + h*0.78],
+    'topo-centro': [1920*0.50, 60 + h*0.78],
+    'rodape':      [1920*0.50, 1080 - 40 - h*1.30]
+  }[placar.pos];
+
+  /* linha do tempo da animação de gol */
+  const golA = placar.evento==='golCasa', golB = placar.evento==='golFora';
+  let flashA=0, flashB=0, escA=1, escB=1, gc=placar.gc, gf=placar.gf, faixaGol=0;
+  if(u!==null && (golA||golB)){
+    const t=clamp((u-.30)/.34,0,1);
+    const pulso = t<.5 ? easeOut(t/.5) : 1-easeIO((t-.5)/.5);
+    if(golA) flashA=pulso; else flashB=pulso;
+    const marca = t>.30;
+    if(golA && !marca) gc=Math.max(0,placar.gc-1);
+    if(golB && !marca) gf=Math.max(0,placar.gf-1);
+    const pop = clamp((t-.30)/.22,0,1);
+    const esc = pop>0 && pop<1 ? 1+Math.sin(pop*Math.PI)*.55 : 1;
+    if(golA) escA=esc; else escB=esc;
+    faixaGol = t<.12 ? t/.12 : t>.82 ? 1-(t-.82)/.18 : 1;
+  } else if(u===null && (golA||golB)){
+    faixaGol=0;
+  }
+
+  const env=envelope(u,.20,.14);
+  c.save();
+  c.globalAlpha=env.a;
+  c.translate(placar.pos==='topo-esq' ? -(1-env.e)*260 : 0, placar.pos==='rodape' ? (1-env.e)*90 : -(1-env.e)*90);
+  const cx = pilula(c,posXY[0],posXY[1],h,{
+    A,B,gc,gf, relogio:placar.relogio, acrescimo:placar.acrescimo,
+    titulo:`${placar.competicao}${placar.fase?' — '+placar.fase:''}`,
+    flashA,flashB,escA,escB, alinha: esq?'esq':'centro'
+  }).xc;
+
+  /* faixa de GOL varrendo por baixo */
+  if(faixaGol>0){
+    const time = golA?A:B, nome=(golA?A:B).nome.toUpperCase();
+    const fh=h*.46, fy=posXY[1]+h/2+h*.20;
+    const txt1='G O L', txt2=nome;
+    const fw=(larguraTxt(c,txt1,cond(900,fh*.62),fh*.18)+larguraTxt(c,txt2,cond(800,fh*.48),fh*.06)+fh*2.1)*faixaGol;
+    c.save(); c.globalAlpha=env.a*faixaGol;
+    c.fillStyle=corPeca(time.c1); roundRect(c,cx-fw/2,fy,fw,fh,fh/2); c.fill();
+    c.save(); roundRect(c,cx-fw/2,fy,fw,fh,fh/2); c.clip();
+    c.fillStyle='rgba(242,176,30,.28)';
+    c.fillRect(cx-fw/2 + fw*((u*2.4)%1.4-.2), fy, fw*.18, fh);
+    c.restore();
+    if(faixaGol>.5){
+      const cor=contraste(corPeca(time.c1));
+      const w1=larguraTxt(c,txt1,cond(900,fh*.62),fh*.18), w2=larguraTxt(c,txt2,cond(800,fh*.48),fh*.06);
+      const tot=w1+w2+fh*.7;
+      txt(c,txt1,cx-tot/2,fy+fh*.70,{font:cond(900,fh*.62),fill:cor,track:fh*.18});
+      txt(c,txt2,cx-tot/2+w1+fh*.7,fy+fh*.68,{font:cond(800,fh*.48),fill:cor,track:fh*.06});
+    }
+    c.restore();
+  }
+  c.restore();
+}
+
+
+/* =====================================================================
+   MÓDULO 5 — ANÁLISE DA PARTIDA
+   Marca os lances minuto a minuto e gera os gráficos.
+   ================================================================== */
+const TIPOS = {
+  gol:    {rot:'Gol',              xg:.35, chute:true, alvo:true},
+  noGol:  {rot:'Chute no gol',     xg:.12, chute:true, alvo:true},
+  fora:   {rot:'Chute pra fora',   xg:.07, chute:true},
+  bloq:   {rot:'Chute bloqueado',  xg:.05, chute:true},
+  chance: {rot:'Chance perdida',   xg:.30, chute:true, alvo:false},
+  falta:  {rot:'Falta',            xg:0},
+  escant: {rot:'Escanteio',        xg:0},
+  cartao: {rot:'Cartão',           xg:0},
+  defesa: {rot:'Defesaça',         xg:0}
+};
+
+const analise = {
+  titulo:'Dentro FC × Ferroviagra',
+  sub:'Copa Revoada · 8 de agosto',
+  A:'dentro26', B:'ferro26',
+  duracao:50,
+  vista:'corrida',            // corrida | estatisticas | linha
+  autor:'',
+  min:12, time:'A', tipo:'noGol', jogador:'Glauber', xgAtual:.12,
+  eventos:[
+    {min:6,  t:'A', tipo:'fora',   j:'Letti',    xg:.05},
+    {min:11, t:'B', tipo:'noGol',  j:'Glauber',  xg:.14},
+    {min:14, t:'A', tipo:'chance', j:'Vitao',    xg:.31},
+    {min:19, t:'A', tipo:'gol',    j:'Letti',    xg:.22},
+    {min:23, t:'B', tipo:'fora',   j:'Zaga',     xg:.04},
+    {min:27, t:'B', tipo:'noGol',  j:'Enzo',     xg:.18},
+    {min:31, t:'A', tipo:'bloq',   j:'Nathan',   xg:.06},
+    {min:34, t:'B', tipo:'gol',    j:'Zaga',     xg:.41},
+    {min:39, t:'A', tipo:'noGol',  j:'Glauber',  xg:.09},
+    {min:44, t:'B', tipo:'chance', j:'Leo',      xg:.28},
+    {min:48, t:'A', tipo:'fora',   j:'Vitao',    xg:.11}
+  ]
+};
+
+function estatisticas(){
+  const z=()=>({chutes:0,alvo:0,gols:0,xg:0,faltas:0,escant:0,cartoes:0});
+  const s={A:z(),B:z()};
+  analise.eventos.forEach(e=>{
+    const d=s[e.t]; if(!d) return; const T=TIPOS[e.tipo]; if(!T) return;
+    if(T.chute){ d.chutes++; d.xg+=e.xg||0; if(T.alvo) d.alvo++; }
+    if(e.tipo==='gol') d.gols++;
+    if(e.tipo==='falta') d.faltas++;
+    if(e.tipo==='escant') d.escant++;
+    if(e.tipo==='cartao') d.cartoes++;
+  });
+  return s;
+}
+function curvaXG(t){
+  const pts=[{min:0,xg:0}];
+  analise.eventos.filter(e=>e.t===t && TIPOS[e.tipo]?.chute)
+    .sort((a,b)=>a.min-b.min)
+    .forEach(e=>{ const ac=pts[pts.length-1].xg+(e.xg||0);
+      pts.push({min:e.min, xg:ac, ev:e}); });
+  pts.push({min:analise.duracao, xg:pts[pts.length-1].xg});
+  return pts;
+}
+
+function desenhaAnalise(c,u){
+  const A=timeById(analise.A), B=timeById(analise.B), s=estatisticas();
+  moldura(c,{titulo:analise.titulo.toUpperCase(), sub:analise.sub,
+    tag: analise.autor ? 'POR '+analise.autor.toUpperCase() : 'FICHA DO JOGO'});
+
+  /* placar no topo direito */
+  const py=112;
+  txt(c,`${s.A.gols} × ${s.B.gols}`,1920-84,py,{font:cond(900,74),fill:C.gold,align:'right'});
+
+  const av = u===null ? 1 : easeOut(clamp((u-.10)/.62,0,1));
+  const env=envelope(u,.16,.14);
+  c.globalAlpha = u!==null && u>.86 ? env.a : 1;
+
+  if(analise.vista==='corrida') vistaCorrida(c,A,B,s,av);
+  else if(analise.vista==='estatisticas') vistaEstatisticas(c,A,B,s,av);
+  else vistaLinha(c,A,B,s,av);
+
+  c.globalAlpha=1;
+}
+
+/* --- corrida de xG: a curva que conta a história do jogo --- */
+function vistaCorrida(c,A,B,s,av){
+  const gx0=170,gx1=1920-170,gy0=250,gy1=1080-190;
+  const maxXG=Math.max(0.6, curvaXG('A').at(-1).xg, curvaXG('B').at(-1).xg)*1.15;
+  const X=m=>gx0+(gx1-gx0)*clamp(m/analise.duracao,0,1);
+  const Y=v=>gy1-(gy1-gy0)*clamp(v/maxXG,0,1);
+
+  /* grade */
+  c.strokeStyle=C.line; c.lineWidth=1.5;
+  for(let v=0; v<=maxXG; v+=0.25){
+    c.beginPath(); c.moveTo(gx0,Y(v)); c.lineTo(gx1,Y(v)); c.stroke();
+    txt(c,v.toFixed(2),gx0-16,Y(v)+7,{font:cond(700,20),fill:C.dim,align:'right'});
+  }
+  for(let m=0;m<=analise.duracao;m+=10){
+    c.strokeStyle='rgba(34,48,31,.6)';
+    c.beginPath(); c.moveTo(X(m),gy0); c.lineTo(X(m),gy1); c.stroke();
+    txt(c,m+"'",X(m),gy1+34,{font:cond(700,22),fill:C.dim,align:'center'});
+  }
+  txt(c,'GOL ESPERADO ACUMULADO',gx0,gy0-28,{font:cond(700,20),fill:C.dim,track:5});
+
+  const desenhaLinha=(t,cor)=>{
+    const pts=curvaXG(t), corte=analise.duracao*av;
+    c.save(); c.beginPath(); c.moveTo(X(0),Y(0));
+    let ultimo={min:0,xg:0};
+    for(const p of pts){
+      if(p.min>corte) break;
+      c.lineTo(X(p.min),Y(ultimo.xg)); c.lineTo(X(p.min),Y(p.xg));
+      ultimo=p;
+    }
+    c.lineTo(X(Math.min(corte,analise.duracao)),Y(ultimo.xg));
+    c.strokeStyle=cor; c.lineWidth=6; c.lineJoin='round'; c.lineCap='round'; c.stroke();
+    /* área sob a curva */
+    c.lineTo(X(Math.min(corte,analise.duracao)),Y(0)); c.lineTo(X(0),Y(0)); c.closePath();
+    c.globalAlpha=.13; c.fillStyle=cor; c.fill();
+    c.restore();
+    /* marcadores de gol */
+    pts.forEach(p=>{
+      if(!p.ev || p.min>corte) return;
+      if(p.ev.tipo==='gol'){
+        c.beginPath(); c.arc(X(p.min),Y(p.xg),15,0,7); c.fillStyle=cor; c.fill();
+        c.strokeStyle=C.ink; c.lineWidth=4; c.stroke();
+        c.beginPath(); c.arc(X(p.min),Y(p.xg),6,0,7); c.fillStyle=C.ink; c.fill();
+        const nome=p.ev.j.toUpperCase();
+        const nw=larguraTxt(c,nome,cond(800,20),1.5)+20;
+        c.fillStyle='rgba(5,8,7,.85)'; roundRect(c,X(p.min)-nw/2,Y(p.xg)-52,nw,28,6); c.fill();
+        txt(c,nome,X(p.min),Y(p.xg)-32,{font:cond(800,20),fill:cor,align:'center',track:1.5});
+      }else{
+        c.beginPath(); c.arc(X(p.min),Y(p.xg),6.5,0,7); c.fillStyle=cor; c.fill();
+      }
+    });
+    return pts.at(-1).xg;
+  };
+  const totA=desenhaLinha('A',C.gold), totB=desenhaLinha('B',C.ember);
+
+  /* legenda com o total */
+  [[A,totA,C.gold,gx0],[B,totB,C.ember,gx0+330]].forEach(([t,v,cor,x])=>{
+    c.fillStyle=cor; roundRect(c,x,gy0-96,20,20,4); c.fill();
+    txt(c,t.nome.toUpperCase(),x+32,gy0-78,{font:cond(800,24),fill:C.chalk,track:2});
+    txt(c,v.toFixed(2)+' xG',x+32,gy0-52,{font:cond(900,30),fill:cor});
+  });
+}
+
+/* --- estatísticas espelhadas --- */
+function vistaEstatisticas(c,A,B,s,av){
+  const linhas=[
+    ['Gols',            s.A.gols,  s.B.gols,  false],
+    ['Gol esperado',    s.A.xg,    s.B.xg,    true],
+    ['Finalizações',    s.A.chutes,s.B.chutes,false],
+    ['No alvo',         s.A.alvo,  s.B.alvo,  false],
+    ['Faltas',          s.A.faltas,s.B.faltas,false],
+    ['Escanteios',      s.A.escant,s.B.escant,false],
+    ['Cartões',         s.A.cartoes,s.B.cartoes,false]
+  ];
+  const cx=1920/2, topo=280, alt=76, larguraMax=560;
+
+  [[A,C.gold,cx-460,'right'],[B,C.ember,cx+460,'left']].forEach(([t,cor,x,al])=>{
+    txt(c,t.nome.toUpperCase(),x,topo-70,{font:black(34),fill:C.chalk,align:al==='right'?'left':'right'});
+    c.fillStyle=cor;
+    if(al==='right') c.fillRect(x,topo-56,120,7); else c.fillRect(x-120,topo-56,120,7);
+  });
+
+  linhas.forEach((L,i)=>{
+    const y=topo+i*alt;
+    const a=clamp((av*linhas.length - i)*1.4,0,1);
+    const va=L[1], vb=L[2], tot=Math.max(va+vb,.0001);
+    const wa=larguraMax*(va/tot)*a, wb=larguraMax*(vb/tot)*a;
+    const fmt=v=>L[3]? v.toFixed(2) : String(v);
+
+    txt(c,L[0].toUpperCase(),cx,y+8,{font:cond(700,23),fill:C.dim,align:'center',track:3});
+    c.fillStyle=C.panel2;
+    roundRect(c,cx-120-larguraMax,y-8,larguraMax,18,5); c.fill();
+    roundRect(c,cx+120,y-8,larguraMax,18,5); c.fill();
+    c.fillStyle=C.gold;  roundRect(c,cx-120-wa,y-8,wa,18,5); c.fill();
+    c.fillStyle=C.ember; roundRect(c,cx+120,y-8,wb,18,5); c.fill();
+    txt(c,fmt(va),cx-120-larguraMax-20,y+11,{font:cond(900,32),fill:C.chalk,align:'right'});
+    txt(c,fmt(vb),cx+120+larguraMax+20,y+11,{font:cond(900,32),fill:C.chalk,align:'left'});
+  });
+
+  /* aproveitamento */
+  const y=topo+linhas.length*alt+40;
+  [[s.A,C.gold,cx-460],[s.B,C.ember,cx+280]].forEach(([d,cor,x])=>{
+    const conv = d.chutes ? d.gols/d.chutes : 0;
+    const pxg  = d.xg>0 ? d.gols-d.xg : 0;
+    c.fillStyle=C.panel; roundRect(c,x,y,360,120,12); c.fill();
+    c.strokeStyle=C.line; c.lineWidth=2; roundRect(c,x,y,360,120,12); c.stroke();
+    txt(c,'APROVEITAMENTO',x+24,y+36,{font:cond(700,18),fill:C.dim,track:4});
+    txt(c,(conv*100).toFixed(0)+'%',x+24,y+96,{font:cond(900,54),fill:cor});
+    txt(c,(pxg>=0?'+':'')+pxg.toFixed(2)+' vs xG',x+340,y+96,
+      {font:cond(800,26),fill:pxg>=0?C.grassL:C.ember,align:'right'});
+  });
+}
+
+/* --- linha do tempo dos chutes --- */
+function vistaLinha(c,A,B,s,av){
+  const gx0=170,gx1=1920-170,eixo=1080/2+40;
+  const X=m=>gx0+(gx1-gx0)*clamp(m/analise.duracao,0,1);
+  c.strokeStyle=C.line; c.lineWidth=3;
+  c.beginPath(); c.moveTo(gx0,eixo); c.lineTo(gx1,eixo); c.stroke();
+  for(let m=0;m<=analise.duracao;m+=5){
+    c.strokeStyle='rgba(34,48,31,.7)'; c.lineWidth=2;
+    c.beginPath(); c.moveTo(X(m),eixo-8); c.lineTo(X(m),eixo+8); c.stroke();
+    if(m%10===0) txt(c,m+"'",X(m),eixo+38,{font:cond(700,22),fill:C.dim,align:'center'});
+  }
+  txt(c,A.nome.toUpperCase(),gx0,eixo-300,{font:black(32),fill:C.gold});
+  txt(c,B.nome.toUpperCase(),gx0,eixo+330,{font:black(32),fill:C.ember});
+
+  analise.eventos.forEach(e=>{
+    const T=TIPOS[e.tipo]; if(!T||!T.chute) return;
+    if(e.min>analise.duracao*av) return;
+    const cor = e.t==='A'?C.gold:C.ember, dir = e.t==='A'?-1:1;
+    const alt = 40+ (e.xg||0)*520;
+    const x=X(e.min);
+    c.fillStyle=cor; c.globalAlpha= e.tipo==='gol'?1:.55;
+    c.fillRect(x-7, eixo, 14, dir*alt);
+    c.globalAlpha=1;
+    if(e.tipo==='gol'){
+      c.beginPath(); c.arc(x,eixo+dir*(alt+22),15,0,7); c.fillStyle=cor; c.fill();
+      c.strokeStyle=C.ink; c.lineWidth=4; c.stroke();
+      const nome=e.j.toUpperCase(), nw=larguraTxt(c,nome,cond(800,20),1.5)+20;
+      c.fillStyle='rgba(5,8,7,.85)';
+      roundRect(c,x-nw/2,eixo+dir*(alt+70)-14,nw,28,6); c.fill();
+      txt(c,nome,x,eixo+dir*(alt+70)+6,{font:cond(800,20),fill:cor,align:'center',track:1.5});
+    }
+  });
+  txt(c,'ALTURA DA BARRA = GOL ESPERADO DO LANCE',1920/2,1080-120,
+    {font:cond(700,20),fill:C.dim,align:'center',track:5});
+}
+
+
+/* ---- escudo de verdade por cima do desenho vetorial ---- */
+const escudoVetor = escudo;
+escudo = function(c,x,y,r,t){
+  const im = (typeof escudoImg==='function') ? escudoImg(t) : null;
+  if(im){
+    const h = r*2*im.naturalHeight/im.naturalWidth;
+    c.drawImage(im, x-r, y-h/2, r*2, h);
+    return;
+  }
+  escudoVetor(c,x,y,r,t);
+};
+
+/* ---- ajusta os padrões do protótipo aos ids reais ---- */
+(function(){
+  const primeiro = DADOS.times[DADOS.times.length-2] || DADOS.times[0];
+  const segundo  = DADOS.times[DADOS.times.length-1] || DADOS.times[0];
+  placar.casa = primeiro.id; placar.fora = segundo.id;
+  placar.rodada = DADOS.jogos.slice(-3).map(g=>({
+    casa:g.casa, fora:g.fora, gc:g.gc, gf:g.gf, hora:g.mes.slice(0,3)
+  }));
+  analise.A = primeiro.id; analise.B = segundo.id;
+  analise.titulo = primeiro.nome + ' × ' + segundo.nome;
+  const nomes = ELENCO();
+  if(nomes.length){
+    chute.batedor = nomes[0];
+    analise.jogador = nomes[0];
+    mapa.pecas.forEach((p,i)=>{ if(p.tipo!=='o') p.nome = nomes[i % nomes.length]; });
+  }
+})();
+
+/* ---- nota do batedor a partir dos gols por jogo, com encolhimento ----
+   Sem o encolhimento, quem jogou duas vezes e fez um gol viraria nota 5. */
+function notaBatedor(apelido){
+  const p = DADOS.jogadores.find(x=>x.apelido===apelido);
+  if(!p || !p.jogos) return 3;
+  const media = DADOS.jogadores.reduce((a,x)=>a+x.gols,0) /
+                Math.max(1, DADOS.jogadores.reduce((a,x)=>a+x.jogos,0));
+  const peso = 6;
+  const taxa = (p.gols + media*peso) / (p.jogos + peso);
+  const z = (taxa - media) / 0.45;
+  return clamp(Math.round(3 + z), 1, 5);
+}
+
+/* ---- medidas por estádio ---- */
+function usaEstadio(nome){
+  const m = MEDIDAS_ESTADIO[nome];
+  if(!m) return false;
+  CAMPO.comp=m.comp; CAMPO.larg=m.larg; CAMPO.gol=m.gol;
+  return true;
+}
+
+/* ---- peças que dá pra arrastar na prévia ---- */
+function pontosArrastaveis(tipo){
+  if(tipo==='mapa'){
+    const P=projecao({pad:110});
+    const k=Math.round(clamp(mapa.k,0,mapa.nq-1));   // o slider anda em .05
+    return mapa.pecas.map(p=>({
+      get:()=>P.px(p.pos[k].x,p.pos[k].y),
+      set:(mx,my)=>{p.pos[k]={x:clamp(mx,-CAMPO.comp/2-1,CAMPO.comp/2+1),
+                              y:clamp(my,-CAMPO.larg/2-1,CAMPO.larg/2+1)};},
+      m:P.mx, r:p.tipo==='o'?30:34
+    }));
+  }
+  if(tipo==='chance'){
+    const P=projChute(), L=chute.lado, meia=CAMPO.comp/2;
+    const lo = chute.visao==='meia' ? (L>0?0:-meia+.3) : -meia+.3;
+    const hi = chute.visao==='meia' ? (L>0?meia-.3:0) :  meia-.3;
+    const alvos=[{o:chute.bola,r:34},{o:chute.gk,r:38},...chute.zag.map(z=>({o:z,r:34}))];
+    return alvos.map(a=>({
+      get:()=>P.px(a.o.x,a.o.y),
+      set:(mx,my)=>{a.o.x=clamp(mx,lo,hi); a.o.y=clamp(my,-CAMPO.larg/2,CAMPO.larg/2);},
+      m:P.mx, r:a.r
+    }));
+  }
+  return [];
+}
+
+/* ---- o que o Estúdio precisa enxergar ---- */
+const FUNDO = {};
+const ARTES = ARTES_PRONTAS = {
+  mapa:    {desenha:desenhaMapa,    dur:()=> (mapa.nq-1)*mapa.segundos, fundo:true},
+  chance:  {desenha:(c)=>desenhaChute(c), dur:()=>3,                    fundo:true},
+  placar2: {desenha:desenhaPlacar,  dur:()=> placar.dur,                fundo:false},
+  clima:   {desenha:desenhaClima,   dur:()=>6,                          fundo:true},
+  ficha:   {desenha:desenhaAnalise, dur:()=>7,                          fundo:true},
+};
+
+return {
+  ARTES, CAMPO, MEDIDAS_ESTADIO, usaEstadio, notaBatedor,
+  estado: {mapa, chute, clima, placar, analise},
+  calculaXG, geometria, rotuloChance, estatisticas, TIPOS, PARTE, JOGADA,
+  projecao, projChute, seedMapa, novaPeca, posNoTempo, buscaClima,
+  fazCodigo, leCodigo, ELENCO, timeById, C,
+  duracao: t => (ARTES[t] ? ARTES[t].dur() : 3),
+  temFundo: t => !!(ARTES[t] && ARTES[t].fundo),
+  desenha: (t, c, u) => {
+    const a=ARTES[t]; if(!a) return;
+    SEM_FUNDO = (FUNDO[t] !== undefined) ? !FUNDO[t] : !a.fundo;
+    chromaOn = SEM_FUNDO;
+    a.desenha(c, u);
+    SEM_FUNDO = false; chromaOn = false;
+  },
+  pontosArrastaveis,
+  fundoDe: t => (FUNDO[t] !== undefined) ? FUNDO[t] : !!(ARTES[t] && ARTES[t].fundo),
+  setFundo: (t,v) => { FUNDO[t]=v; },
+  aoRedesenhar: fn => { REDESENHA = fn; },
+  estadoClima: () => clima.estado,
+  erroClima: () => clima.erro,
+};
+})();
+
+
+/* ========= painel das artes de Lances =========
+   Construído por especificação e ligado por delegação: o painel não é
+   repintado a cada tecla, senão o input perde o foco no meio da digitação.
+   Quem atualiza os números da leitura é atualizaLeitura(). */
+function campoL(c){
+  const alvo = `data-alvo="${c.alvo}"`;
+  if(c.tipo==='select'){
+    return `<div class="field"><label>${c.rot}</label><select ${alvo}>${
+      c.ops.map(o=>{
+        const [v,r] = Array.isArray(o) ? o : [o,o];
+        return `<option value="${v}"${String(v)===String(c.val)?' selected':''}>${r}</option>`;
+      }).join('')}</select></div>`;
+  }
+  if(c.tipo==='check'){
+    return `<div class="field"><label style="display:flex;gap:.5rem;align-items:center;cursor:pointer">
+      <input type="checkbox" ${alvo} ${c.val?'checked':''} style="width:auto;margin:0">
+      <span>${c.rot}</span></label></div>`;
+  }
+  if(c.tipo==='faixa'){
+    return `<div class="field"><label>${c.rot} <b data-eco="${c.alvo}" style="color:var(--gold)">${c.val}</b></label>
+      <input type="range" ${alvo} min="${c.min}" max="${c.max}" step="${c.passo||1}" value="${c.val}"></div>`;
+  }
+  return `<div class="field"><label>${c.rot}</label>
+    <input type="${c.tipo||'text'}" ${alvo} value="${c.val}"
+      ${c.min!==undefined?`min="${c.min}"`:''} ${c.max!==undefined?`max="${c.max}"`:''}
+      ${c.passo?`step="${c.passo}"`:''}></div>`;
+}
+function leAlvo(caminho){
+  const [obj,prop] = caminho.split('.');
+  return LANCES.estado[obj][prop];
+}
+function gravaAlvo(caminho, valor){
+  const [obj,prop] = caminho.split('.');
+  LANCES.estado[obj][prop] = valor;
+}
+
+const OPS_TIME = () => times.map(t=>[t.id, t.nome]);
+const OPS_JOGADOR = () => jog.map(p=>p.apelido);
+
+function specLances(t){
+  const E = LANCES.estado;
+  if(t==='chance') return [
+    {alvo:'chute.batedor', rot:'Quem chutou', tipo:'select', ops:OPS_JOGADOR(), val:E.chute.batedor},
+    {alvo:'chute.qualidade', rot:'Nota do batedor', tipo:'faixa', min:1, max:5, val:E.chute.qualidade},
+    {alvo:'chute.parte', rot:'Como chutou', tipo:'select', val:E.chute.parte,
+     ops:Object.entries(LANCES.PARTE).map(([k,v])=>[k,v.rot])},
+    {alvo:'chute.jogada', rot:'Situação', tipo:'select', val:E.chute.jogada,
+     ops:Object.entries(LANCES.JOGADA).map(([k,v])=>[k,v.rot])},
+    {alvo:'chute.posGk', rot:'Colocação do goleiro', tipo:'faixa', min:-1, max:1, passo:.5, val:E.chute.posGk},
+    {alvo:'chute.execucao', rot:'Execução (xGOT)', tipo:'faixa', min:-2, max:2, passo:.5, val:E.chute.execucao},
+    {alvo:'chute.visao', rot:'Enquadramento', tipo:'select', val:E.chute.visao,
+     ops:[['meia','Meia quadra'],['inteira','Campo inteiro']]},
+    {alvo:'chute.lado', rot:'Ataca o gol', tipo:'select', val:E.chute.lado,
+     ops:[[1,'Da direita'],[-1,'Da esquerda']]},
+    {alvo:'chute.minuto', rot:'Minuto', val:E.chute.minuto},
+    {alvo:'chute.explica', rot:'Mostrar a conta na arte', tipo:'check', val:E.chute.explica},
+  ];
+  if(t==='mapa') return [
+    {alvo:'mapa.titulo', rot:'Título', val:E.mapa.titulo},
+    {alvo:'mapa.sub', rot:'Subtítulo', val:E.mapa.sub},
+    {alvo:'mapa.autor', rot:'Autor (opcional)', val:E.mapa.autor},
+    {alvo:'mapa.nq', rot:'Quantos momentos', tipo:'faixa', min:2, max:8, val:E.mapa.nq},
+    {alvo:'mapa.k', rot:'Momento mostrado', tipo:'faixa', min:0, max:E.mapa.nq-1, passo:.05, val:E.mapa.k},
+    {alvo:'mapa.segundos', rot:'Segundos por momento', tipo:'number', min:.5, max:4, passo:.5, val:E.mapa.segundos},
+    {alvo:'mapa.rastro', rot:'Mostrar o rastro', tipo:'check', val:E.mapa.rastro},
+    {alvo:'mapa.numeros', rot:'Numerar as peças', tipo:'check', val:E.mapa.numeros},
+  ];
+  if(t==='placar2') return [
+    {alvo:'placar.competicao', rot:'Competição', val:E.placar.competicao},
+    {alvo:'placar.fase', rot:'Fase', val:E.placar.fase},
+    {alvo:'placar.casa', rot:'Time da casa', tipo:'select', ops:OPS_TIME(), val:E.placar.casa},
+    {alvo:'placar.fora', rot:'Time de fora', tipo:'select', ops:OPS_TIME(), val:E.placar.fora},
+    {alvo:'placar.gc', rot:'Gols da casa (já somado)', tipo:'number', min:0, val:E.placar.gc},
+    {alvo:'placar.gf', rot:'Gols de fora (já somado)', tipo:'number', min:0, val:E.placar.gf},
+    {alvo:'placar.relogio', rot:'Relógio', val:E.placar.relogio},
+    {alvo:'placar.acrescimo', rot:'Acréscimo', tipo:'number', min:0, max:15, val:E.placar.acrescimo},
+    {alvo:'placar.pos', rot:'Posição na tela', tipo:'select', val:E.placar.pos,
+     ops:[['topo-esq','Topo à esquerda'],['topo-centro','Topo ao centro'],['rodape','Rodapé']]},
+    {alvo:'placar.escala', rot:'Tamanho', tipo:'faixa', min:.6, max:1.6, passo:.2, val:E.placar.escala},
+    {alvo:'placar.evento', rot:'Animação', tipo:'select', val:E.placar.evento,
+     ops:[['nenhum','Parado'],['golCasa','Gol da casa'],['golFora','Gol de fora']]},
+  ];
+  if(t==='clima') return [
+    {alvo:'clima.data', rot:'Data do jogo', tipo:'date', val:E.clima.data},
+    {alvo:'clima.local', rot:'Nome do local', val:E.clima.local},
+  ];
+  if(t==='ficha') return [
+    {alvo:'analise.titulo', rot:'Título', val:E.analise.titulo},
+    {alvo:'analise.sub', rot:'Subtítulo', val:E.analise.sub},
+    {alvo:'analise.A', rot:'Time A', tipo:'select', ops:OPS_TIME(), val:E.analise.A},
+    {alvo:'analise.B', rot:'Time B', tipo:'select', ops:OPS_TIME(), val:E.analise.B},
+    {alvo:'analise.vista', rot:'Vista', tipo:'select', val:E.analise.vista,
+     ops:[['corrida','Corrida de xG'],['estatisticas','Números'],['linha','Chutes']]},
+    {alvo:'analise.duracao', rot:'Minutos de jogo', tipo:'number', min:10, max:120, val:E.analise.duracao},
+  ];
+  return [];
+}
+
+function montaPainelLances(t){
+  const cx = $('#painel-lances');
+  const campos = specLances(t).map(campoL).join('');
+  const medidas = (t==='chance'||t==='mapa') ? `
+    <div class="field"><label>Campo — comprimento, largura e boca do gol (m)</label>
+      <div style="display:flex;gap:.35rem">
+        <input type="number" data-campo="comp" value="${LANCES.CAMPO.comp}" style="width:33%">
+        <input type="number" data-campo="larg" value="${LANCES.CAMPO.larg}" style="width:33%">
+        <input type="number" data-campo="gol" value="${LANCES.CAMPO.gol}" style="width:33%"></div></div>
+    <div class="field"><label>Medidas do estádio</label>
+      <select data-estadio>${Object.keys(LANCES.MEDIDAS_ESTADIO)
+        .map(n=>`<option value="${n}">${n}</option>`).join('')}</select></div>` : '';
+  const leitura = t==='chance'
+    ? `<div class="card" style="padding:.7rem .8rem;margin-top:.6rem" id="leitura-xg"></div>` : '';
+  const lances = t==='ficha' ? painelLancesLista() : '';
+  const fundo = `<div class="field"><label>Fundo da arte</label>
+      <select data-fundo>
+        <option value="1"${LANCES.fundoDe(t)?' selected':''}>Sólido — tela cheia</option>
+        <option value="0"${!LANCES.fundoDe(t)?' selected':''}>Transparente — por cima do vídeo</option>
+      </select></div>`;
+  const buscar = t==='clima' ? `
+    <div class="field"><button class="btn primary" data-clima style="width:100%">
+      Buscar o clima daquele dia</button>
+      <p style="font-size:.76rem;color:var(--dim);margin:.5rem 0 0">
+      Dados do Open-Meteo, sem cadastro. Antes de ~80 dias atrás ele usa o
+      arquivo histórico ERA5.</p></div>` : '';
+  const codigo = (t==='mapa'||t==='ficha') ? `
+    <div class="field"><label>Código para mandar no grupo</label>
+      <textarea data-cod rows="2" placeholder="cole aqui um código recebido"></textarea>
+      <div style="display:flex;gap:.4rem;margin-top:.4rem">
+        <button class="btn" data-cod-gerar style="flex:1">Gerar</button>
+        <button class="btn" data-cod-ler style="flex:1">Aplicar</button></div></div>` : '';
+  cx.innerHTML = campos + fundo + medidas + leitura + buscar + lances + codigo;
+  if(t==='chance') atualizaLeitura();
+  if(t==='ficha') pintaListaLances();
+}
+
+function painelLancesLista(){
+  const E = LANCES.estado.analise;
+  return `<div class="field"><label>Marcar lance</label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem">
+      <input type="number" data-ev="min" placeholder="min" value="${E.min}">
+      <select data-ev="time"><option value="A">Time A</option><option value="B">Time B</option></select>
+      <select data-ev="tipo">${Object.entries(LANCES.TIPOS)
+        .map(([k,v])=>`<option value="${k}"${k===E.tipo?' selected':''}>${v.rot}</option>`).join('')}</select>
+      <select data-ev="jogador">${jog.map(p=>`<option>${p.apelido}</option>`).join('')}</select>
+      <input type="number" data-ev="xg" step="0.01" min="0" max="1" value="${E.xgAtual}">
+      <button class="btn primary" data-ev-add>Adicionar</button>
+    </div></div>
+    <div class="field"><label>Lances marcados (<b id="n-lances">${E.eventos.length}</b>)</label>
+      <div id="lista-lances" style="max-height:190px;overflow:auto;border:1px solid var(--line);border-radius:8px"></div>
+    </div>`;
+}
+function pintaListaLances(){
+  const el = $('#lista-lances'); if(!el) return;
+  const E = LANCES.estado.analise;
+  el.innerHTML = E.eventos.slice().sort((a,b)=>a.min-b.min).map((e,i)=>
+    `<div style="display:flex;gap:.5rem;align-items:center;padding:.28rem .5rem;
+       border-bottom:1px solid rgba(255,255,255,.05);font-family:'Barlow Condensed',sans-serif">
+      <b style="color:var(--gold);width:2.2rem">${e.min}'</b>
+      <span style="width:1.4rem;color:var(--dim)">${e.t}</span>
+      <span style="flex:1">${LANCES.TIPOS[e.tipo]?LANCES.TIPOS[e.tipo].rot:e.tipo} · ${e.j}</span>
+      <span style="color:var(--dim)">${(e.xg*100).toFixed(0)}%</span>
+      <button class="btn ghost" data-ev-del="${i}" style="padding:.1rem .4rem;font-size:.7rem">×</button>
+    </div>`).join('') || '<div class="empty" style="padding:.8rem">Nenhum lance ainda.</div>';
+  const n = $('#n-lances'); if(n) n.textContent = E.eventos.length;
+}
+function atualizaLeitura(){
+  const el = $('#leitura-xg'); if(!el) return;
+  const r = LANCES.calculaXG();
+  const linha = (rot,v,cor) => `<div style="display:flex;justify-content:space-between;
+    font-family:'Barlow Condensed',sans-serif;font-size:.9rem;padding:.1rem 0">
+    <span style="color:var(--dim)">${rot}</span><b style="color:${cor||'var(--chalk)'}">${v}</b></div>`;
+  el.innerHTML =
+    `<div style="font-family:'Archivo Black',sans-serif;font-size:2rem;color:var(--gold);line-height:1">
+       ${(r.xg*100).toFixed(r.xg<.1?1:0)}%</div>
+     <div class="eyebrow" style="margin:.15rem 0 .5rem">${LANCES.rotuloChance(r.xg)}</div>`
+    + linha('Distância', r.d.toFixed(1)+' m')
+    + linha('Goleiro tapa', (r.fGk*100).toFixed(0)+'%')
+    + linha('Defesa tapa', (r.fZag*100).toFixed(0)+'%')
+    + linha('Gol livre', (100-r.fTot*100).toFixed(0)+'%', 'var(--grass-l)')
+    + linha('Depois do chute (xGOT)', (r.xgot*100).toFixed(r.xgot<.1?1:0)+'%', 'var(--grass-l)')
+    + `<div style="margin-top:.5rem;border-top:1px solid var(--line);padding-top:.4rem">`
+    + linha('Posição no campo', (r.base*100).toFixed(0)+'%')
+    + r.passos.map(p=>linha(p.nome, (p.pp>=0?'+':'')+p.pp.toFixed(1),
+        p.pp>=0?'var(--grass-l)':'var(--ember)')).join('')
+    + `</div>`;
+}
+
+/* ligação por delegação, uma vez só */
+document.addEventListener('input', e=>{
+  const el = e.target;
+  if(!el.closest || !el.closest('#painel-lances')) return;
+  if(el.dataset.alvo){
+    const bruto = el.type==='checkbox' ? el.checked : el.value;
+    const atual = leAlvo(el.dataset.alvo);
+    const valor = el.type==='checkbox' ? bruto
+                : (typeof atual === 'number' ? (+bruto||0) : bruto);
+    gravaAlvo(el.dataset.alvo, valor);
+    const eco = document.querySelector(`[data-eco="${el.dataset.alvo}"]`);
+    if(eco) eco.textContent = valor;
+    if(el.dataset.alvo==='chute.batedor'){
+      const nota = LANCES.notaBatedor(valor);
+      gravaAlvo('chute.qualidade', nota);
+      const fq = document.querySelector('[data-alvo="chute.qualidade"]');
+      if(fq){ fq.value = nota; const ec=document.querySelector('[data-eco="chute.qualidade"]'); if(ec) ec.textContent=nota; }
+    }
+    draw(1); atualizaLeitura();
+  }
+  if(el.dataset.fundo!==undefined){
+    LANCES.setFundo(F.tipo.value, el.value==='1');
+    draw(1);
+  }
+  if(el.dataset.campo){
+    LANCES.CAMPO[el.dataset.campo] = +el.value || 1;
+    draw(1); atualizaLeitura();
+  }
+});
+document.addEventListener('change', e=>{
+  const el = e.target;
+  if(el.dataset && el.dataset.estadio){
+    LANCES.usaEstadio(el.value);
+    document.querySelectorAll('[data-campo]').forEach(i=>{ i.value = LANCES.CAMPO[i.dataset.campo]; });
+    draw(1); atualizaLeitura();
+  }
+});
+document.addEventListener('click', async e=>{
+  const b = e.target.closest && e.target.closest('#painel-lances button');
+  if(!b) return;
+  const E = LANCES.estado.analise;
+  if(b.hasAttribute('data-clima')){
+    b.textContent='buscando…';
+    await LANCES.buscaClima();
+    b.textContent = LANCES.estadoClima()==='ok' ? 'Buscar de novo'
+                  : 'Não deu: '+LANCES.erroClima();
+    draw(1);
+    return;
+  }
+  if(b.hasAttribute('data-ev-add')){
+    const v = k => document.querySelector(`[data-ev="${k}"]`).value;
+    E.eventos.push({min:+v('min')||0, t:v('time'), tipo:v('tipo'), j:v('jogador'), xg:+v('xg')||0});
+    pintaListaLances(); draw(1);
+  }
+  if(b.hasAttribute('data-ev-del')){
+    const ordenados = E.eventos.slice().sort((a,b2)=>a.min-b2.min);
+    const alvo = ordenados[+b.getAttribute('data-ev-del')];
+    E.eventos.splice(E.eventos.indexOf(alvo),1);
+    pintaListaLances(); draw(1);
+  }
+  if(b.hasAttribute('data-cod-gerar')){
+    const t = F.tipo.value;
+    const dados = t==='mapa'
+      ? {tit:LANCES.estado.mapa.titulo, sub:LANCES.estado.mapa.sub, aut:LANCES.estado.mapa.autor,
+         nq:LANCES.estado.mapa.nq, seg:LANCES.estado.mapa.segundos, campo:LANCES.CAMPO,
+         pc:LANCES.estado.mapa.pecas.map(p=>[p.tipo,p.nome,p.cor,
+             p.pos.map(q=>[+q.x.toFixed(2),+q.y.toFixed(2)])])}
+      : {tit:E.titulo, sub:E.sub, A:E.A, B:E.B, dur:E.duracao, vis:E.vista,
+         ev:E.eventos.map(x=>[x.min,x.t,x.tipo,x.j,x.xg])};
+    const cod = await LANCES.fazCodigo(t, dados);
+    const ta = document.querySelector('[data-cod]');
+    ta.value = cod; ta.select();
+    $('#prog').textContent = 'código de '+cod.length+' caracteres — copie e mande no grupo';
+  }
+  if(b.hasAttribute('data-cod-ler')){
+    const ta = document.querySelector('[data-cod]');
+    try{
+      const pac = await LANCES.leCodigo(ta.value);
+      if(pac.t !== F.tipo.value){
+        $('#prog').textContent = 'esse código é de "'+pac.t+'", e você está na aba de "'+F.tipo.value+'"';
+        return;
+      }
+      const d = pac.d;
+      if(pac.t==='mapa'){
+        const M = LANCES.estado.mapa;
+        M.titulo=d.tit; M.sub=d.sub; M.autor=d.aut||''; M.nq=d.nq; M.segundos=d.seg;
+        Object.assign(LANCES.CAMPO, d.campo||{});
+        M.pecas = d.pc.map(([tipo,nome,cor,pos])=>({
+          id:Math.random().toString(36).slice(2,8), tipo, nome, cor,
+          pos:pos.map(([x,y])=>({x,y}))}));
+      } else {
+        Object.assign(E, {titulo:d.tit, sub:d.sub, A:d.A, B:d.B, duracao:d.dur, vista:d.vis,
+          eventos:d.ev.map(([min,t2,tipo,j,xg])=>({min,t:t2,tipo,j,xg}))});
+      }
+      montaPainelLances(F.tipo.value);
+      if(F.tipo.value==='ficha') pintaListaLances();
+      draw(1);
+      $('#prog').textContent = 'código aplicado';
+    }catch(err){ $('#prog').textContent = 'código inválido: '+err.message; }
+  }
+});
+
 /* ================= ESTÚDIO ================= */
 const cv = $('#cv'), ctx = cv.getContext('2d');
 const F = {tipo:$('#f-tipo'),p1:$('#f-p1'),p2:$('#f-p2'),min:$('#f-min'),time:$('#f-time'),
@@ -1394,6 +2935,9 @@ function draw(k){
   ctx.clearRect(0,0,1920,1080);
   const t = F.tipo.value, p1 = pById[F.p1.value], p2 = pById[F.p2.value], T = timeAtual();
   ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  /* as artes de Lances desenham o quadro inteiro e fazem a própria
+     entrada e saída, então recebem u cru e cuidam do resto */
+  if(LANCES.ARTES[t]){ LANCES.desenha(t, ctx, animandoLance ? k : null); return; }
   if(t==='escalacao'){ drawEscalacao(T,k); return; }
   if(t==='golaco'){ drawGolaco(p1,T,k); return; }
   if(t==='replay'){ drawReplay(T,k); return; }
@@ -2287,6 +3831,7 @@ function kAtSeq(prog){
   return prog < fim ? prog/fim : 1;
 }
 function curva(prog){
+  if(LANCES.ARTES[F.tipo.value]) return prog;
   return ['escalacao','formacao'].includes(F.tipo.value) ? kAtSeq(prog) : kAt(prog);
 }
 
@@ -2295,6 +3840,13 @@ function syncFields(){
   document.querySelectorAll('[data-for]').forEach(el=>{
     el.style.display = el.dataset.for.split(' ').includes(t) ? '' : 'none';
   });
+  const ehLance = !!LANCES.ARTES[t];
+  $('#painel-lances').style.display = ehLance ? '' : 'none';
+  $('#cv').style.cursor = ehLance ? 'grab' : '';
+  if(ehLance){
+    F.dur.value = LANCES.duracao(t);
+    montaPainelLances(t);
+  }
   $('#l-p1').textContent = t==='sub' ? 'Entra' : t==='falta' ? 'Quem cometeu' : 'Jogador';
   $('#l-esc').innerHTML = t==='formacao'
     ? 'Time em campo — os 7 primeiros entram: <i>POS Apelido</i>'
@@ -2304,6 +3856,41 @@ function syncFields(){
   draw(1);
 }
 Object.values(F).forEach(el=> el.addEventListener('input', el===F.tipo ? syncFields : ()=>draw(1)));
+/* As artes de Lances fazem a própria entrada e saída dentro de u. Parado,
+   elas querem u=null (estado assentado); só durante a animação recebem o u
+   de verdade — senão o quadro final sairia já desaparecido. */
+let animandoLance = false;
+
+/* ---- arrastar as peças direto na prévia ---- */
+let arrastando = null;
+const posNoCanvas = e => {
+  const r = cv.getBoundingClientRect();
+  return [(e.clientX-r.left)*1920/r.width, (e.clientY-r.top)*1080/r.height];
+};
+cv.addEventListener('pointerdown', e=>{
+  const alvos = LANCES.pontosArrastaveis(F.tipo.value);
+  if(!alvos.length) return;
+  const [px,py] = posNoCanvas(e);
+  let melhor=null, dm=1e9;
+  for(const a of alvos){
+    const [ax,ay]=a.get(), d=Math.hypot(px-ax,py-ay);
+    if(d<a.r && d<dm){ dm=d; melhor=a; }
+  }
+  if(melhor){ arrastando=melhor; cv.setPointerCapture(e.pointerId); cv.style.cursor='grabbing'; }
+});
+cv.addEventListener('pointermove', e=>{
+  if(!arrastando) return;
+  const [px,py] = posNoCanvas(e);
+  const [mx,my] = arrastando.m(px,py);
+  arrastando.set(mx,my);
+  draw(1); atualizaLeitura();
+});
+addEventListener('pointerup', ()=>{
+  if(!arrastando) return;
+  arrastando=null;
+  cv.style.cursor = LANCES.ARTES[F.tipo.value] ? 'grab' : '';
+});
+
 $('#toggle-chroma').onclick = ()=>{
   const on = $('#stage').classList.toggle('chroma');
   semVerde = on;                 // nenhum verde dentro da arte com o fundo verde
@@ -2313,10 +3900,12 @@ $('#toggle-chroma').onclick = ()=>{
 
 $('#play').onclick = ()=>{
   const dur = (+F.dur.value||3)*1000, t0 = performance.now();
+  animandoLance = true;
   (function loop(now){
     const prog = Math.min(1,(now-t0)/dur);
     draw(curva(prog));
-    if(prog<1) requestAnimationFrame(loop); else draw(1);
+    if(prog<1) requestAnimationFrame(loop);
+    else { animandoLance = false; draw(1); }
   })(t0);
 };
 
@@ -2358,6 +3947,7 @@ function zip(files){
    sequência pesar 150 MB. O recorte é o mesmo em todos os quadros, então a
    posição relativa não muda — basta soltar na mesma coordenada no DaVinci. */
 function areaDesenhada(total){
+  const eraAnim = animandoLance; animandoLance = true;
   let x0=1920, y0=1080, x1=0, y1=0;
   const amostras = [0, .15, .3, .5, .7, .85, 1];
   amostras.forEach(a=>{
@@ -2371,6 +3961,7 @@ function areaDesenhada(total){
       }
     }
   });
+  animandoLance = eraAnim;
   if(x1<=x0||y1<=y0) return {x:0,y:0,w:1920,h:1080};
   const m=8;   // margem de segurança
   x0=Math.max(0,x0-m); y0=Math.max(0,y0-m);
@@ -2390,6 +3981,7 @@ $('#dl-seq').onclick = async ()=>{
   const lw=Math.round(cx.w*escala), lh=Math.round(cx.h*escala);
   const rec=document.createElement('canvas'); rec.width=lw; rec.height=lh;
   const rctx=rec.getContext('2d');
+  animandoLance = true;
   for(let i=0;i<total;i++){
     draw(curva(i/(total-1)));
     rctx.clearRect(0,0,lw,lh);
@@ -2414,6 +4006,7 @@ no Inspector, use Zoom/Position para encostar nessa coordenada. Se preferir
 não posicionar na mão, exporte em 100% e escolha "quadro inteiro" no Estúdio.
 `;
   files.push({name:'LEIA-ME.txt', data:new TextEncoder().encode(leiame)});
+  animandoLance = false;
   $('#prog').textContent='montando zip';
   baixar(zip(files), `revoada-${F.tipo.value}-${lw}x${lh}-${fps}fps.zip`);
   const mb = files.reduce((a,f)=>a+f.data.length,0)/1048576;
@@ -2436,12 +4029,14 @@ $('#dl-webm').onclick = ()=>{
     $('#prog').textContent='webm pronto · arte gerada sem nenhum verde';
     semVerde=antes; draw(1); };
   rec.start(); $('#prog').textContent='gravando…';
+  animandoLance = true;
   const t0=performance.now();
   (function loop(now){
     const prog=Math.min(1,(now-t0)/dur);
     draw(curva(prog));
     octx.fillStyle='#00B140'; octx.fillRect(0,0,1920,1080); octx.drawImage(cv,0,0);
-    if(prog<1) requestAnimationFrame(loop); else setTimeout(()=>rec.stop(),120);
+    if(prog<1) requestAnimationFrame(loop);
+    else { animandoLance=false; setTimeout(()=>rec.stop(),120); }
   })(t0);
 };
 
