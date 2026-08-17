@@ -37,16 +37,22 @@ e aí não é mais um site estático.
 Se ainda não fez: suba `dados/COPA_REVOADA_planilha.xlsx` para o Drive e abra
 com Google Sheets. Ela já vem com as abas **LANCES 2026-04** e **LANCES 2026-08**.
 
-**Antes de usar, troque a chave.** A célula **B2** de cada aba vem com o
-marcador `TROQUE-ESTA-CHAVE`. Digite ali a chave que vocês quiserem — ela só
-existe de verdade na planilha do Drive.
+**Antes de usar, preencha duas coisas:**
+
+1. Aba **CONFIG**, célula **B2** — a *chave mestra*. É ela que autoriza criar a
+   aba de um jogo novo.
+2. Célula **B2** de cada aba `LANCES ...` — a chave daquele jogo.
+
+As três vêm com o marcador `TROQUE-ESTA-CHAVE`. Enquanto estiverem assim, o
+script recusa gravar.
 
 > Por que não já vem preenchida: o `.xlsx` deste repositório é **público**.
 > Chave que passa por repositório público deixa de ser chave. Eu cheguei a
 > gerar duas e tive que descartá-las por isso mesmo.
 
-> As abas dos jogos seguintes o próprio script cria, com uma chave nova, na
-> primeira vez que alguém gravar naquele jogo.
+> As abas dos jogos seguintes o script cria sozinho na primeira gravação — mas
+> só se quem gravar usar a **chave mestra**, e só para id de jogo que exista na
+> aba JOGOS. A aba nasce herdando a chave mestra; troque na B2 dela depois.
 
 ### 2. Cole o script
 
@@ -124,7 +130,16 @@ gravou e quando, então dá para saber o que aconteceu.
 | "chave não confere" | a chave é a da **aba daquele jogo**, célula B2; cada jogo tem a sua |
 | "não deu para gravar: Failed to fetch" | a implantação não está como "Qualquer pessoa", ou a URL não termina em `/exec` |
 | Carregar volta vazio | a aba daquele jogo ainda não existe; ela nasce na primeira gravação |
-| Mudei o script e não mudou nada | toda alteração exige **Nova implantação**; editar não republica |
+| Mudei o script e não mudou nada | toda alteração exige nova versão da implantação; editar e salvar não republica |
+| "para criar a aba de um jogo novo, use a chave mestra" | é a da aba CONFIG, não a do jogo |
+| "jogo desconhecido" | o id precisa existir na aba JOGOS e ter o formato `AAAA-MM` |
+
+### Atualizar o script sem trocar a URL
+
+**Implantar → Gerenciar implantações → lápis → Versão: Nova versão → Implantar.**
+
+Assim a URL continua a mesma e você não precisa mexer no `LANCES_URL`. Criar uma
+implantação nova do zero gera outra URL.
 
 ---
 

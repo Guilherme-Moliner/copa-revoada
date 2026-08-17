@@ -46,27 +46,37 @@ function aba(jogo) {
   return SpreadsheetApp.getActive().getSheetByName(PREFIXO + jogo);
 }
 
-/** Cria a aba do jogo se ela ainda não existe, com uma chave nova. */
-function abaOuCria(jogo) {
+/** Chave mestra: fica na aba CONFIG, célula B2. É ela que autoriza criar a
+ *  aba de um jogo novo. Sem isso, quem tivesse a URL criaria aba à vontade. */
+function chaveMestra() {
+  var ws = SpreadsheetApp.getActive().getSheetByName('CONFIG');
+  return ws ? String(ws.getRange('B2').getValue() || '').trim() : '';
+}
+
+/** Só aceita id de jogo no formato AAAA-MM e que exista na aba JOGOS.
+ *  Sem isso, o nome da aba viria do lado de fora sem nenhum controle. */
+function jogoValido(jogo) {
+  if (!/^\d{4}-\d{2}$/.test(String(jogo || ''))) return false;
+  var ws = SpreadsheetApp.getActive().getSheetByName('JOGOS');
+  if (!ws) return false;
+  var ids = ws.getRange(4, 1, Math.max(ws.getLastRow() - 3, 1), 1).getValues();
+  for (var i = 0; i < ids.length; i++) {
+    if (String(ids[i][0] || '').trim() === jogo) return true;
+  }
+  return false;
+}
+
+function criaAba(jogo, chave) {
   var ss = SpreadsheetApp.getActive();
-  var ws = ss.getSheetByName(PREFIXO + jogo);
-  if (ws) return ws;
-  ws = ss.insertSheet(PREFIXO + jogo);
+  var ws = ss.insertSheet(PREFIXO + jogo);
   ws.getRange('A1').setValue(
     'Lances marcados deste jogo. O app grava e lê daqui. ' +
     'A chave abaixo é o que libera a edição no app — trate como senha do grupo.');
   ws.getRange('A2').setValue('chave_de_acesso');
-  ws.getRange('B2').setValue(novaChave());
+  ws.getRange('B2').setValue(chave);
   ws.getRange('A4:G4').setValues([['min','time','tipo','jogador','xg','por','em']]);
   ws.setFrozenRows(4);
   return ws;
-}
-
-function novaChave() {
-  var alfa = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', a = '', b = '';
-  for (var i = 0; i < 4; i++) a += alfa.charAt(Math.floor(Math.random() * alfa.length));
-  for (var j = 0; j < 4; j++) b += alfa.charAt(Math.floor(Math.random() * alfa.length));
-  return 'RVD-' + a + '-' + b;
 }
 
 function listaJogos() {
@@ -102,16 +112,44 @@ function ler(jogo) {
  * registrado na coluna "por".
  */
 function gravar(corpo) {
-  var jogo = corpo.jogo;
-  var ws = abaOuCria(jogo);
-  var esperada = String(ws.getRange('B2').getValue() || '').trim();
+  var jogo = String(corpo.jogo || '').trim();
   var recebida = String(corpo.chave || '').trim();
-  if (!esperada) return {ok: false, erro: 'esta aba está sem chave; preencha a célula B2'};
-  if (recebida.toUpperCase() !== esperada.toUpperCase()) {
-    return {ok: false, erro: 'chave não confere'};
+
+  /* A conferência da chave vem ANTES de qualquer escrita, inclusive antes de
+     criar aba. Na primeira versão eu criava a aba primeiro e conferia depois,
+     e com isso qualquer um com a URL criava aba sem chave nenhuma. */
+  if (!recebida) return {ok: false, erro: 'faltou a chave'};
+  if (!jogoValido(jogo)) {
+    return {ok: false, erro: 'jogo desconhecido: use um id que exista na aba JOGOS'};
+  }
+
+  var ss = SpreadsheetApp.getActive();
+  var ws = ss.getSheetByName(PREFIXO + jogo);
+
+  if (ws) {
+    var esperada = String(ws.getRange('B2').getValue() || '').trim();
+    if (!esperada || esperada === 'TROQUE-ESTA-CHAVE') {
+      return {ok: false, erro: 'esta aba ainda está sem chave; preencha a célula B2'};
+    }
+    if (recebida.toUpperCase() !== esperada.toUpperCase()) {
+      return {ok: false, erro: 'chave não confere'};
+    }
+  } else {
+    /* Aba nova só nasce com a chave mestra. Ela herda a mestra como chave
+       inicial; troque na B2 depois, se quiser uma por jogo. */
+    var mestra = chaveMestra();
+    if (!mestra || mestra === 'TROQUE-ESTA-CHAVE') {
+      return {ok: false, erro: 'a chave mestra não está definida na aba CONFIG'};
+    }
+    if (recebida.toUpperCase() !== mestra.toUpperCase()) {
+      return {ok: false, erro: 'para criar a aba de um jogo novo, use a chave mestra'};
+    }
+    ws = criaAba(jogo, mestra);
   }
 
   var eventos = corpo.eventos || [];
+  if (!Array.isArray(eventos)) return {ok: false, erro: 'lista de lances inválida'};
+  if (eventos.length > 500) return {ok: false, erro: 'lances demais numa gravação só'};
   var quem = String(corpo.por || 'sem nome').slice(0, 40);
   var agora = Utilities.formatDate(new Date(),
     Session.getScriptTimeZone() || 'America/Sao_Paulo', 'dd/MM HH:mm');
