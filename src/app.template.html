@@ -376,9 +376,9 @@ section+section{margin-top:3rem}
     </div>
 
     <div class="screen" id="s-estudio">
-      <p class="eyebrow">Produção</p>
-      <h1 style="font-size:clamp(1.8rem,5vw,3rem);text-transform:uppercase;margin:.3rem 0 .4rem">Estúdio</h1>
-      <p style="color:var(--dim);max-width:60ch;margin:0 0 1.5rem">Monta a arte e leva pro DaVinci: PNG parado, sequência animada com transparência, ou WebM em fundo verde.</p>
+      <p class="eyebrow" id="olho-estudio">Produção</p>
+      <h1 id="tit-estudio" style="font-size:clamp(1.8rem,5vw,3rem);text-transform:uppercase;margin:.3rem 0 .4rem">Estúdio</h1>
+      <p id="sub-estudio" style="color:var(--dim);max-width:60ch;margin:0 0 1.5rem">Monta a arte e leva pro DaVinci: PNG parado, sequência animada com transparência, ou WebM em fundo verde.</p>
       <div class="studio">
         <div class="card">
           <div class="field"><label for="f-tipo">Arte</label>
@@ -416,6 +416,7 @@ section+section{margin-top:3rem}
                 <option value="placar2">Placar de transmissão</option>
                 <option value="clima">Condições de jogo</option>
                 <option value="marco">Marco da copinha</option>
+                <option value="marcos">Especial 100 Gols — sequência</option>
               </optgroup>
               <optgroup label="Equipe">
                 <option value="arbitragem">Arbitragem</option>
@@ -645,7 +646,10 @@ const MENU = [
   {id:'videos', lbl:'Vídeos', big:()=>jogos.length, unid:'jogos no arquivo',
    desc:'A playlist inteira da copa, jogo por jogo, e o Instagram que um dia volta a rodar.',
    tags:['youtube','instagram','melhores momentos']},
-  {id:'estudio', lbl:'Estúdio', big:()=>$('#f-tipo').querySelectorAll('option').length, unid:'artes',
+  {id:'analise', lbl:'Análise Tática', big:()=>3, unid:'ferramentas',
+   desc:'Mapa tático do lance, chance de gol com a conta aberta, e a análise da partida marcada minuto a minuto.',
+   tags:['xG','mapa do lance','corrida de xG']},
+  {id:'estudio', lbl:'Estúdio', big:()=>$('#f-tipo').querySelectorAll('option:not([hidden])').length, unid:'artes',
    desc:'Gol, falta, VAR, pênalti, cartão, placar, fim de jogo, escalação, substituição, replay e ficha. Sai animado com fundo transparente.',
    tags:['davinci resolve','obs','png sequence']}
 ];
@@ -693,10 +697,39 @@ $('#tb-logo').onclick = voltarMenu;
 /* ================= navegação interna ================= */
 $('#nav').innerHTML = MENU.map(m=>`<button data-go="${m.id}">${m.lbl}</button>`).join('') +
   `<button data-menu="1">Menu</button>`;
+/* Análise Tática e Estúdio são a mesma tela: mesmo canvas, mesmos botões de
+   exportar. O que muda é quais artes aparecem no seletor. Separar em duas
+   telas de verdade significaria duplicar a máquina de exportação inteira. */
+const ARTES_ANALISE = ['mapa','chance','ficha'];
+function filtraArtes(grupo){
+  const sel = $('#f-tipo');
+  let primeira = null;
+  sel.querySelectorAll('option').forEach(o=>{
+    const daAnalise = ARTES_ANALISE.includes(o.value);
+    const mostra = grupo==='analise' ? daAnalise : !daAnalise;
+    o.hidden = !mostra;
+    if(mostra && !primeira) primeira = o.value;
+  });
+  sel.querySelectorAll('optgroup').forEach(g=>{
+    g.hidden = ![...g.querySelectorAll('option')].some(o=>!o.hidden);
+  });
+  const atual = sel.value;
+  const atualServe = grupo==='analise' ? ARTES_ANALISE.includes(atual) : !ARTES_ANALISE.includes(atual);
+  if(!atualServe && primeira){ sel.value = primeira; syncFields(); }
+  $('#tit-estudio').textContent = grupo==='analise' ? 'Análise Tática' : 'Estúdio';
+  $('#olho-estudio').textContent = grupo==='analise' ? 'Leitura de jogo' : 'Produção';
+  $('#sub-estudio').textContent = grupo==='analise'
+    ? 'Marque o lance, meça a chance de gol e leia a partida. O mapa e a análise viajam num código de texto; a análise grava na planilha.'
+    : 'Monta a arte e leva pro DaVinci: PNG parado, sequência animada com transparência, ou WebM em fundo verde.';
+}
+
 function go(id){
+  const grupo = (id==='analise' || id==='estudio') ? id : null;
+  if(grupo){ filtraArtes(grupo); id='estudio'; }
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
   const el = $('#s-'+id); if(el){ void el.offsetWidth; el.classList.add('on'); }
-  document.querySelectorAll('#nav [data-go]').forEach(b=>b.setAttribute('aria-current', String(b.dataset.go===id)));
+  document.querySelectorAll('#nav [data-go]').forEach(b=>
+    b.setAttribute('aria-current', String(b.dataset.go===(grupo||id))));
   window.scrollTo({top:0,behavior:'smooth'});
 }
 document.addEventListener('click', e=>{
@@ -2182,7 +2215,7 @@ function desenhaPlacar(c,u){
     const fh=h*.46, fy=posXY[1]+h/2+h*.20;
     const txt1='G O L', txt2=nome;
     const fw=(larguraTxt(c,txt1,cond(900,fh*.62),fh*.18)+larguraTxt(c,txt2,cond(800,fh*.48),fh*.06)+fh*2.1)*faixaGol;
-    c.save(); c.globalAlpha=env.a*faixaGol;
+    c.save(); c.globalAlpha=faixaGol;   /* o scorebug não entra nem sai; quem some é só a faixa */
     c.fillStyle=corPeca(time.c1); roundRect(c,cx-fw/2,fy,fw,fh,fh/2); c.fill();
     c.save(); roundRect(c,cx-fw/2,fy,fw,fh,fh/2); c.clip();
     c.fillStyle='rgba(242,176,30,.28)';
@@ -2695,7 +2728,7 @@ function painelPlanilha(){
         .map(id=>`<option value="${id}">${id}</option>`).join('')}</select></div>
     <div class="field"><label>Quem está marcando</label>
       <input data-pl="por" value="${localStorage.getItem('rvd-por')||''}" placeholder="seu nome"></div>
-    <div class="field"><label>Chave de acesso — só para gravar</label>
+    <div class="field"><label>Chave — só para gravar; carregar é livre</label>
       <input type="password" data-pl="chave" placeholder="RVD-XXXX-XXXX"
         value="${sessionStorage.getItem('rvd-chave')||''}"></div>
     <div class="field"><div style="display:flex;gap:.4rem">
@@ -3042,6 +3075,7 @@ function draw(k){
   if(t==='arbitragem'){ drawArbitragem(k); return; }
   if(t==='varsala'){ drawVarSala(k); return; }
   if(t==='marco'){ drawMarco(k); return; }
+  if(t==='marcos'){ drawMarcos(k); return; }
   ctx.save();
   ctx.globalAlpha = Math.min(1, k*1.6);
   ctx.translate((1-ease(k))*-260, 0);
@@ -3558,6 +3592,86 @@ function drawMarco(k){
   ctx.restore();
 }
 
+/* ---- Especial 100 Gols: os marcos em sequência ----
+   Quatro cartelas seguidas e o artilheiro no fim, com foto. É a arte da live,
+   então cada cartela tem que caber sozinha num quadro parado. */
+function marcosDaCopa(){
+  const golsTotais = jogos.reduce((a,g)=>a+g.gc+g.gf,0);
+  const art = jog.slice().sort((a,b)=>b.gols-a.gols)[0] || {apelido:'—',gols:0,foto:''};
+  return [
+    {n:String(temporadas.length), t:'TEMPORADAS',        s:`De ${temporadas[temporadas.length-1]} a ${temporadas[0]}`},
+    {n:String(jogos.length),      t:'JOGOS DISPUTADOS',  s:'Toda a história da copinha'},
+    {n:String(golsTotais),        t:'GOLS NA COPA',      s:'Somando os dois lados de cada jogo'},
+    {n:String(art.gols),          t:'GOLS DO '+art.apelido.toUpperCase(),
+     s:'O artilheiro histórico da Copa Revoada', p:art},
+  ];
+}
+function drawMarcos(k){
+  const lista = marcosDaCopa();
+  const n = lista.length;
+  const fatia = 1/n;
+  const i = Math.min(n-1, Math.floor(k/fatia));
+  const u = clamp01((k - i*fatia)/fatia);      // 0..1 dentro da cartela
+  const m = lista[i];
+
+  /* cada cartela entra, segura e sai; a última segura até o fim */
+  const ent = clamp01(u/.22);
+  const sai = (i===n-1) ? 1 : 1-clamp01((u-.80)/.20);
+  const vis = Math.min(ent, sai);
+  if(vis<=0) return;
+
+  ctx.save(); ctx.globalAlpha=vis;
+  const esc = .90 + ease(ent)*.10;
+  ctx.translate(960,540); ctx.scale(esc,esc); ctx.translate(-960,-540);
+
+  const temFoto = !!(m.p && m.p.foto);
+  const w=1280, h=temFoto?640:540, x=(1920-w)/2, y=(1080-h)/2;
+  sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.96)'; rr(x,y,w,h,22); ctx.fill(); });
+  ctx.strokeStyle=P().ac; ctx.lineWidth=5; rr(x,y,w,h,22); ctx.stroke();
+
+  // raios girando no fundo, recortados pela caixa
+  ctx.save(); rr(x,y,w,h,22); ctx.clip(); ctx.globalAlpha=vis*.09;
+  for(let r0=0;r0<14;r0++){
+    ctx.save(); ctx.translate(960, y+200); ctx.rotate(r0*Math.PI/7 + k*1.2);
+    ctx.fillStyle=P().ac; ctx.beginPath();
+    ctx.moveTo(0,0); ctx.lineTo(900,-50); ctx.lineTo(900,50); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+
+  ctx.textAlign='center';
+  txt('COPA REVOADA', 960, y+70, 28, '#8A9A8C','cond',14);
+  // contador subindo até o número, nos primeiros 45% da cartela
+  const alvo = parseInt(m.n,10);
+  const mostra = isNaN(alvo) ? m.n : String(Math.round(alvo*clamp01(u/.45)));
+  const fn = fonteQueCabe(mostra, 190, w-160, 'blk');
+  ctx.save(); ctx.shadowColor='rgba(242,176,30,.45)'; ctx.shadowBlur=50;
+  txt(mostra, 960, y+250, fn, P().ac,'blk'); ctx.restore();
+  const ft = fonteQueCabe(m.t, 64, w-140, 'blk');
+  txt(m.t, 960, y+330, ft, '#F4F1E6','blk');
+  ctx.fillStyle=P().ac; ctx.fillRect(960-150, y+360, 300, 6);
+  const fs = fonteQueCabe(m.s, 32, w-160, 'cond');
+  txt(m.s, 960, y+412, fs, '#8A9A8C','cond',4);
+
+  if(temFoto){
+    const fw=200, kk=clamp01((u-.35)/.35);
+    ctx.save(); ctx.globalAlpha=vis*kk;
+    ctx.translate(0,(1-ease(kk))*30);
+    retrato(m.p, 960-fw/2, y+440, fw, fw, 14);
+    ctx.restore();
+  }
+  ctx.textAlign='left';
+  marca(x+w-130, y+h-118, 100);
+
+  // pontinhos de progresso da sequência
+  const px0=960-(n*26)/2;
+  for(let d=0; d<n; d++){
+    ctx.fillStyle = d===i ? P().ac : 'rgba(255,255,255,.22)';
+    ctx.beginPath(); ctx.arc(px0+d*26+13, y+h-40, d===i?7:5, 0, 7); ctx.fill();
+  }
+  ctx.restore();
+}
+
 /* ---- arbitragem e sala do VAR ---- */
 function paresDe(texto, limite){
   return (texto||'').split('\n').map(l=>l.trim()).filter(Boolean).slice(0,limite)
@@ -3927,6 +4041,7 @@ function syncFields(){
   document.querySelectorAll('[data-for]').forEach(el=>{
     el.style.display = el.dataset.for.split(' ').includes(t) ? '' : 'none';
   });
+  if(t==='marcos' && +F.dur.value < 10) F.dur.value = 12;
   const ehLance = !!LANCES.ARTES[t];
   $('#painel-lances').style.display = ehLance ? '' : 'none';
   $('#cv').style.cursor = ehLance ? 'grab' : '';
@@ -4101,31 +4216,70 @@ não posicionar na mão, exporte em 100% e escolha "quadro inteiro" no Estúdio.
   $('#prog').textContent=`pronto · ${total} quadros ${lw}x${lh} · ${mb.toFixed(0)} MB`;
   draw(1);
 };
-$('#dl-webm').onclick = ()=>{
+/* Espera o próximo quadro sem depender só do requestAnimationFrame.
+   O navegador congela o rAF quando a aba sai da frente, e a gravação ficava
+   parada em "gravando…" para sempre. O timer é a rede de segurança: em aba
+   visível quem responde primeiro é o rAF, e a animação sai lisa. */
+function proximoQuadro(limite){
+  return new Promise(res=>{
+    let feito=false;
+    const ok=()=>{ if(!feito){ feito=true; res(); } };
+    requestAnimationFrame(ok);
+    setTimeout(ok, limite||60);
+  });
+}
+
+$('#dl-webm').onclick = async ()=>{
+  const botao = $('#dl-webm');
+  if(botao.dataset.gravando) return;
   const dur=(+F.dur.value||3)*1000;
   /* o WebM sai sempre em fundo verde, então a arte tem que sair sem verde
      nenhum — senão o Chroma Key come pedaço do desenho junto com o fundo */
-  const antes = semVerde; semVerde = true;
+  const antes = semVerde;
+  const mime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']
+    .find(m=>MediaRecorder.isTypeSupported(m));
+  if(!mime){ $('#prog').textContent='este navegador não grava webm; use a sequência PNG'; return; }
+
+  botao.dataset.gravando='1'; semVerde = true; animandoLance = true;
   const off=document.createElement('canvas'); off.width=1920; off.height=1080;
   const octx=off.getContext('2d');
   const stream=off.captureStream(30);
-  const mime=['video/webm;codecs=vp9','video/webm'].find(m=>MediaRecorder.isTypeSupported(m));
-  if(!mime){ $('#prog').textContent='navegador não grava webm'; semVerde=antes; return; }
   const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:12e6}), parts=[];
   rec.ondataavailable=e=>e.data.size&&parts.push(e.data);
-  rec.onstop=()=>{ baixar(new Blob(parts,{type:'video/webm'}), `revoada-${F.tipo.value}.webm`);
-    $('#prog').textContent='webm pronto · arte gerada sem nenhum verde';
-    semVerde=antes; draw(1); };
-  rec.start(); $('#prog').textContent='gravando…';
-  animandoLance = true;
-  const t0=performance.now();
-  (function loop(now){
-    const prog=Math.min(1,(now-t0)/dur);
+  const parou = new Promise(res=>{ rec.onstop=res; });
+
+  const desenhaQuadro = prog => {
     draw(curva(prog));
-    octx.fillStyle='#00B140'; octx.fillRect(0,0,1920,1080); octx.drawImage(cv,0,0);
-    if(prog<1) requestAnimationFrame(loop);
-    else { animandoLance=false; setTimeout(()=>rec.stop(),120); }
-  })(t0);
+    octx.fillStyle='#00B140'; octx.fillRect(0,0,1920,1080);
+    octx.drawImage(cv,0,0);
+  };
+
+  try{
+    desenhaQuadro(0);
+    rec.start();
+    const t0=performance.now();
+    let prog=0;
+    while(prog<1){
+      prog = Math.min(1,(performance.now()-t0)/dur);
+      desenhaQuadro(prog);
+      if(prog<1) $('#prog').textContent = 'gravando… '+Math.round(prog*100)+'%';
+      await proximoQuadro();
+    }
+    await new Promise(r=>setTimeout(r,180));   // deixa o último quadro entrar
+    rec.stop();
+    await parou;
+    const blob = new Blob(parts,{type:'video/webm'});
+    if(!blob.size) throw new Error('a gravação saiu vazia');
+    baixar(blob, `revoada-${F.tipo.value}.webm`);
+    $('#prog').textContent = `webm pronto · ${(blob.size/1048576).toFixed(1)} MB · sem nenhum verde na arte`;
+  }catch(e){
+    $('#prog').textContent = 'não deu para gravar o webm: '+e.message+' — a sequência PNG é o caminho seguro';
+  }finally{
+    try{ stream.getTracks().forEach(t=>t.stop()); }catch(_){}
+    semVerde=antes; animandoLance=false;
+    delete botao.dataset.gravando;
+    draw(1);
+  }
 };
 
 /* ================= boot ================= */

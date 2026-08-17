@@ -37,14 +37,19 @@ e aí não é mais um site estático.
 Se ainda não fez: suba `dados/COPA_REVOADA_planilha.xlsx` para o Drive e abra
 com Google Sheets. Ela já vem com as abas **LANCES 2026-04** e **LANCES 2026-08**.
 
-**Antes de usar, preencha duas coisas:**
+**É uma chave só.** Ela fica na aba **CONFIG**, célula **B2**, e abre todos os
+jogos.
 
-1. Aba **CONFIG**, célula **B2** — a *chave mestra*. É ela que autoriza criar a
-   aba de um jogo novo.
-2. Célula **B2** de cada aba `LANCES ...` — a chave daquele jogo.
+A célula B2 de cada aba `LANCES ...` é **opcional**: só serve se um dia você
+quiser uma chave diferente para um jogo específico. Se estiver preenchida, as
+duas funcionam para aquele jogo.
 
-As três vêm com o marcador `TROQUE-ESTA-CHAVE`. Enquanto estiverem assim, o
-script recusa gravar.
+Enquanto a chave for o marcador `TROQUE-ESTA-CHAVE`, o script recusa gravar.
+
+> **Não tem aba CONFIG na sua planilha?** Crie uma aba com esse nome, escreva
+> `chave_mestra` em A2 e a sua chave em B2. Só isso. Sem ela o app grava
+> normalmente nos jogos que já têm aba, mas não consegue abrir jogo novo
+> sozinho.
 
 > Por que não já vem preenchida: o `.xlsx` deste repositório é **público**.
 > Chave que passa por repositório público deixa de ser chave. Eu cheguei a
@@ -131,7 +136,7 @@ gravou e quando, então dá para saber o que aconteceu.
 | "não deu para gravar: Failed to fetch" | a implantação não está como "Qualquer pessoa", ou a URL não termina em `/exec` |
 | Carregar volta vazio | a aba daquele jogo ainda não existe; ela nasce na primeira gravação |
 | Mudei o script e não mudou nada | toda alteração exige nova versão da implantação; editar e salvar não republica |
-| "para criar a aba de um jogo novo, use a chave mestra" | é a da aba CONFIG, não a do jogo |
+| "para criar a aba de um jogo novo, use a chave da aba CONFIG" | a B2 do jogo abre aquele jogo; abrir jogo novo é só com a da CONFIG |
 | "jogo desconhecido" | o id precisa existir na aba JOGOS e ter o formato `AAAA-MM` |
 
 ### Atualizar o script sem trocar a URL

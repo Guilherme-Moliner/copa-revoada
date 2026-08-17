@@ -126,25 +126,32 @@ function gravar(corpo) {
   var ss = SpreadsheetApp.getActive();
   var ws = ss.getSheetByName(PREFIXO + jogo);
 
+  /* UMA chave resolve tudo: a da aba CONFIG. A B2 de cada jogo é opcional e
+     só existe para quem quiser uma chave diferente num jogo específico —
+     qualquer uma das duas é aceita. */
+  var geral = chaveMestra();
+  var confere = function (guardada) {
+    return guardada && guardada !== 'TROQUE-ESTA-CHAVE' &&
+           recebida.toUpperCase() === guardada.toUpperCase();
+  };
+
   if (ws) {
-    var esperada = String(ws.getRange('B2').getValue() || '').trim();
-    if (!esperada || esperada === 'TROQUE-ESTA-CHAVE') {
-      return {ok: false, erro: 'esta aba ainda está sem chave; preencha a célula B2'};
-    }
-    if (recebida.toUpperCase() !== esperada.toUpperCase()) {
+    var doJogo = String(ws.getRange('B2').getValue() || '').trim();
+    if (!confere(doJogo) && !confere(geral)) {
+      if ((!doJogo || doJogo === 'TROQUE-ESTA-CHAVE') && !geral) {
+        return {ok: false, erro: 'nenhuma chave definida: preencha a B2 desta aba ou a da aba CONFIG'};
+      }
       return {ok: false, erro: 'chave não confere'};
     }
   } else {
-    /* Aba nova só nasce com a chave mestra. Ela herda a mestra como chave
-       inicial; troque na B2 depois, se quiser uma por jogo. */
-    var mestra = chaveMestra();
-    if (!mestra || mestra === 'TROQUE-ESTA-CHAVE') {
-      return {ok: false, erro: 'a chave mestra não está definida na aba CONFIG'};
+    /* Aba nova só nasce com a chave geral: sem isso, quem tivesse a URL
+       criaria aba à vontade. Ela nasce herdando essa mesma chave. */
+    if (!confere(geral)) {
+      return {ok: false, erro: geral
+        ? 'para criar a aba de um jogo novo, use a chave da aba CONFIG'
+        : 'crie a aba CONFIG com a chave na célula B2 para o app poder abrir jogos novos'};
     }
-    if (recebida.toUpperCase() !== mestra.toUpperCase()) {
-      return {ok: false, erro: 'para criar a aba de um jogo novo, use a chave mestra'};
-    }
-    ws = criaAba(jogo, mestra);
+    ws = criaAba(jogo, geral);
   }
 
   var eventos = corpo.eventos || [];
