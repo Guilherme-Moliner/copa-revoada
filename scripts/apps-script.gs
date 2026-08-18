@@ -31,28 +31,41 @@ function doGet(e) {
 }
 
 /**
- * Devolve a planilha inteira como .xlsx em base64.
+ * Devolve as abas da planilha como JSON: {NOME_DA_ABA: [[linha], [linha]…]}.
  *
  * É assim que o site passa a ler os dados daqui em vez do arquivo do
- * repositório. Poderia ser a URL de export do Sheets, mas ela exige que a
- * planilha seja pública — e ela é privada. Este script roda como o dono,
- * então busca o arquivo com a credencial dele e entrega só o conteúdo.
- * O build recebe os mesmos bytes que teria com o arquivo local: nenhuma
- * linha de leitura precisou mudar do outro lado.
+ * repositório. A planilha é privada, então a URL de export do Sheets
+ * devolveria 401 para quem estivesse de fora.
+ *
+ * Lê direto com SpreadsheetApp de propósito: buscar o .xlsx com
+ * UrlFetchApp exigiria a permissão de chamada externa, e uma permissão a
+ * mais para autorizar de novo. Aqui basta a permissão da própria planilha,
+ * que o script já tem.
+ *
+ * As abas de lances não vêm no pacote: elas podem crescer muito e quem
+ * precisa delas usa a ação "ler", que já existe.
  */
 function planilhaInteira() {
-  var id = SpreadsheetApp.getActive().getId();
-  var url = 'https://docs.google.com/spreadsheets/d/' + id + '/export?format=xlsx';
-  var res = UrlFetchApp.fetch(url, {
-    headers: {Authorization: 'Bearer ' + ScriptApp.getOAuthToken()},
-    muteHttpExceptions: true
+  var ss = SpreadsheetApp.getActive();
+  var abas = {};
+  ss.getSheets().forEach(function (ws) {
+    var nome = ws.getName();
+    if (nome.indexOf(PREFIXO) === 0) return;      // LANCES ... fica de fora
+    if (nome === 'CONFIG') return;                 // a chave não sai daqui
+    var ultima = ws.getLastRow(), colunas = ws.getLastColumn();
+    if (!ultima || !colunas) { abas[nome] = []; return; }
+    abas[nome] = ws.getRange(1, 1, ultima, colunas).getValues().map(function (linha) {
+      return linha.map(function (v) {
+        if (v === '' || v === null) return null;
+        if (v instanceof Date) {
+          return Utilities.formatDate(v, Session.getScriptTimeZone() || 'America/Sao_Paulo',
+                                      'yyyy-MM-dd');
+        }
+        return v;
+      });
+    });
   });
-  if (res.getResponseCode() !== 200) {
-    return {ok: false, erro: 'o Sheets respondeu ' + res.getResponseCode()};
-  }
-  var bytes = res.getBlob().getBytes();
-  return {ok: true, nome: SpreadsheetApp.getActive().getName(),
-          bytes: bytes.length, xlsx: Utilities.base64Encode(bytes)};
+  return {ok: true, nome: ss.getName(), abas: abas};
 }
 
 function doPost(e) {

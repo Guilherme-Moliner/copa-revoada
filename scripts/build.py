@@ -84,9 +84,12 @@ APELIDO_JOGADOR = {
     "vitim": "kretzer",      # Vitim e Kretzer são a mesma pessoa
 }
 ESCUDO_TIME = {
-    # o arquivo traz o brasão do Boca Juniors (CABJ), não do Borussia:
-    # é o escudo do Boca 2023, que estava sem nenhum
-    "borussetalogo": "boca23",
+    "borussetalogo": "borussia22",   # agora é o BVB mesmo
+    "bocalogo": "boca23",            # CABJ
+    "mancitylogo": "city23",         # Mano Cityfodo
+    "pegueisuagatalogo": "psg20",    # Peguei Sua Gata
+    "criseumafclogo": "preto24",
+    "dboafclogo": "branco24",
     "dentrofclogo": "dentro26",
     "ferroviagralogo": "ferroviagra26",
     "jumentuslogo": "jumentus25",
@@ -111,7 +114,12 @@ EXCLUIR_DO_SITE = {
 }
 # Não são foto de jogador nem de time; ficam de fora do site até alguém dizer
 # o que são. Listados aqui só para não aparecerem como "arquivo sem uso".
-IGNORAR_ASSET = {"logo", "logo-azul", "logo-branco"}
+IGNORAR_ASSET = {"logo", "logo-azul", "logo-branco", "semperfil", "dede2",
+                 "pegueisuagatalogo2"}
+
+# Retrato de reserva para quem ainda não tem foto. Melhor uma silhueta do que
+# duas iniciais soltas — e mantém a mesma moldura em todas as telas.
+SEM_PERFIL = "semperfil"
 
 
 def aviso(msg):
@@ -139,6 +147,15 @@ def acha_cabecalho(ws, primeira_coluna):
         if v and str(v).strip() == primeira_coluna:
             return r
     raise SystemExit(f"Não achei o cabeçalho '{primeira_coluna}' na aba {ws.title}")
+
+
+def _id_video(v):
+    """Aceita a URL inteira ou só o id do YouTube."""
+    t = str(v or "").strip()
+    if not t:
+        return ""
+    m = re.search(r"(?:v=|youtu\.be/|embed/|shorts/)([\w-]{6,})", t)
+    return m.group(1) if m else t
 
 
 def num(v, padrao=0):
@@ -262,15 +279,22 @@ def tira_fundo(im):
         return im
     rgb = a[:, :, :3]
     alt, larg = a.shape[:2]
-    borda = np.concatenate([rgb[0], rgb[-1], rgb[:, 0], rgb[:, -1]]).astype(np.int16)
-    if borda.std(axis=0).max() > 26:       # borda não é chapada
+    # A condição é que as QUATRO QUINAS combinem entre si — são elas que dão a
+    # semente. Exigir a borda inteira de uma cor só era severo demais: no BVB o
+    # círculo amarelo encosta na margem, e o escudo ficava com o quadrado branco.
+    quinas = np.array([rgb[0, 0], rgb[0, -1], rgb[-1, 0], rgb[-1, -1]], np.int16)
+    if (quinas.max(axis=0) - quinas.min(axis=0)).max() > 26:
         return im
     mascara = np.zeros((alt + 2, larg + 2), np.uint8)
     bgr = np.ascontiguousarray(rgb[:, :, ::-1])
     tol = (20, 20, 20)
+    # FIXED_RANGE compara cada pixel com a COR DA SEMENTE. Sem essa flag o
+    # openCV compara com o pixel vizinho, e aí um fundo com leve degradê deixa
+    # o preenchimento caminhar para dentro do desenho: era o que estava
+    # comendo o escudo do Peguei Sua Gata (sobravam 7% de pixel opaco).
+    modo = 4 | (255 << 8) | cv2.FLOODFILL_MASK_ONLY | cv2.FLOODFILL_FIXED_RANGE
     for semente in ((0, 0), (larg - 1, 0), (0, alt - 1), (larg - 1, alt - 1)):
-        cv2.floodFill(bgr, mascara, semente, 0, tol, tol,
-                      4 | (255 << 8) | cv2.FLOODFILL_MASK_ONLY)
+        cv2.floodFill(bgr, mascara, semente, 0, tol, tol, modo)
     fundo = mascara[1:-1, 1:-1].astype(bool)
     if fundo.mean() < .04:                 # não achou fundo que valha a pena
         return im
@@ -309,6 +333,9 @@ def deriva_foto_time(origem, nome):
     return "img/times/%s-foto.jpg" % nome
 
 
+SEM_FOTO = []
+
+
 def foto_de(pid):
     origem = acha_origem(pid)
     if not origem:
@@ -316,14 +343,35 @@ def foto_de(pid):
             if alvo == pid:
                 origem = acha_origem(arquivo)
                 break
-    return deriva_retrato(origem, pid) if origem else ""
+    if origem:
+        return deriva_retrato(origem, pid)
+    SEM_FOTO.append(pid)
+    return ""
+
+
+def retrato_reserva():
+    """A silhueta que entra no lugar de quem ainda não tem foto."""
+    origem = acha_origem(SEM_PERFIL, (ASSETS,))
+    if not origem:
+        return ""
+    saida = os.path.join(_destino("jogadores"), "_sem-perfil.jpg")
+    im = Image.open(origem).convert("RGB")
+    lado = min(im.size)
+    x, y = (im.width - lado) // 2, (im.height - lado) // 2
+    im = im.crop((x, y, x + lado, y + lado)).resize((420, 420), Image.LANCZOS)
+    im.save(saida, "JPEG", quality=84, optimize=True, progressive=True)
+    return "img/jogadores/_sem-perfil.jpg"
 
 
 def imagens_do_time(tid):
     """Devolve (escudo, foto) já otimizados, ou strings vazias."""
     escudo = foto = ""
+    if tid == "psg21":                       # os dois anos usam o mesmo escudo
+        tid_escudo = "psg20"
+    else:
+        tid_escudo = tid
     for arquivo, alvo in ESCUDO_TIME.items():
-        if alvo == tid:
+        if alvo == tid_escudo:
             o = acha_origem(arquivo, (ASSETS,))
             if o:
                 escudo = deriva_escudo(o, tid)
@@ -362,6 +410,54 @@ def logo_b64(px=300):
     return base64.b64encode(buf.getvalue()).decode()
 
 
+class _Celula:
+    __slots__ = ("value",)
+
+    def __init__(self, valor):
+        self.value = valor
+
+
+class _Aba:
+    """Finge ser uma worksheet do openpyxl, só com o que o build usa.
+
+    O Apps Script devolve as abas como listas de listas. Envolver isso numa
+    casca com a mesma cara do openpyxl evita reescrever todos os leitores —
+    eles continuam fazendo ws.cell(), ws[3] e ws.iter_rows() sem saber de nada.
+    """
+
+    def __init__(self, titulo, linhas):
+        self.title = titulo
+        self._linhas = linhas
+        self.max_row = len(linhas)
+        self.max_column = max((len(l) for l in linhas), default=0)
+
+    def cell(self, linha, coluna, valor=None):
+        if 1 <= linha <= self.max_row:
+            l = self._linhas[linha - 1]
+            if 1 <= coluna <= len(l):
+                return _Celula(l[coluna - 1])
+        return _Celula(None)
+
+    def __getitem__(self, linha):
+        return [self.cell(linha, c + 1) for c in range(self.max_column)]
+
+    def iter_rows(self, min_row=1, max_row=None, values_only=False):
+        fim = max_row or self.max_row
+        for i in range(min_row, fim + 1):
+            l = list(self._linhas[i - 1]) if i <= self.max_row else []
+            l += [None] * (self.max_column - len(l))
+            yield tuple(l) if values_only else [_Celula(v) for v in l]
+
+
+class _Planilha:
+    def __init__(self, abas):
+        self._abas = {k: _Aba(k, v) for k, v in abas.items()}
+        self.sheetnames = list(abas.keys())
+
+    def __getitem__(self, nome):
+        return self._abas[nome]
+
+
 def baixa_planilha():
     """Baixa a planilha publicada e devolve o caminho de um arquivo local.
 
@@ -370,35 +466,42 @@ def baixa_planilha():
     """
     import urllib.request
     copia = os.path.join(RAIZ, "dados", "COPA_REVOADA_baixada.xlsx")
+    copia_json = os.path.join(RAIZ, "dados", "COPA_REVOADA_baixada.json")
     try:
         print(f"  baixando a planilha de {PLANILHA_URL[:60]}...")
         req = urllib.request.Request(PLANILHA_URL, headers={"User-Agent": "copa-revoada"})
         with urllib.request.urlopen(req, timeout=60) as r:
             dados = r.read()
-        # o Apps Script responde JSON com o arquivo em base64
         if dados[:1] == b"{":
-            import base64
             pacote = json.loads(dados.decode("utf-8"))
             if not pacote.get("ok"):
                 raise ValueError(pacote.get("erro", "o script recusou"))
-            dados = base64.b64decode(pacote["xlsx"])
+            abas = pacote["abas"]
+            with open(copia_json, "w", encoding="utf-8") as f:
+                json.dump(abas, f, ensure_ascii=False)
+            print(f"  planilha lida do Google Sheets — {len(abas)} abas, "
+                  f"{sum(len(v) for v in abas.values())} linhas")
+            return _Planilha(abas)
         if len(dados) < 5000 or dados[:2] != b"PK":
-            raise ValueError("a resposta não parece um .xlsx — confira a URL e a permissão")
+            raise ValueError("a resposta não parece planilha — confira a URL")
         with open(copia, "wb") as f:
             f.write(dados)
         print(f"  planilha baixada — {len(dados)//1024} KB")
         return copia
     except Exception as e:
+        if os.path.exists(copia_json):
+            aviso(f"não deu para ler a planilha online ({e}); usando a última cópia baixada")
+            return _Planilha(json.load(open(copia_json, encoding="utf-8")))
         if os.path.exists(copia):
-            aviso(f"não deu para baixar a planilha ({e}); usando a última cópia baixada")
+            aviso(f"não deu para ler a planilha online ({e}); usando a última cópia baixada")
             return copia
-        aviso(f"não deu para baixar a planilha ({e}); usando o arquivo do repositório")
+        aviso(f"não deu para ler a planilha online ({e}); usando o arquivo do repositório")
         return PLANILHA
 
 
 def main():
     origem = baixa_planilha() if PLANILHA_URL else PLANILHA
-    wb = openpyxl.load_workbook(origem, data_only=True)
+    wb = origem if isinstance(origem, _Planilha) else openpyxl.load_workbook(origem, data_only=True)
 
     # ---------------- jogadores ----------------
     ws = wb["JOGADORES"]
@@ -410,6 +513,12 @@ def main():
         jogadores.append({
             "id": pid,
             "apelido": str(r.get("apelido") or pid).strip(),
+            # coluna nova da planilha: o apelido de zoeira que aparece no perfil.
+            # aceita alguns nomes de cabeçalho porque quem preenche escolhe o seu
+            "apelido2": next((str(r[k]).strip() for k in
+                              ("apelido_engracado", "apelido2", "apelido_zoeira",
+                               "apelido_engraçado", "novo_apelido", "apelido_novo")
+                              if r.get(k)), ""),
             "nome": str(r.get("nome_completo") or "").strip(),
             "pos": str(r.get("posicao") or "").strip().upper(),
             "numero": num(r.get("numero_camisa"), 0),
@@ -417,6 +526,12 @@ def main():
             "jogos": 0, "gols": 0, "assist": 0, "titulos": 0, "contra": 0,
             "presencas": 0,
         })
+    reserva = retrato_reserva()
+    if reserva:
+        for p in jogadores:
+            if not p["foto"]:
+                p["foto"] = reserva
+                p["semFoto"] = True
     porId = {p["id"]: p for p in jogadores}
 
     # ---------------- times ----------------
@@ -466,7 +581,9 @@ def main():
             "gf": num(r.get("gols_fora")),
             "estadio": str(r.get("estadio") or "").strip(),
             "campeao": str(r.get("campeao_time_id") or "").strip(),
-            "video": str(r.get("video_youtube") or "").strip(),
+            "video": _id_video(next((r[k] for k in
+                     ("video_youtube", "link_yyt", "link_yt", "link_youtube",
+                      "video", "youtube", "link") if r.get(k)), "")),
         })
     jogos.sort(key=lambda g: g["id"])
     jogoIds = {g["id"] for g in jogos}

@@ -854,6 +854,10 @@ function perfil(id){
       <p class="eyebrow">${p.pos||'jogador de linha'}</p>
       <h1 style="font-size:clamp(2rem,6vw,3.6rem);text-transform:uppercase">${p.apelido}</h1>
       <p style="color:var(--dim);margin:.25rem 0 0">${p.nome||'Nome completo ainda não cadastrado'}</p>
+      ${p.apelido2?`<p style="margin:.5rem 0 0"><span style="display:inline-block;
+        background:var(--gold);color:#0B0F0D;font-family:'Archivo Black',sans-serif;
+        font-size:.95rem;padding:.28rem .7rem;border-radius:999px;letter-spacing:.02em"
+        title="O apelido que o grupo usa de verdade">“${p.apelido2}”</span></p>`:''}
     </div>
   </div>
   <div class="kpis">
