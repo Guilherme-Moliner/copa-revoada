@@ -15,6 +15,29 @@ Estado de hoje: **32 jogadores · 14 times · 13 jogos · 233 escalações**.
 
 ---
 
+## Prioridade 0 — um clique que liga a planilha do Drive ao site
+
+A variável `PLANILHA_URL` já está criada no repositório, e o build já sabe
+usá-la. Falta **republicar o Apps Script**: a implantação que está no ar ainda
+carrega a versão anterior da ação `planilha`, que usava `UrlFetchApp` e o Google
+recusa por falta de permissão. O arquivo `scripts/apps-script.gs` deste
+repositório já está corrigido — ele lê as abas direto, sem chamada externa, e
+por isso **não pede autorização nova**.
+
+Na planilha: **Extensões › Apps Script**, cole `scripts/apps-script.gs` por
+cima, e então **Implantar › Gerenciar implantações › lápis › Versão: Nova
+versão › Implantar**. Mantenha a mesma implantação, para a URL não mudar.
+
+Para conferir, abra no navegador a URL da implantação com `?acao=planilha` no
+fim. Tem que vir um JSON começando em `{"ok":true`. Enquanto não vier, o site
+continua publicando normalmente a partir do `.xlsx` do repositório — o build
+avisa e segue.
+
+As abas `LANCES *` e a `CONFIG` ficam de fora desse JSON de propósito: as
+primeiras podem crescer muito, e a segunda guarda a chave.
+
+---
+
 ## Prioridade 1 — as duas decisões que travam número no site
 
 ### 1.1 Ago/2026: qual Leo?
@@ -68,12 +91,18 @@ Já marcados como goleiro: **Arthur, Merizi, Be Correa e Be Marucco**.
 É o que faz a formação no campo posicionar cada um na faixa certa e a lista
 mostrar a tarja colorida por posição.
 
-### 2.3 Vídeos — 13 de 13 jogos sem link
+### 2.3 Vídeos — o link sai da aba JOGOS
 
-Aba **JOGOS**, coluna `video_youtube`. Só o ID, o que vem depois de `v=` na URL.
+Aba **JOGOS**, coluna do link do YouTube. Pode colar a **URL inteira**: o build
+extrai o id sozinho, e aceita link normal, `youtu.be`, `embed` e `shorts`.
 
-A tela de Vídeos já está pronta, com seletor de temporada e um card por jogo —
-hoje todos aparecem como "sem vídeo ainda".
+A aba VIDEOS que eu tinha criado **não é mais usada** — o link ao lado do jogo
+é mais simples e não duplica informação. A aba CLIPES continua valendo, porque
+ela guarda outra coisa: recorte de melhor momento por jogador.
+
+Os links já preenchidos no Drive só entram no site depois que a Prioridade 0
+estiver resolvida; a cópia `.xlsx` deste repositório ainda está com a coluna
+vazia.
 
 ### 2.4 Nota de desempenho por time — 155 pares esperando
 
@@ -99,18 +128,17 @@ julgado.
 | O quê | Onde | Quanto falta |
 |---|---|---|
 | Nome completo | aba JOGADORES, `nome_completo` | 31 de 32 |
-| Foto de jogador | `assets/<id>.jpg` | 3: **Berna, Mauro, Robson** |
-| Escudo de time | `assets/`, ou coluna `escudo_arquivo` | 4: **Chelsea 2020, Chelsea 2021, Boca, City** |
+| Foto de jogador | `assets/<id>.jpg` | 2: **Mauro e Robson**, por opção de vocês |
+| Escudo de time | `assets/`, ou coluna `escudo_arquivo` | 2: **Chelsea 2020 e Chelsea 2021** |
 | Troféus entregues por ano | aba TROFEUS | tudo, fora os simulados do Fanta |
 | Melhores momentos | aba CLIPES | tudo |
 
+Mauro e Robson seguem sem foto por escolha de vocês. Em vez das iniciais, os
+dois aparecem com a silhueta de `assets/semperfil.jpeg`, na mesma moldura dos
+outros — o perfil não fica com cara de cadastro incompleto.
+
 ### Coisas para conferir nas imagens
 
-- **O escudo do Borussia 2022 é o brasão do Boca Juniors** (arquivo
-  `borussetalogo.png`). E o **Boca 2023 está sem escudo**. É piada de vocês ou
-  troca de arquivo?
-- **A foto do André** (`dede.jpg`) é de corpo inteiro num estádio; o rosto é
-  pequeno demais para o recorte automático achar. Uma foto mais próxima resolve.
 - **`jogo1-2026.jpg` e `vencedorjogo12026.jpg`** estão em `assets/` sem uso. Se
   quiserem, dá para fazer uma galeria por jogo.
 
@@ -162,6 +190,15 @@ Escondidos do site, mantidos na planilha (constante `EXCLUIR_DO_SITE` no build):
 > pessoa. Pela linha do tempo, `miniderek` (2020–21) e `dereck` (2022–23) nunca
 > coincidem e provavelmente são a mesma pessoa. Como todos foram escondidos, isso
 > deixou de ser urgente — mas fica registrado se um dia quiserem trazer de volta.
+
+### Escudos e nomes de time
+
+Resolvido: `borussetalogo.png` agora traz o BVB de verdade, e chegaram os
+escudos do **Boca**, do **Mano Cityfodo** e do **Peguei Sua Gata**. PSG 2020 e
+2021 usam o mesmo. **Branco 2024 virou DBOAFC** e **Preto 2024 virou CRISEUMA**.
+
+Quem manda no escudo é a coluna `escudo_arquivo` da aba TIMES; o de‑para dentro
+do `build.py` só entra quando a célula está vazia.
 
 ### Times por temporada
 
