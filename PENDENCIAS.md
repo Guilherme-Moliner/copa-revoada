@@ -6,10 +6,13 @@ vocês.
 
 Site: https://guilherme-moliner.github.io/copa-revoada/
 
-**Como preencher:** editem `dados/COPA_REVOADA_planilha.xlsx` (ou a versão no
-Google Sheets, se já tiver migrado — veja `CONTINUAR-EM-OUTRO-PC.md`) e rodem
-`python scripts/build.py`. O build reclama do que ainda estiver inconsistente.
-Quando o push acontecer, o site republica sozinho.
+**Como preencher:** editem a planilha no **Google Sheets**. É ela a fonte de
+verdade: o build baixa as abas a cada publicação. O `.xlsx` deste repositório é
+só cópia de segurança.
+
+**Esta lista se gera sozinha.** `python scripts/pendencias.py` lê a planilha e
+escreve `dados/PENDENCIAS.tsv`, pronto para colar na célula A3 da aba
+PENDENCIAS. Item que sumir da lista é item que alguém preencheu.
 
 Estado de hoje: **32 jogadores · 14 times · 13 jogos · 233 escalações**.
 
@@ -31,7 +34,12 @@ primeiras podem crescer muito, e a segunda guarda a chave.
 
 ## Prioridade 1 — as duas decisões que travam número no site
 
-### 1.1 Ago/2026: qual Leo?
+### 1.1 Resolvido: Ago/2026 é o Leo
+
+A escalação agora aponta `leo`, com 1 gol. Ficam de fora Leo Bittencourt e Leo
+Godinho, que são outras duas pessoas.
+
+<details><summary>Como era a dúvida</summary>
 
 Na aba ESCALACOES, o `leo` aparece **nos dois times** do mesmo jogo:
 
@@ -49,6 +57,8 @@ assistência do Zaga. Dependendo da resposta, o gol muda de dono.
 
 > **Ação:** trocar o `jogador_id` da linha certa para `leobittencourt`, ou
 > confirmar que os dois são o Leonardo Zanette mesmo.
+
+</details>
 
 ### 1.2 Campeão — faltam 2 de 13
 
@@ -70,6 +80,19 @@ título**, porque não houve penalidades.
 ---
 
 ## Prioridade 2 — o que dá mais resultado por hora gasta
+
+### 2.5 Troféus simulados no ar
+
+A aba **TROFEUS** tem 6 linhas marcadas `SIMULADO`, todas no nome do Fanta. Eu
+criei essas linhas para a galeria não nascer vazia, e elas aparecem no site com
+a etiqueta "simulado".
+
+Elas **não contam** em lugar nenhum: o card de Recordes mostra `0`, e a
+comparação de jogadores ignora. Somar enfeite como troféu entregue poria número
+falso embaixo do nome de gente real.
+
+Quando existir premiação de verdade, troquem a linha. Se preferirem a galeria
+limpa, é só apagar as 6.
 
 ### 2.1 Números de camisa — 31 de 32 vazios
 
@@ -99,10 +122,11 @@ ela guarda outra coisa: recorte de melhor momento por jogador.
 
 Faltam **Dez/2020, Jul/2021, Out/2023, Abr/2026 e Ago/2026**.
 
-### 2.4 Nota de desempenho por time — 155 pares esperando
+### 2.4 Nota de desempenho por time — 141 pares esperando
 
 Aba **DESEMPENHO**, coluna `nota_1a5`. Uma linha por jogador por time, já
-montadas: é só dar a nota.
+montadas: é só dar a nota. A aba foi limpa e passou de 155 para 141 linhas, mas
+nenhuma nota entrou ainda.
 
 | nota | significa |
 |---|---|

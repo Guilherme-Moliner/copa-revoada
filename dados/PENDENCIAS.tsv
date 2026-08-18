@@ -1,0 +1,13 @@
+prio	tipo	o que resolver	quem	resolvido em
+1	campeao	2020-12 (6 x 7): pelo placar quem venceu foi PSG — confirmem e preencham		
+1	campeao	2021-07 (10 x 10): empate: se foi empate mesmo, deixe vazio que o site entende		
+2	nota	aba DESEMPENHO: 141 notas de 1 a 5 em branco. É o rostinho que aparece na página do time — a linha já está montada, falta só o número		
+2	camisa	aba JOGADORES: 31 números de camisa em branco. Sem eles o Estúdio usa a ordem da lista no lugar do número		
+2	posicao	aba JOGADORES: 28 posições em branco. É o que põe cada um na faixa certa do mapa de formação (GOL, ZAG, MEI, ATA)		
+2	video	aba JOGOS, coluna do link: falta o vídeo de 2020-12, 2021-07, 2023-10, 2026-04, 2026-08. Pode colar a URL inteira, o site extrai o id		
+2	trofeu	aba TROFEUS: 6 troféus estão marcados SIMULADO, todos no nome do mesmo jogador. São enfeite para a tela não ficar vazia — troque por premiação de verdade ou apague a linha		
+3	nome	aba JOGADORES: 31 nomes completos em branco. Aparece embaixo do apelido no perfil		
+3	apelido	aba JOGADORES, coluna Apelido Perfil: 30 em branco. É o apelido de zoeira que vira etiqueta dourada no perfil		
+3	clipe	aba CLIPES: só tem linha de exemplo. Cada clipe é um recorte de melhor momento (jogador, título, segundo de início e fim)		
+3	data	aba JOGOS: 13 jogos sem o dia do mês. Hoje o site mostra só mês e ano		
+3	imagem	assets/jogo1-2026.jpg e assets/vencedorjogo12026.jpg estão na pasta sem ninguém saber de quem são. Digam e eu ligo no site		

@@ -631,6 +631,14 @@ Assistente de VAR · Ciclano</textarea></div>
 /* ================= util ================= */
 const $ = s => document.querySelector(s);
 const jog = DADOS.jogadores, times = DADOS.times, jogos = DADOS.jogos;
+
+/* Troféu marcado como SIMULADO na planilha é enfeite, para a gente ver a tela
+   funcionando antes de existir premiação de verdade. A galeria mostra os dois,
+   com etiqueta em cima do simulado — mas CONTAGEM é outra coisa: somar enfeite
+   como troféu entregue põe número falso no card de Recordes e na comparação de
+   jogador, com nome de gente real embaixo. */
+const ehSimulado = a => /simula/i.test(a.obs||'');
+const PREMIOS = DADOS.premiacoes.filter(a=>!ehSimulado(a));
 const pById = Object.fromEntries(jog.map(p=>[p.id,p]));
 const tById = Object.fromEntries(times.map(t=>[t.id,t]));
 const troById = Object.fromEntries(DADOS.trofeus.map(t=>[t.id,t]));
@@ -741,7 +749,13 @@ const MENU = [
   {id:'recordes', lbl:'Recordes', big:()=>jogos.reduce((a,g)=>a+g.gc+g.gf,0), unid:'gols na história',
    desc:'Artilharia, garçons, presença e títulos. O ranking que gera treta no grupo.',
    tags:['artilharia','assistências','títulos']},
-  {id:'trofeus', lbl:'Troféus', big:()=>DADOS.premiacoes.length, unid:'entregues',
+  /* o número são só os troféus de verdade; os simulados continuam na galeria,
+     com etiqueta. Sem essa linha o card dizia "0 entregues" com seis troféus
+     aparecendo na tela ao lado, o que parece defeito e não é. */
+  {id:'trofeus', lbl:'Troféus', big:()=>PREMIOS.length,
+   unid:PREMIOS.length ? 'entregues'
+        : (DADOS.premiacoes.length ? DADOS.premiacoes.length+' simulados na galeria'
+                                   : 'entregues'),
    desc:'A galeria da copa: cada troféu, quem levou e em que ano. Inclusive a piroquinha.',
    tags:DADOS.trofeus.map(t=>t.nome)},
   {id:'videos', lbl:'Vídeos', big:()=>jogos.length, unid:'jogos no arquivo',
@@ -4099,7 +4113,7 @@ function draw(k){
     /* enxuta de propósito: o nome já está na faixa da foto, então some daqui
        a posição, o nome repetido e o time. A caixa da foto encosta na base. */
     const w=1360, h=560, x=(1920-w)/2, y=(1080-h)/2;
-    const tro = DADOS.premiacoes.filter(a=>a.jogador===p1.id).length;
+    const tro = PREMIOS.filter(a=>a.jogador===p1.id).length;
     sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.96)'; rr(x,y,w,h,18); ctx.fill(); });
     ctx.fillStyle=corSegura(T.c1); rr(x,y,w,10,6); ctx.fill();
 
@@ -4166,8 +4180,8 @@ function drawComparacao(a, b, T){
   ctx.fillStyle=AM; rr(x,y,w/2,10,6); ctx.fill();
   ctx.fillStyle=AZ; rr(x+w/2,y,w/2,10,6); ctx.fill();
 
-  const troA = DADOS.premiacoes.filter(z=>z.jogador===a.id).length;
-  const troB = DADOS.premiacoes.filter(z=>z.jogador===b.id).length;
+  const troA = PREMIOS.filter(z=>z.jogador===a.id).length;
+  const troB = PREMIOS.filter(z=>z.jogador===b.id).length;
   const fw=300, fh=330;
 
   /* retratos e nomes, cada um na sua cor */
