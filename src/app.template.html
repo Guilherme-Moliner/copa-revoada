@@ -1148,7 +1148,7 @@ document.addEventListener('keydown', e=>{
    então aqui a gente agrega por pessoa, senão o elenco aparece repetido */
 function elencoDe(id){
   const m = new Map();
-  DADOS.escalacoes.filter(x=>x.time===id).forEach(x=>{
+  DADOS.escalacoes.filter(x=>x.time===id && !x.oculto).forEach(x=>{
     const p = pById[x.jogador] || {id:x.jogador,apelido:x.jogador,pos:'',foto:''};
     let e = m.get(x.jogador);
     if(!e){ e={p,jogos:0,gols:0,assist:0,titulos:0,notas:[],numero:null}; m.set(x.jogador,e); }
@@ -1757,19 +1757,27 @@ function desenhaMapa(c,u){
 /* =====================================================================
    MÓDULO 2 — CHUTE E CHANCE DE GOL
    ================================================================== */
+const ENVERGADURA_PADRAO = 1.15, RAIO_ZAG_PADRAO = 0.38;
 const chute = {
   visao:'meia',        // meia | inteira
   lado:1,              // +1 ataca o gol da direita, -1 o da esquerda
   bola:{x:14, y:-5.5},
   gk:{x:26.4, y:-.8, pid:''},
-  zag:[{x:18,y:-3.4,pid:''},{x:19.5,y:-6.2,pid:''}],
-  batedor:'Glauber', qualidade:3, execucao:0, tamPeca:1,
+  zag:[{x:18,y:-3.4,pid:''},{x:19.5,y:-6.2,pid:''},{x:21,y:-1.8,pid:''}],
+  batedor:'Glauber', batedorId:'', qualidade:3, execucao:0, tamPeca:1,
+  alcanceGk:ENVERGADURA_PADRAO, raioZag:RAIO_ZAG_PADRAO, corDestaque:'#F2B01E',
   parte:'bom', jogada:'aberta', posGk:0,
   explica:false, minuto:"27'"
 };
-const ENVERGADURA = 1.9;
-const RAIO_ZAG    = 0.55;
-const alcanceUtil = d => ENVERGADURA * (1 - Math.exp(-d/8));
+/* Tamanho visual e área de influência são coisas diferentes, de propósito.
+   O tamanho da peça é só leitura de tela; quem entra na conta do xG é o
+   alcance abaixo, em metros de verdade. Com 1,9 m o goleiro tapava quase o
+   gol inteiro de 4 m — irreal. O padrão caiu para 1,15 m e virou ajustável. */
+const ENVERGADURA = 1.15;
+const RAIO_ZAG    = 0.38;
+const alcanceGk = () => (chute.alcanceGk != null ? chute.alcanceGk : ENVERGADURA);
+const raioZag   = () => (chute.raioZag   != null ? chute.raioZag   : RAIO_ZAG);
+const alcanceUtil = d => alcanceGk() * (1 - Math.exp(-d/8));
 
 function geometria(){
   const L=chute.lado, gxr=L*CAMPO.comp/2, gh=CAMPO.gol/2, b=chute.bola;
@@ -1791,12 +1799,12 @@ function geometria(){
 
   const rGk=alcanceUtil(d);
   const sGk=uniao([sombra(chute.gk,rGk)]);
-  const sZag=uniao(chute.zag.map(z=>sombra(z,RAIO_ZAG)));
+  const sZag=uniao(chute.zag.map(z=>sombra(z,raioZag())));
   const sTudo=uniao([...sGk,...sZag]);
   const boca=2*gh;
 
   const cega=chute.zag.some(z=>
-    Math.hypot(z.x-chute.gk.x,z.y-chute.gk.y)<3.2 && !!sombra(z,RAIO_ZAG));
+    Math.hypot(z.x-chute.gk.x,z.y-chute.gk.y)<3.2 && !!sombra(z,raioZag()));
   const pressao=chute.zag.filter(z=>Math.hypot(z.x-b.x,z.y-b.y)<2.2).length;
 
   return {d, theta, thetaDeg:Math.max(deg(theta),0.4), rGk, gxr, gh, dx,
@@ -1899,7 +1907,22 @@ function desenhaChute(c){
   c.beginPath(); c.arc(gkx,gky,r.rGk*P.s,0,7); c.stroke(); c.restore();
   discoJogador(c, chute.gk.pid, chute.gk.pid?'':'GK', gkx, gky, 30*(chute.tamPeca||1), C.gold);
 
-  const rBola=15*(chute.tamPeca||1);
+  /* quem vai finalizar aparece de rosto, ao lado da bola: é o protagonista
+     do lance e merece a hierarquia visual */
+  const esc = chute.tamPeca||1;
+  const rBola=15*esc;
+  if(chute.batedorId && pById[chute.batedorId]){
+    const rA = 34*esc, ax = bx - rA*1.5, ay = by - rA*0.9;
+    discoJogador(c, chute.batedorId, '', ax, ay, rA, chute.corDestaque||C.gold);
+    c.save(); c.setLineDash([6,5]); c.strokeStyle=chute.corDestaque||C.gold; c.lineWidth=4;
+    c.beginPath(); c.arc(ax,ay,rA+9,0,7); c.stroke(); c.restore();
+    c.save(); c.strokeStyle=chute.corDestaque||C.gold; c.lineWidth=3;
+    c.beginPath(); c.moveTo(ax+rA*.7, ay+rA*.7); c.lineTo(bx-rBola, by-rBola); c.stroke(); c.restore();
+    const nm = pById[chute.batedorId].apelido.toUpperCase();
+    const nw = larguraTxt(c,nm,cond(800,20),1.6)+18;
+    c.fillStyle='rgba(5,8,7,.85)'; roundRect(c,ax-nw/2,ay+rA+8,nw,26,6); c.fill();
+    txt(c,nm,ax,ay+rA+26,{font:cond(800,20),fill:chute.corDestaque||C.gold,align:'center',track:1.6});
+  }
   c.save(); c.shadowColor='rgba(0,0,0,.8)'; c.shadowBlur=20;
   c.beginPath(); c.arc(bx,by,rBola,0,7); c.fillStyle=C.chalk; c.fill(); c.restore();
   c.beginPath(); c.arc(bx,by,rBola,0,7); c.strokeStyle=C.ink; c.lineWidth=3.5; c.stroke();
@@ -2320,15 +2343,14 @@ function desenhaPlacar(c,u){
    Marca os lances minuto a minuto e gera os gráficos.
    ================================================================== */
 const TIPOS = {
-  gol:    {rot:'Gol',              xg:.35, chute:true, alvo:true},
-  noGol:  {rot:'Chute no gol',     xg:.12, chute:true, alvo:true},
+  gol:    {rot:'⚽ Gol',            xg:.35, chute:true, alvo:true},
+  noGol:  {rot:'🎯 Chute ao gol',   xg:.12, chute:true, alvo:true},
   fora:   {rot:'Chute pra fora',   xg:.07, chute:true},
-  bloq:   {rot:'Chute bloqueado',  xg:.05, chute:true},
-  chance: {rot:'Chance perdida',   xg:.30, chute:true, alvo:false},
   falta:  {rot:'Falta',            xg:0},
   escant: {rot:'Escanteio',        xg:0},
   cartao: {rot:'Cartão',           xg:0},
-  defesa: {rot:'Defesaça',         xg:0}
+  defesa: {rot:'🧤 Defesaça',       xg:0},
+  cagada: {rot:'💥 Cagada',         xg:0}
 };
 
 const analise = {
@@ -2894,11 +2916,14 @@ const REG = {jogo:'', timeA:'', timeB:'', minuto:1, armado:{A:'noGol', B:'noGol'
 /* eventos sem dono: valem para o time inteiro */
 const TIPOS_TIME = ['escant','falta'];
 
+/* O elenco sai da aba ESCALACOES, e só dela. Antes, time sem escalação
+   lançada caía na lista inteira de jogadores — o que fazia aparecer gente
+   que nunca jogou por aquele time. */
 function jogadoresDoTime(tid){
   if(!tid) return [];
-  const ids = [...new Set(DADOS.escalacoes.filter(e=>e.time===tid).map(e=>e.jogador))];
-  const doTime = ids.map(id=>pById[id]).filter(Boolean);
-  return doTime.length ? doTime : jog.slice();
+  const ids = [...new Set(DADOS.escalacoes.filter(e=>e.time===tid && !e.oculto).map(e=>e.jogador))];
+  return ids.map(id=>pById[id]).filter(Boolean)
+    .sort((a,b)=>a.apelido.localeCompare(b.apelido));
 }
 
 function regBotoesTipo(lado){
@@ -2923,6 +2948,9 @@ function regColunaTime(lado){
     + '<span class="nm">'+p.apelido+'</span></button>').join('');
   const corpo = !tid
     ? '<div class="empty" style="padding:1.4rem">Escolha o time para liberar os lances.</div>'
+    : !elenco.length
+    ? '<div class="empty" style="padding:1.4rem">Este time não tem ninguém lançado na aba '
+      + 'ESCALACOES da planilha. É de lá que sai o elenco.</div>'
     : '<p class="eyebrow" style="margin:.2rem 0 .35rem">O que aconteceu</p>'
       + '<div class="reg-tipos">'+regBotoesTipo(lado)+'</div>'
       + (doTime
@@ -3141,9 +3169,15 @@ function specLances(t){
   const E = LANCES.estado;
   if(t==='chance') return [
     {alvo:'chute.batedor', rot:'Quem chutou', tipo:'select', ops:OPS_JOGADOR(), val:E.chute.batedor},
+    {ator:'bat', rot:'Foto de quem finaliza', val:E.chute.batedorId},
+    {alvo:'chute.corDestaque', rot:'Cor do destaque', tipo:'select', val:E.chute.corDestaque,
+     ops:[['#F2B01E','Amarelo'],['#3EA6FF','Azul'],['#FF5A2C','Laranja'],
+          ['#2BE07A','Verde'],['#F4F1E6','Branco']]},
     {ator:'gk', rot:'Quem é o goleiro', val:E.chute.gk.pid},
-    {ator:'z0', rot:'Zagueiro 1', val:E.chute.zag[0]?E.chute.zag[0].pid:''},
-    {ator:'z1', rot:'Zagueiro 2', val:E.chute.zag[1]?E.chute.zag[1].pid:''},
+    {alvo:'chute.alcanceGk', rot:'Alcance do goleiro (m)', tipo:'faixa',
+     min:.4, max:2.2, passo:.05, val:E.chute.alcanceGk},
+    {alvo:'chute.raioZag', rot:'Área de cada marcador (m)', tipo:'faixa',
+     min:.15, max:1, passo:.02, val:E.chute.raioZag},
     {alvo:'chute.qualidade', rot:'Nota do batedor', tipo:'faixa', min:1, max:5, val:E.chute.qualidade},
     {alvo:'chute.parte', rot:'Como chutou', tipo:'select', val:E.chute.parte,
      ops:Object.entries(LANCES.PARTE).map(([k,v])=>[k,v.rot])},
@@ -3495,6 +3529,11 @@ document.addEventListener('input', e=>{
   if(el.dataset.ator){
     const E = LANCES.estado.chute;
     if(el.dataset.ator==='gk') E.gk.pid = el.value;
+    else if(el.dataset.ator==='bat'){
+      E.batedorId = el.value;
+      const p = el.value ? pById[el.value] : null;
+      if(p){ E.batedor = p.apelido; E.qualidade = LANCES.notaBatedor(p.apelido); }
+    }
     else { const i = +el.dataset.ator.slice(1); if(E.zag[i]) E.zag[i].pid = el.value; }
     draw(1); atualizaLeitura();
   }

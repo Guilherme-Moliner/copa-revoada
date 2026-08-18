@@ -46,10 +46,16 @@ SAIDA = os.path.join(RAIZ, "index.html")
 
 PLAYLIST = "PLSnrz0oA5cB49hSu2rMMCCtbXZOK6l9hq"
 
-# Se PLANILHA_URL estiver definida, o build baixa a planilha de lá em vez de
-# usar o arquivo local. É assim que o Google Sheets entra: a URL de export do
-# Sheets devolve um .xlsx com as mesmas abas.
-#   https://docs.google.com/spreadsheets/d/<ID>/export?format=xlsx
+# Fonte de verdade dos dados. Com PLANILHA_URL definida, o build lê da planilha
+# online em vez do arquivo do repositório — que passa a ser só uma cópia de
+# segurança. O repositório guarda código; a planilha guarda dado operacional.
+#
+# Aceita duas formas:
+#   1. o Apps Script:  .../exec?acao=planilha   → devolve o .xlsx em base64
+#   2. o export direto: .../export?format=xlsx  → só funciona com planilha pública
+#
+# A do Apps Script é a boa: a planilha continua privada e quem busca é o script,
+# rodando com a credencial do dono.
 PLANILHA_URL = os.environ.get("PLANILHA_URL", "").strip()
 
 # Endereço do Apps Script publicado como Web App. É por ele que o app grava e
@@ -78,7 +84,9 @@ APELIDO_JOGADOR = {
     "vitim": "kretzer",      # Vitim e Kretzer são a mesma pessoa
 }
 ESCUDO_TIME = {
-    "borussetalogo": "borussia22",
+    # o arquivo traz o brasão do Boca Juniors (CABJ), não do Borussia:
+    # é o escudo do Boca 2023, que estava sem nenhum
+    "borussetalogo": "boca23",
     "dentrofclogo": "dentro26",
     "ferroviagralogo": "ferroviagra26",
     "jumentuslogo": "jumentus25",
@@ -365,10 +373,17 @@ def baixa_planilha():
     try:
         print(f"  baixando a planilha de {PLANILHA_URL[:60]}...")
         req = urllib.request.Request(PLANILHA_URL, headers={"User-Agent": "copa-revoada"})
-        with urllib.request.urlopen(req, timeout=45) as r:
+        with urllib.request.urlopen(req, timeout=60) as r:
             dados = r.read()
+        # o Apps Script responde JSON com o arquivo em base64
+        if dados[:1] == b"{":
+            import base64
+            pacote = json.loads(dados.decode("utf-8"))
+            if not pacote.get("ok"):
+                raise ValueError(pacote.get("erro", "o script recusou"))
+            dados = base64.b64decode(pacote["xlsx"])
         if len(dados) < 5000 or dados[:2] != b"PK":
-            raise ValueError("a resposta não parece um .xlsx — a planilha está publicada?")
+            raise ValueError("a resposta não parece um .xlsx — confira a URL e a permissão")
         with open(copia, "wb") as f:
             f.write(dados)
         print(f"  planilha baixada — {len(dados)//1024} KB")
@@ -475,9 +490,8 @@ def main():
             if jid not in jogoIds:
                 aviso(f"ESCALACOES: jogo '{jid}' não existe na aba JOGOS")
                 continue
-            if pid in EXCLUIR_DO_SITE:
-                continue
-            if pid not in porId:
+            oculto = pid in EXCLUIR_DO_SITE
+            if not oculto and pid not in porId:
                 aviso(f"ESCALACOES: jogador '{pid}' não existe na aba JOGADORES")
                 continue
             escalacoes.append({
@@ -490,6 +504,9 @@ def main():
                 "nota": num(r.get("nota_1a5"), 0) or None,
                 "numero": num(r.get("numero"), 0) or None,
                 # gol contra: conta pro adversário, nunca pro total do jogador
+                # o jogador some do site, mas o que ele fez continua contando
+                # para o time: gol aconteceu, e esconder o nome não desfaz
+                "oculto": oculto,
                 "contra": num(r.get("gols_contra")),
                 # gol anulado (VAR): vale pro jogador, não vale pro placar
                 "no_placar": str(r.get("conta_no_placar") or "SIM").strip().upper() != "NAO",
@@ -555,6 +572,8 @@ def main():
 
     if completo:
         for e in escalacoes:
+            if e["oculto"]:
+                continue          # não entra em estatística individual
             p = porId[e["jogador"]]
             # presença é toda escalação; jogo válido exclui os três primeiros,
             # em que só o título conta
@@ -633,6 +652,29 @@ def main():
                 "obs": str(r.get("observacao") or "").strip(),
             })
 
+    # ---------------- vídeos ----------------
+    # a aba VIDEOS manda; a coluna video_youtube da aba JOGOS fica como reserva,
+    # para não quebrar quem já tinha preenchido lá
+    if "VIDEOS" in wb.sheetnames:
+        ws = wb["VIDEOS"]
+        porJogo = {g["id"]: g for g in jogos}
+        achou = 0
+        for r in linhas(ws, acha_cabecalho(ws, "jogo_id")):
+            jid = str(r.get("jogo_id") or "").strip()
+            vid = str(r.get("video_youtube") or "").strip()
+            if not jid or not vid:
+                continue
+            if jid not in porJogo:
+                aviso(f"VIDEOS: jogo '{jid}' não existe na aba JOGOS")
+                continue
+            # aceita a URL inteira ou só o id
+            m = re.search(r"(?:v=|youtu\.be/|embed/)([\w-]{6,})", vid)
+            porJogo[jid]["video"] = m.group(1) if m else vid
+            porJogo[jid]["videoTitulo"] = str(r.get("titulo") or "").strip()
+            achou += 1
+        if achou:
+            print(f"  {achou} vídeos vindos da aba VIDEOS")
+
     # ---------------- clipes ----------------
     clipes = []
     if "CLIPES" in wb.sheetnames:
@@ -697,6 +739,12 @@ def main():
     if not LANCES_URL:
         aviso("LANCES_URL não está definida — a Análise do jogo não grava na "
               "planilha, só na memória da aba. Ver docs/planilha-colaborativa.md")
+
+    ocultos = sorted({e["jogador"] for e in escalacoes if e["oculto"]})
+    if ocultos:
+        gols_ocultos = sum(e["gols"] for e in escalacoes if e["oculto"])
+        print(f"  {len(ocultos)} jogadores escondidos do site seguem contando para o time "
+              f"({gols_ocultos} gols): " + ", ".join(ocultos))
 
     if FUNDO_TIRADO:
         print("  fundo chapado removido do escudo de: " + ", ".join(FUNDO_TIRADO))

@@ -21,12 +21,38 @@ var PREFIXO = 'LANCES ';
 function doGet(e) {
   var acao = (e.parameter.acao || 'ler');
   try {
-    if (acao === 'ler')   return json(ler(e.parameter.jogo));
-    if (acao === 'jogos') return json({ok: true, jogos: listaJogos()});
+    if (acao === 'ler')      return json(ler(e.parameter.jogo));
+    if (acao === 'jogos')    return json({ok: true, jogos: listaJogos()});
+    if (acao === 'planilha') return json(planilhaInteira());
     return json({ok: false, erro: 'ação desconhecida: ' + acao});
   } catch (err) {
     return json({ok: false, erro: String(err)});
   }
+}
+
+/**
+ * Devolve a planilha inteira como .xlsx em base64.
+ *
+ * É assim que o site passa a ler os dados daqui em vez do arquivo do
+ * repositório. Poderia ser a URL de export do Sheets, mas ela exige que a
+ * planilha seja pública — e ela é privada. Este script roda como o dono,
+ * então busca o arquivo com a credencial dele e entrega só o conteúdo.
+ * O build recebe os mesmos bytes que teria com o arquivo local: nenhuma
+ * linha de leitura precisou mudar do outro lado.
+ */
+function planilhaInteira() {
+  var id = SpreadsheetApp.getActive().getId();
+  var url = 'https://docs.google.com/spreadsheets/d/' + id + '/export?format=xlsx';
+  var res = UrlFetchApp.fetch(url, {
+    headers: {Authorization: 'Bearer ' + ScriptApp.getOAuthToken()},
+    muteHttpExceptions: true
+  });
+  if (res.getResponseCode() !== 200) {
+    return {ok: false, erro: 'o Sheets respondeu ' + res.getResponseCode()};
+  }
+  var bytes = res.getBlob().getBytes();
+  return {ok: true, nome: SpreadsheetApp.getActive().getName(),
+          bytes: bytes.length, xlsx: Utilities.base64Encode(bytes)};
 }
 
 function doPost(e) {
