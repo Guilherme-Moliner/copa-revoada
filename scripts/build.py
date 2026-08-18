@@ -88,8 +88,9 @@ ESCUDO_TIME = {
     "bocalogo": "boca23",            # CABJ
     "mancitylogo": "city23",         # Mano Cityfodo
     "pegueisuagatalogo": "psg20",    # Peguei Sua Gata
-    "criseumafclogo": "preto24",
-    "dboafclogo": "branco24",
+    "chelsealogo": "chelsea20",
+    "criseumafclogo": "Criseuma",
+    "dboafclogo": "DBOAFC",
     "dentrofclogo": "dentro26",
     "ferroviagralogo": "ferroviagra26",
     "jumentuslogo": "jumentus25",
@@ -99,8 +100,8 @@ ESCUDO_TIME = {
 FOTO_TIME = {
     "borusseta": "borussia22",
     "citifodo": "city23",
-    "criseuma": "preto24",       # Criseúma FC é o time preto de 2024
-    "dboafc": "branco24",        # D Boa FC é o time branco de 2024
+    "criseuma": "Criseuma",      # o id na planilha virou o nome do time
+    "dboafc": "DBOAFC",
     "dentofc2026": "dentro26",
     "ferroviagra2026": "ferroviagra26",
     "jumentos": "jumentus25",
@@ -131,13 +132,31 @@ def slug(s):
     return re.sub(r"[^a-z0-9]", "", s)
 
 
+def _chave(nome):
+    """'Apelido Perfil' → 'apelido_perfil'. Sem acento, sem maiúscula."""
+    t = unicodedata.normalize("NFD", nome).encode("ascii", "ignore").decode()
+    return re.sub(r"_+", "_", re.sub(r"[^a-z0-9]+", "_", t.lower())).strip("_")
+
+
 def linhas(ws, cabecalho_em):
-    """Devolve dicts a partir da linha de cabeçalho informada (1-based)."""
+    """Devolve dicts a partir da linha de cabeçalho informada (1-based).
+
+    Cada coluna entra com o cabeçalho como está escrito E com uma versão
+    normalizada. Quem preenche a planilha escreve "Apelido Perfil" com espaço e
+    maiúscula, e antes isso não casava com nenhuma chave que o build procurava:
+    a coluna existia, vinha no JSON, e era silenciosamente ignorada.
+    """
     hdr = [str(c.value).strip() if c.value else "" for c in ws[cabecalho_em]]
     for row in ws.iter_rows(min_row=cabecalho_em + 1, values_only=True):
         if not any(v not in (None, "") for v in row):
             continue
-        yield {hdr[i]: row[i] for i in range(len(hdr)) if hdr[i]}
+        d = {}
+        for i, nome in enumerate(hdr):
+            if not nome or i >= len(row):
+                continue
+            d[nome] = row[i]
+            d.setdefault(_chave(nome), row[i])
+        yield d
 
 
 def acha_cabecalho(ws, primeira_coluna):
@@ -154,7 +173,9 @@ def _id_video(v):
     t = str(v or "").strip()
     if not t:
         return ""
-    m = re.search(r"(?:v=|youtu\.be/|embed/|shorts/)([\w-]{6,})", t)
+    # live/ é o formato das transmissões, que é como a maioria dos jogos foi
+    # gravada — sem ele os links da planilha entravam como id inválido
+    m = re.search(r"(?:v=|youtu\.be/|embed/|shorts/|live/)([\w-]{6,})", t)
     return m.group(1) if m else t
 
 
@@ -366,10 +387,9 @@ def retrato_reserva():
 def imagens_do_time(tid):
     """Devolve (escudo, foto) já otimizados, ou strings vazias."""
     escudo = foto = ""
-    if tid == "psg21":                       # os dois anos usam o mesmo escudo
-        tid_escudo = "psg20"
-    else:
-        tid_escudo = tid
+    # time que jogou duas temporadas com o mesmo escudo aponta para o primeiro ano
+    MESMO_ESCUDO = {"psg21": "psg20", "chelsea21": "chelsea20"}
+    tid_escudo = MESMO_ESCUDO.get(tid, tid)
     for arquivo, alvo in ESCUDO_TIME.items():
         if alvo == tid_escudo:
             o = acha_origem(arquivo, (ASSETS,))
@@ -516,8 +536,9 @@ def main():
             # coluna nova da planilha: o apelido de zoeira que aparece no perfil.
             # aceita alguns nomes de cabeçalho porque quem preenche escolhe o seu
             "apelido2": next((str(r[k]).strip() for k in
-                              ("apelido_engracado", "apelido2", "apelido_zoeira",
-                               "apelido_engraçado", "novo_apelido", "apelido_novo")
+                              ("apelido_perfil", "apelido_engracado", "apelido2",
+                               "apelido_zoeira", "apelido_engraçado",
+                               "novo_apelido", "apelido_novo")
                               if r.get(k)), ""),
             "nome": str(r.get("nome_completo") or "").strip(),
             "pos": str(r.get("posicao") or "").strip().upper(),

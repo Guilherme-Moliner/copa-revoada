@@ -15,25 +15,16 @@ Estado de hoje: **32 jogadores · 14 times · 13 jogos · 233 escalações**.
 
 ---
 
-## Prioridade 0 — um clique que liga a planilha do Drive ao site
+## Prioridade 0 — resolvido: o site já lê a planilha do Drive
 
-A variável `PLANILHA_URL` já está criada no repositório, e o build já sabe
-usá-la. Falta **republicar o Apps Script**: a implantação que está no ar ainda
-carrega a versão anterior da ação `planilha`, que usava `UrlFetchApp` e o Google
-recusa por falta de permissão. O arquivo `scripts/apps-script.gs` deste
-repositório já está corrigido — ele lê as abas direto, sem chamada externa, e
-por isso **não pede autorização nova**.
+O Apps Script foi republicado e a variável `PLANILHA_URL` está apontada para
+ele. O build baixa as 11 abas a cada publicação, e o `.xlsx` do repositório
+virou cópia de segurança: ele só entra se o endpoint falhar, e nesse caso o
+build avisa e segue.
 
-Na planilha: **Extensões › Apps Script**, cole `scripts/apps-script.gs` por
-cima, e então **Implantar › Gerenciar implantações › lápis › Versão: Nova
-versão › Implantar**. Mantenha a mesma implantação, para a URL não mudar.
+Editem no Google Sheets. O que aparece no site é o que estiver lá.
 
-Para conferir, abra no navegador a URL da implantação com `?acao=planilha` no
-fim. Tem que vir um JSON começando em `{"ok":true`. Enquanto não vier, o site
-continua publicando normalmente a partir do `.xlsx` do repositório — o build
-avisa e segue.
-
-As abas `LANCES *` e a `CONFIG` ficam de fora desse JSON de propósito: as
+As abas `LANCES *` e a `CONFIG` ficam fora desse JSON de propósito: as
 primeiras podem crescer muito, e a segunda guarda a chave.
 
 ---
@@ -59,7 +50,13 @@ assistência do Zaga. Dependendo da resposta, o gol muda de dono.
 > **Ação:** trocar o `jogador_id` da linha certa para `leobittencourt`, ou
 > confirmar que os dois são o Leonardo Zanette mesmo.
 
-### 1.2 Campeão de cada jogo
+### 1.2 Campeão — faltam 2 de 13
+
+Preenchidos 11. Continuam vazios **Dez/2020** e **Jul/2021**. O primeiro
+terminou 6×7 e o segundo 10×10 — num empate, campeão vazio é a resposta certa;
+se teve decisão por pênalti, é só dizer quem levou.
+
+### 1.2b Como isso entra no site
 
 **Nenhum dos 13 jogos** tem `campeao_time_id` preenchido na aba JOGOS.
 
@@ -74,7 +71,7 @@ título**, porque não houve penalidades.
 
 ## Prioridade 2 — o que dá mais resultado por hora gasta
 
-### 2.1 Números de camisa — 32 de 32 vazios
+### 2.1 Números de camisa — 31 de 32 vazios
 
 Aba **JOGADORES**, coluna `numero_camisa`.
 
@@ -91,7 +88,7 @@ Já marcados como goleiro: **Arthur, Merizi, Be Correa e Be Marucco**.
 É o que faz a formação no campo posicionar cada um na faixa certa e a lista
 mostrar a tarja colorida por posição.
 
-### 2.3 Vídeos — o link sai da aba JOGOS
+### 2.3 Vídeos — 8 de 13 preenchidos
 
 Aba **JOGOS**, coluna do link do YouTube. Pode colar a **URL inteira**: o build
 extrai o id sozinho, e aceita link normal, `youtu.be`, `embed` e `shorts`.
@@ -100,9 +97,7 @@ A aba VIDEOS que eu tinha criado **não é mais usada** — o link ao lado do jo
 é mais simples e não duplica informação. A aba CLIPES continua valendo, porque
 ela guarda outra coisa: recorte de melhor momento por jogador.
 
-Os links já preenchidos no Drive só entram no site depois que a Prioridade 0
-estiver resolvida; a cópia `.xlsx` deste repositório ainda está com a coluna
-vazia.
+Faltam **Dez/2020, Jul/2021, Out/2023, Abr/2026 e Ago/2026**.
 
 ### 2.4 Nota de desempenho por time — 155 pares esperando
 
