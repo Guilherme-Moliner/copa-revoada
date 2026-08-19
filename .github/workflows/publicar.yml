@@ -4,6 +4,15 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # De hora em hora, para o site acompanhar a planilha sem ninguém precisar
+  # lembrar de publicar. O horário é UTC, mas de hora em hora dá na mesma.
+  #
+  # Dois avisos honestos sobre agendamento no GitHub: a hora cheia é um pico,
+  # então atraso de alguns minutos é normal; e o GitHub desliga agendamento em
+  # repositório que passa 60 dias sem nenhum commit — se a copa hibernar, basta
+  # um commit ou um "Run workflow" para religar.
+  schedule:
+    - cron: '0 * * * *'
 
 permissions:
   contents: read
@@ -31,10 +40,32 @@ jobs:
           PLANILHA_URL: ${{ vars.PLANILHA_URL }}
           LANCES_URL: ${{ vars.LANCES_URL }}
         run: python3 scripts/build.py
+
+      # Só nas rodadas agendadas: se o index.html gerado ficou igual ao que já
+      # está publicado, a planilha não mudou nada e não há o que republicar.
+      # O build é determinístico, então "igual" quer dizer igual mesmo.
+      #
+      # Essa comparação NÃO vale para push nem para o botão manual: trocar uma
+      # foto em assets/ pelo mesmo nome de arquivo muda a imagem sem mudar uma
+      # vírgula do index.html, e aí pular o deploy deixaria a foto nova de fora.
+      - name: A planilha mexeu em alguma coisa?
+        id: mudou
+        run: |
+          if git diff --quiet -- index.html; then
+            echo "vale=nao" >> "$GITHUB_OUTPUT"
+            echo "Nada mudou na planilha desde a última publicação."
+          else
+            echo "vale=sim" >> "$GITHUB_OUTPUT"
+            git diff --stat -- index.html
+          fi
+
       - uses: actions/configure-pages@v5
+        if: github.event_name != 'schedule' || steps.mudou.outputs.vale == 'sim'
       - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'schedule' || steps.mudou.outputs.vale == 'sim'
         with:
           path: .
       - uses: actions/deploy-pages@v4
         id: deploy
+        if: github.event_name != 'schedule' || steps.mudou.outputs.vale == 'sim'
 
