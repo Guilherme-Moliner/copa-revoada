@@ -253,10 +253,15 @@ def carrega(jogadores, escalacoes):
 
         eventos.sort(key=lambda e: e["t"])
         lados = sorted(lado_time.items())
+        # quem era goleiro sai daqui, e não da contagem de defesas: goleiro
+        # que passou o jogo sem trabalho continua sendo goleiro, e a ficha
+        # dele tem que mostrar "0 defesas", não virar ficha de jogador de linha
         fora[jogo] = {
             "fim": fim,
             "inicio2t": inicio2t,
             "lados": {lado: tid for lado, tid in lados},
+            "goleiros": {lado_time.get(lado, lado): (elenco.get(nome) or {}).get("pid", "")
+                         for lado, nome in goleiro.items()},
             "eventos": eventos,
         }
     return fora

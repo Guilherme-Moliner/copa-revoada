@@ -29,7 +29,13 @@ jogador,apelido,time,posicao
 Arthur,,Branco,Goleiro
 Zaga,,Branco,Linha
 Merizi,Meme,Preto,Goleiro
+Maurinho,Robson,Preto,Linha
 ```
+
+A coluna `apelido` é a ponte quando o nome anotado não é o que está na aba
+JOGADORES: `Meme` é o Merizi, e `Maurinho` era como quem anotou chamou o
+Robson. Sem ela, o build avisa e os lances daquela pessoa ficam fora da conta
+individual.
 
 A coluna `posicao` só precisa distinguir **Goleiro** de **Linha**: é ela que
 diz quem leva o crédito das defesas.
@@ -101,6 +107,7 @@ jogo**:
 | Comparativo do jogo | as barras espelhadas, número contra número |
 | Corrida de chutes — animada | o gráfico se desenhando na velocidade do jogo |
 | Quem mais apareceu | os seis que mais finalizaram ou defenderam |
+| Desempenho de um jogador | a ficha de uma pessoa só, com o que ela fez no jogo |
 
 Cada uma tem dois campos próprios: **Jogo** (a mesma lista da aba
 Estatísticas — súmula nova aparece nos dois lugares sozinha) e **Momento**:
@@ -113,6 +120,13 @@ site diria outro.
 Na **Corrida de chutes** o tempo da animação É o tempo do jogo, e o placar do
 cabeçalho acompanha. No 42' a peça mostra 0×1, porque o gol do Zaga só sai aos
 63' — mostrar 1×1 desde o começo entregaria o final antes da hora.
+
+No **Desempenho de um jogador** o jogador vem do mesmo seletor das outras
+fichas. **Goleiro recebe caixas diferentes**: chute e precisão não descrevem
+goleiro, então entram defesas, gols sofridos, finalizações sofridas e quanto
+por cento ele segurou. Quem é goleiro sai do `posicao` do CSV, não da contagem
+de defesas — goleiro que passou o jogo sem trabalho continua sendo goleiro, e
+a ficha dele mostra "0 defesas" em vez de virar ficha de jogador de linha.
 
 Os botões de download são os mesmos das outras artes:
 

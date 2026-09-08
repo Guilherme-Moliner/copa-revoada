@@ -605,6 +605,7 @@ section+section{margin-top:3rem}
                 <option value="estresumo">Comparativo do jogo</option>
                 <option value="estcorrida">Corrida de chutes — animada</option>
                 <option value="estcraques">Quem mais apareceu</option>
+                <option value="estjogador">Desempenho de um jogador</option>
               </optgroup>
               <optgroup label="Especiais">
                 <option value="placar2">Placar de transmissão</option>
@@ -622,18 +623,18 @@ section+section{margin-top:3rem}
               </optgroup>
             </select></div>
           <div id="painel-lances" style="display:none"></div>
-          <div class="field" data-for="gol golaco sub stat cartao falta var penalti artilheiro batedor historico"><label for="f-p1" id="l-p1">Jogador</label><select id="f-p1"></select></div>
+          <div class="field" data-for="gol golaco sub stat cartao falta var penalti artilheiro batedor historico estjogador"><label for="f-p1" id="l-p1">Jogador</label><select id="f-p1"></select></div>
           <div class="field" data-for="sub falta"><label for="f-p2" id="l-p2">Sai</label><select id="f-p2"></select></div>
-          <div class="field" data-for="estresumo estcorrida estcraques"><label for="f-estjogo">Jogo</label>
+          <div class="field" data-for="estresumo estcorrida estcraques estjogador"><label for="f-estjogo">Jogo</label>
             <select id="f-estjogo"></select></div>
-          <div class="field" data-for="estresumo estcorrida estcraques"><label for="f-estmom">Momento</label>
+          <div class="field" data-for="estresumo estcorrida estcraques estjogador"><label for="f-estmom">Momento</label>
             <select id="f-estmom">
               <option value="todo">Jogo todo</option>
               <option value="1t">Só o 1º tempo</option>
               <option value="2t">Só o 2º tempo</option>
               <option value="ate">Até o minuto…</option>
             </select></div>
-          <div class="field" data-for="estresumo estcorrida estcraques"><label for="f-estmin">Até o minuto</label>
+          <div class="field" data-for="estresumo estcorrida estcraques estjogador"><label for="f-estmin">Até o minuto</label>
             <input id="f-estmin" type="number" min="0" max="200" step="1" value="45"></div>
           <div class="field" data-for="gol golaco cartao falta var penalti fim"><label for="f-min">Minuto</label><input id="f-min" value="27'"></div>
           <div class="field" data-for="gol golaco cartao sub replay escalacao falta var penalti placar fim artilheiro batedor historico penaltis intervalo formacao"><label for="f-time">Time</label><select id="f-time"></select></div>
@@ -1208,13 +1209,51 @@ const SUMULA = (function(){
             A:d.lados.Branco || j.casa, B:d.lados.Preto || j.fora};
   }
 
+  /* O que UMA pessoa fez no recorte. Goleiro tem ficha diferente: chute e
+     precisão não dizem nada sobre ele, e o que interessa é quanto trabalho
+     apareceu e quanto ele segurou. */
+  function doJogador(r, pid){
+    const o = {chutes:0, noGol:0, fora:0, bloq:0, gols:0, faltas:0, cagadas:0,
+               defesas:0, sofridos:0, precisao:0, defesaPct:0, ehGoleiro:false, time:''};
+    if(!r || !pid) return o;
+    const gks = r.d.goleiros || {};
+    Object.keys(gks).forEach(tid=>{ if(gks[tid]===pid){ o.ehGoleiro = true; o.time = tid; } });
+
+    r.evs.forEach(e=>{
+      if(e.tipo==='chute' && e.j===pid){
+        if(!o.time) o.time = e.time;
+        o.chutes++;
+        if(e.sub==='bloqueado') o.bloq++;
+        if(e.sub==='fora') o.fora++;
+        if(e.sub==='defendido' || e.sub==='gol') o.noGol++;
+        if(e.gol) o.gols++;
+      }
+      else if(e.tipo==='falta' && e.j===pid){ o.faltas++; if(!o.time) o.time=e.time; }
+      else if(e.tipo==='cagada' && e.j===pid){ o.cagadas++; if(!o.time) o.time=e.time; }
+      else if(e.tipo==='defesa' && e.j===pid){ o.defesas++; if(!o.time) o.time=e.time; }
+    });
+    if(o.ehGoleiro){
+      /* gol sofrido é gol do adversário: a súmula nem sempre diz quem tomou,
+         mas sempre diz de quem foi */
+      r.evs.forEach(e=>{
+        if(e.tipo==='chute' && e.gol && e.time && e.time!==o.time) o.sofridos++;
+      });
+      const trabalho = o.defesas + o.sofridos;
+      o.defesaPct = trabalho ? o.defesas/trabalho : 0;
+    } else {
+      const validos = o.chutes - o.bloq;
+      o.precisao = validos ? o.noGol/validos : 0;
+    }
+    return o;
+  }
+
   /* placar (e tudo mais) num instante do jogo, para a arte animada */
   function contaAte(d, ini, ate){
     return conta(d.eventos.filter(e=>e.t>=ini && e.t<=ate));
   }
 
   return {render:render, jogos:listaJogos, estado:est, recorte:recorte,
-          rotulo:rotuloJogo, mmss:mmss, contaAte:contaAte};
+          rotulo:rotuloJogo, mmss:mmss, contaAte:contaAte, doJogador:doJogador};
 })();
 
 const MENU = [
@@ -4572,6 +4611,7 @@ function draw(k){
   if(t==='estresumo'){ drawEstResumo(k); return; }
   if(t==='estcorrida'){ drawEstCorrida(k); return; }
   if(t==='estcraques'){ drawEstCraques(k); return; }
+  if(t==='estjogador'){ drawEstJogador(k); return; }
   if(t==='marco'){ drawMarco(k); return; }
   if(t==='marcos'){ drawMarcos(k); return; }
   ctx.save();
@@ -5339,6 +5379,86 @@ function drawEstCorrida(k){
   ctx.textAlign='center';
   txt('CHUTES ACUMULADOS  ·  ' + SUMULA.mmss(agora), x+w/2, y+h-40, 24, '#8A9A8C', null, 4);
   ctx.textAlign='left';
+}
+
+/* Mesma moldura da Ficha do jogador — foto à esquerda com a tarja do nome,
+   caixas de número à direita — mas com o que a pessoa fez NESTE jogo, até o
+   momento escolhido. Goleiro recebe outras caixas: chute e precisão não
+   descrevem goleiro, defesa e gol sofrido sim. */
+function drawEstJogador(k){
+  const r = estRecorte();
+  if(!r) return estSemDados();
+  const p = pById[F.p1.value];
+  if(!p) return estSemDados();
+  const d = SUMULA.doJogador(r, p.id);
+
+  const w=1360, h=560, x=(1920-w)/2, y=(1080-h)/2;
+  const tid = d.time || r.A;
+  const T = tById[tid] || {};
+  const cor = corSegura(T.c1 || '#F2B01E');
+
+  sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.96)'; rr(x,y,w,h,18); ctx.fill(); });
+  ctx.fillStyle=cor; rr(x,y,w,10,6); ctx.fill();
+
+  const fw=380, fh=h-100;
+  retrato(p, x+40, y+50, fw, fh, 12);
+  ctx.fillStyle=cor; rr(x+40, y+50+fh-82, fw, 82, 12); ctx.fill();
+  const fn = fonteQueCabe(p.apelido.toUpperCase(), 52, fw-44, 'blk');
+  txt(p.apelido.toUpperCase(), x+62, y+50+fh-26, fn, '#0B0B0B', 'blk');
+
+  const cx = x+460, larg = w-500;
+  txt(d.ehGoleiro ? 'DESEMPENHO NO GOL' : 'DESEMPENHO NA PARTIDA',
+      cx, y+62, 26, '#8A9A8C', 'cond', 6);
+
+  const pct = v => Math.round(v*100) + '%';
+  /* "1 GOLS SOFRIDOS" numa peça que vai pro vídeo fica pobre; o rótulo
+     acompanha o número */
+  const nn = (v, um, muitos) => v===1 ? um : muitos;
+  const kpis = d.ehGoleiro
+    ? [['DEFESAS', d.defesas, nn(d.defesas,'DEFESA','DEFESAS')],
+       ['GOLS SOFRIDOS', d.sofridos, nn(d.sofridos,'GOL SOFRIDO','GOLS SOFRIDOS')],
+       ['FINALIZAÇÕES', d.defesas + d.sofridos,
+        nn(d.defesas+d.sofridos,'FINALIZAÇÃO','FINALIZAÇÕES')],
+       ['DEFENDIDO', pct(d.defesaPct), 'DEFENDIDO']]
+    : [['CHUTES', d.chutes, nn(d.chutes,'CHUTE','CHUTES')],
+       ['NO GOL', d.noGol, 'NO GOL'],
+       ['GOLS', d.gols, nn(d.gols,'GOL','GOLS')],
+       ['PRECISÃO', pct(d.precisao), 'PRECISÃO'],
+       ['FALTAS', d.faltas, nn(d.faltas,'FALTA','FALTAS')]];
+
+  const bw = larg/kpis.length;
+  kpis.forEach((kp,i)=>{
+    const atraso = i*0.09;
+    const kk = ease(Math.max(0, Math.min(1, (k-atraso)/(1-atraso||1))));
+    const bx = cx + i*bw;
+    ctx.save(); ctx.globalAlpha = kk;
+    ctx.fillStyle='rgba(255,255,255,.05)'; rr(bx, y+90, bw-14, 160, 10); ctx.fill();
+    ctx.textAlign='center';
+    /* número contando: em peça de vídeo, número que sobe segura o olho */
+    const valor = typeof kp[1]==='number' ? Math.round(kp[1]*kk) : kp[1];
+    const fnum = fonteQueCabe(String(valor), 78, bw-40, 'blk');
+    txt(String(valor), bx+(bw-14)/2, y+196, fnum, cor, 'blk');
+    txt(kp[2] || kp[0], bx+(bw-14)/2, y+230, 20, '#8A9A8C', 'cond', 4);
+    ctx.textAlign='left'; ctx.restore();
+  });
+
+  const extras = d.ehGoleiro
+    ? [d.cagadas ? d.cagadas + (d.cagadas>1?' cagadas':' cagada') : '',
+       d.faltas ? d.faltas + (d.faltas>1?' faltas':' falta') : '']
+    : [d.bloq ? d.bloq + ' bloqueado' + (d.bloq>1?'s':'') : '',
+       d.fora ? d.fora + ' pra fora' : '',
+       d.cagadas ? d.cagadas + (d.cagadas>1?' cagadas':' cagada') : ''];
+  const linha2 = extras.filter(Boolean).join('   ·   ');
+  if(linha2) txt(linha2, cx, y+300, 28, '#D8E4DA', 'cond', 1);
+
+  const nada = !d.chutes && !d.defesas && !d.faltas && !d.cagadas;
+  if(nada){
+    txt('nenhum lance dele nesse recorte de tempo', cx, y+300, 28, '#8A9A8C', 'cond', 1);
+  }
+
+  txt((T.nome||'').toUpperCase() + '   ·   ' + estMomentoTxt(r)
+      + '   ·   ' + (r.jogo.mes||'') + ' ' + (r.jogo.temporada||''),
+      cx, y+h-52, 24, '#8A9A8C', 'cond', 4);
 }
 
 function drawEstCraques(k){
