@@ -37,6 +37,13 @@ html,body{margin:0;padding:0;background:var(--ink)}
 .sm-relogio{display:block;text-align:center;margin-top:.2rem;color:var(--gold);
   font-family:'Barlow Condensed',sans-serif;font-weight:800;letter-spacing:.18em;font-size:.9rem}
 
+.sm-jogo{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;margin:0 0 1rem}
+.sm-jogo label{color:var(--dim);font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  letter-spacing:.2em;text-transform:uppercase;font-size:.72rem}
+.sm-jogo select{background:var(--panel2);color:var(--chalk);border:1px solid var(--line);
+  border-radius:10px;padding:.55rem .8rem;font:inherit;font-weight:600;max-width:100%}
+.sm-quantos{color:var(--dim);font-size:.82rem}
+
 .sm-abas{display:flex;gap:.4rem;flex-wrap:wrap;margin:0 0 1rem}
 .sm-abas button{background:transparent;border:1px solid var(--line);color:var(--dim);
   font-family:'Barlow Condensed',sans-serif;font-weight:800;letter-spacing:.14em;
@@ -594,6 +601,11 @@ section+section{margin-top:3rem}
                 <option value="jogada">Jogada completa — mapa + xG</option>
                 <option value="ficha">Análise do jogo</option>
               </optgroup>
+              <optgroup label="Estatísticas do jogo">
+                <option value="estresumo">Comparativo do jogo</option>
+                <option value="estcorrida">Corrida de chutes — animada</option>
+                <option value="estcraques">Quem mais apareceu</option>
+              </optgroup>
               <optgroup label="Especiais">
                 <option value="placar2">Placar de transmissão</option>
                 <option value="clima">Condições de jogo</option>
@@ -612,6 +624,17 @@ section+section{margin-top:3rem}
           <div id="painel-lances" style="display:none"></div>
           <div class="field" data-for="gol golaco sub stat cartao falta var penalti artilheiro batedor historico"><label for="f-p1" id="l-p1">Jogador</label><select id="f-p1"></select></div>
           <div class="field" data-for="sub falta"><label for="f-p2" id="l-p2">Sai</label><select id="f-p2"></select></div>
+          <div class="field" data-for="estresumo estcorrida estcraques"><label for="f-estjogo">Jogo</label>
+            <select id="f-estjogo"></select></div>
+          <div class="field" data-for="estresumo estcorrida estcraques"><label for="f-estmom">Momento</label>
+            <select id="f-estmom">
+              <option value="todo">Jogo todo</option>
+              <option value="1t">Só o 1º tempo</option>
+              <option value="2t">Só o 2º tempo</option>
+              <option value="ate">Até o minuto…</option>
+            </select></div>
+          <div class="field" data-for="estresumo estcorrida estcraques"><label for="f-estmin">Até o minuto</label>
+            <input id="f-estmin" type="number" min="0" max="200" step="1" value="45"></div>
           <div class="field" data-for="gol golaco cartao falta var penalti fim"><label for="f-min">Minuto</label><input id="f-min" value="27'"></div>
           <div class="field" data-for="gol golaco cartao sub replay escalacao falta var penalti placar fim artilheiro batedor historico penaltis intervalo formacao"><label for="f-time">Time</label><select id="f-time"></select></div>
           <div class="field" data-for="escalacao formacao"><label for="f-unif">Uniforme do dia</label>
@@ -747,6 +770,10 @@ function forma(p, nota){
    ligado. Todo o resto usa a cor de destaque, que alterna amarelo e azul. */
 let semVerde = false;
 let destaque = 'amarelo';
+/* Artes que podem usar verde na prévia porque o export liga o modo sem-verde.
+   As de estatística ficam de FORA de propósito: foi pedido que elas não tenham
+   verde nenhum, nem na tela. A cor de cada time continua passando por
+   corSegura(), então time de camisa verde também sai legível. */
 const ARTES_COM_VERDE = new Set(['formacao','mapa','chance']);
 /* Não dá pra espiar o F daqui: ele é const declarado mais abaixo, e
    `typeof` sobre variável em zona morta lança em vez de devolver
@@ -842,6 +869,16 @@ const SUMULA = (function(){
   const listaJogos = () => Object.keys(S).sort().reverse();
   const mmss = t => Math.floor(t/60) + "'";
   const doJogo = id => jogos.find(x=>x.id===id) || {};
+
+  /* "Agosto 2026 · Dentro FC 1×1 Ferroviagra" — o mês sozinho não diz quem
+     jogou, e é isso que a pessoa procura quando tem vários. */
+  function rotuloJogo(id){
+    const j = doJogo(id), d = S[id];
+    if(!j.id) return id;
+    const A = (d && d.lados.Branco) || j.casa, B = (d && d.lados.Preto) || j.fora;
+    return (j.mes||'') + ' ' + (j.temporada||'') + ' · '
+      + nomeDe(A) + ' ' + (j.gc!=null?j.gc:'') + '×' + (j.gf!=null?j.gf:'') + ' ' + nomeDe(B);
+  }
 
   /* A janela é o recorte: jogo inteiro, só o 1º ou só o 2º tempo. O controle
      deslizante move o FIM dentro dela — é o "até certo minuto". Súmula que não
@@ -1099,13 +1136,17 @@ const SUMULA = (function(){
       + ((v!=='todo' && d.inicio2t==null) ? ' disabled title="Esta súmula não marca o intervalo"' : '')
       + '>' + r + '</button>';
 
-    const seletor = ids.length>1
-      ? '<div class="sm-abas" style="margin-bottom:.8rem">' + ids.map(id=>{
+    /* Sempre visível, mesmo com um jogo só: quem abre a tela precisa ver DE
+       QUE jogo são os números. Em <select> porque a ideia é ter súmula de
+       vários — em botão, treze jogos viram uma parede. */
+    const seletor = '<div class="sm-jogo"><label for="sm-sel">Jogo</label>'
+      + '<select id="sm-sel">' + ids.map(id=>{
           const j = doJogo(id);
-          return '<button data-sm-jogo="' + id + '" aria-pressed="' + (est.jogo===id) + '">'
-            + (j.mes||id) + ' ' + (j.temporada||'') + '</button>';
-        }).join('') + '</div>'
-      : '';
+          return '<option value="' + id + '"' + (est.jogo===id?' selected':'') + '>'
+            + rotuloJogo(id) + '</option>';
+        }).join('') + '</select>'
+      + '<span class="sm-quantos">' + ids.length
+      + (ids.length===1 ? ' jogo com súmula' : ' jogos com súmula') + '</span></div>';
 
     alvo.innerHTML = seletor
       + '<div class="sm-topo">'
@@ -1140,16 +1181,42 @@ const SUMULA = (function(){
       if(el) el.focus();
     }
   });
+  document.addEventListener('change', e=>{
+    if(e.target && e.target.id==='sm-sel'){
+      est.jogo = e.target.value; est.ate = null; render();
+    }
+  });
   document.addEventListener('click', e=>{
-    const j = e.target.closest('[data-sm-jogo]');
-    if(j){ est.jogo = j.dataset.smJogo; est.ate = null; render(); return; }
     const w = e.target.closest('[data-sm-jan]');
     if(w){ est.janela = w.dataset.smJan; est.ate = null; render(); return; }
     const t = e.target.closest('[data-sm-aba]');
     if(t){ est.aba = t.dataset.smAba; render(); }
   });
 
-  return {render:render, jogos:listaJogos, estado:est};
+  /* O Estúdio precisa exatamente do mesmo recorte que a tela mostra, senão
+     a arte exportada diria um número e o site diria outro. Então o corte mora
+     aqui, num lugar só, e os dois pedem por ele. */
+  function recorte(id, momento, ateMin){
+    const d = S[id];
+    if(!d) return null;
+    const i2 = d.inicio2t;
+    let ini = 0, fim = d.fim;
+    if(momento==='1t' && i2!=null) fim = i2;
+    else if(momento==='2t' && i2!=null) ini = i2;
+    else if(momento==='ate') fim = Math.max(0, Math.min(d.fim, Math.round((+ateMin||0)*60)));
+    const evs = d.eventos.filter(e=>e.t>=ini && e.t<=fim);
+    const j = doJogo(id);
+    return {d:d, jogo:j, ini:ini, fim:fim, evs:evs, c:conta(evs), zero:zero,
+            A:d.lados.Branco || j.casa, B:d.lados.Preto || j.fora};
+  }
+
+  /* placar (e tudo mais) num instante do jogo, para a arte animada */
+  function contaAte(d, ini, ate){
+    return conta(d.eventos.filter(e=>e.t>=ini && e.t<=ate));
+  }
+
+  return {render:render, jogos:listaJogos, estado:est, recorte:recorte,
+          rotulo:rotuloJogo, mmss:mmss, contaAte:contaAte};
 })();
 
 const MENU = [
@@ -3450,6 +3517,10 @@ const ARTES = ARTES_PRONTAS = {
 
 return {
   ARTES, CAMPO, MEDIDAS_ESTADIO, usaEstadio, notaBatedor,
+  /* o retrato dentro do círculo já resolve foto faltando, recorte e borda;
+     as artes de estatística usam o mesmo, para o rosto sair igual em toda
+     peça que a gente exporta */
+  discoJogador,
   estado: {mapa, chute, clima, placar, analise, jogada},
   seedJogada, xgDaJogada,
   calculaXG, geometria, rotuloChance, estatisticas, TIPOS, PARTE, JOGADA,
@@ -4346,6 +4417,7 @@ document.addEventListener('click', async e=>{
 /* ================= ESTÚDIO ================= */
 const cv = $('#cv'), ctx = cv.getContext('2d');
 const F = {tipo:$('#f-tipo'),p1:$('#f-p1'),p2:$('#f-p2'),min:$('#f-min'),time:$('#f-time'),
+           estjogo:$('#f-estjogo'),estmom:$('#f-estmom'),estmin:$('#f-estmin'),
            time2:$('#f-time2'),ga:$('#f-ga'),gb:$('#f-gb'),vard:$('#f-vard'),
            pa:$('#f-pa'),pb:$('#f-pb'),hist:$('#f-hist'),txt:$('#f-txt'),
            hyper:$('#f-hyper'),dist:$('#f-dist'),xg:$('#f-xg'),
@@ -4388,7 +4460,15 @@ const logoImg = new Image(); logoImg.src = LOGO;
 const fotos = {};
 function foto(p){
   if(!p.foto) return null;
-  if(!fotos[p.id]){ const im=new Image(); im.src=p.foto; fotos[p.id]=im; }
+  if(!fotos[p.id]){
+    const im=new Image();
+    /* A imagem chega depois do primeiro desenho, e sem este redesenho a peça
+       fica com o círculo chapado no lugar do rosto até alguém mexer em algum
+       campo. Não redesenha durante a gravação: ali cada quadro tem o seu k, e
+       um draw(1) no meio estragaria o quadro. */
+    im.onload = () => { if(!$('#dl-webm').dataset.gravando) draw(1); };
+    im.src=p.foto; fotos[p.id]=im;
+  }
   const im = fotos[p.id];
   return im.complete && im.naturalWidth ? im : null;
 }
@@ -4491,6 +4571,9 @@ function draw(k){
   if(t==='formacao'){ drawFormacao(T,k); return; }
   if(t==='arbitragem'){ drawArbitragem(k); return; }
   if(t==='varsala'){ drawVarSala(k); return; }
+  if(t==='estresumo'){ drawEstResumo(k); return; }
+  if(t==='estcorrida'){ drawEstCorrida(k); return; }
+  if(t==='estcraques'){ drawEstCraques(k); return; }
   if(t==='marco'){ drawMarco(k); return; }
   if(t==='marcos'){ drawMarcos(k); return; }
   ctx.save();
@@ -5032,6 +5115,297 @@ function marcosSugeridos(){
     {n:presenca.presencas, t:'PRESENÇAS DO '+presenca.apelido.toUpperCase(), s:'O mais fiel da copinha'},
   ];
 }
+/* ── Estatísticas do jogo, para exportar ──────────────────────────────
+   Mesmo recorte que a aba Estatísticas usa: SUMULA.recorte() é o único lugar
+   que sabe cortar por tempo, então a arte e o site nunca discordam.
+
+   Nada aqui pinta a tela inteira: a peça é um painel no meio, e o resto fica
+   transparente. É o que faz o WebM de fundo verde servir pra chroma — se a
+   arte cobrisse tudo, não sobraria verde nenhum pra tirar. */
+
+function estRecorte(){
+  if(!F.estjogo || !F.estjogo.value) return null;
+  return SUMULA.recorte(F.estjogo.value, F.estmom.value, +F.estmin.value);
+}
+
+function estMomentoTxt(r){
+  const m = F.estmom.value;
+  if(m==='1t') return '1º TEMPO';
+  if(m==='2t') return '2º TEMPO';
+  if(m==='ate') return 'ATÉ ' + SUMULA.mmss(r.fim);
+  return 'JOGO COMPLETO';
+}
+
+function estSemDados(){
+  const w=1200, h=260, x=(1920-w)/2, y=(1080-h)/2;
+  sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.94)'; rr(x,y,w,h,18); ctx.fill(); });
+  ctx.fillStyle=P().ac; rr(x,y,w,10,6); ctx.fill();
+  ctx.textAlign='center';
+  txt('SEM SÚMULA', 960, y+120, 54, '#F4F1E6', 'blk', 2);
+  txt('nenhum jogo tem lance minuto a minuto ainda', 960, y+180, 30, '#8A9A8C', null, 1);
+  ctx.textAlign='left';
+}
+
+/* Cabeçalho comum: escudo, nome, placar, escudo.
+   `conta` opcional troca o placar do recorte inteiro pelo placar DAQUELE
+   instante — numa peça animada, mostrar 1×1 enquanto o gráfico ainda está no
+   42' seria entregar o final antes da hora. */
+function estCabecalho(r, x, y, w, k, conta){
+  const c = conta || r.c;
+  const tA = tById[r.A]||{}, tB = tById[r.B]||{};
+  const a = c[r.A]||r.zero(), b = c[r.B]||r.zero();
+  const ap = Math.min(1, k*1.5);
+  ctx.save(); ctx.globalAlpha = ap;
+  escudoCv(tA, x+80, y+56, 74);
+  escudoCv(tB, x+w-80, y+56, 74);
+  ctx.textAlign='left';
+  txt((tA.nome||r.A).toUpperCase(), x+140, y+50, 40, corSegura(tA.c1||'#F2B01E'), 'blk', 1);
+  ctx.textAlign='right';
+  txt((tB.nome||r.B).toUpperCase(), x+w-140, y+50, 40, corSegura(tB.c1||'#FF5A2C'), 'blk', 1);
+  ctx.textAlign='center';
+  txt(a.gols + '  ×  ' + b.gols, x+w/2, y+56, 58, '#F4F1E6', 'blk', 2);
+  txt(estMomentoTxt(r) + '  ·  ' + (r.jogo.mes||'') + ' ' + (r.jogo.temporada||''),
+      x+w/2, y+96, 24, '#8A9A8C', null, 4);
+  ctx.restore(); ctx.textAlign='left';
+}
+
+/* Uma linha do comparativo. As faixas são fixas e não se invadem, da direita
+   para a esquerda: rótulo no centro, número, e só então a barra — se o número
+   ficar colado no rótulo, "BLOQUEADOS 14" vira uma palavra só. */
+const EST_ROTULO = 165;   // meia-largura reservada ao rótulo do meio
+const EST_NUMERO = 92;    // faixa do número, depois do rótulo
+function estLinha(rot, va, vb, ca, cb, x, y, w, k, pct){
+  const meio = x + w/2;
+  const bordaN = EST_ROTULO + EST_NUMERO;      // onde a barra pode começar
+  const maxB = w/2 - bordaN - 50;
+  const tot = va + vb;
+  const fa = tot ? va/tot : 0, fb = tot ? vb/tot : 0;
+  const e = ease(Math.max(0, Math.min(1, k)));
+  const la = Math.max(0, maxB*fa*e), lb = Math.max(0, maxB*fb*e);
+  const forte = va>vb, fraco = vb>va;
+  const mostra = v => pct ? Math.round(v*100*e) + '%' : Math.round(v*e);
+
+  // trilho apagado, para a barra ter contra o que crescer
+  ctx.fillStyle = '#161f18';
+  rr(meio-bordaN-maxB, y-9, maxB, 14, 7); ctx.fill();
+  rr(meio+bordaN, y-9, maxB, 14, 7); ctx.fill();
+
+  ctx.fillStyle = forte ? ca : '#2c3a2e';
+  rr(meio-bordaN-la, y-9, la, 14, 7); ctx.fill();
+  ctx.fillStyle = fraco ? cb : '#2c3a2e';
+  rr(meio+bordaN, y-9, lb, 14, 7); ctx.fill();
+
+  ctx.textAlign='right';
+  txt(mostra(va), meio-EST_ROTULO-14, y+6, 32, forte?ca:'#8A9A8C', 'blk', 0);
+  ctx.textAlign='left';
+  txt(mostra(vb), meio+EST_ROTULO+14, y+6, 32, fraco?cb:'#8A9A8C', 'blk', 0);
+  ctx.textAlign='center';
+  txt(rot.toUpperCase(), meio, y+5, 22, '#8A9A8C', null, 2);
+  ctx.textAlign='left';
+}
+
+function drawEstResumo(k){
+  const r = estRecorte();
+  if(!r) return estSemDados();
+  const w=1400, h=800, x=(1920-w)/2, y=(1080-h)/2;
+  const tA = tById[r.A]||{}, tB = tById[r.B]||{};
+  const ca = corSegura(tA.c1||'#F2B01E'), cb = corSegura(tB.c1||'#FF5A2C');
+  const a = r.c[r.A]||r.zero(), b = r.c[r.B]||r.zero();
+
+  sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.94)'; rr(x,y,w,h,20); ctx.fill(); });
+  ctx.fillStyle=ca; rr(x,y,w/2,10,6); ctx.fill();
+  ctx.fillStyle=cb; rr(x+w/2,y,w/2,10,6); ctx.fill();
+
+  estCabecalho(r, x, y+40, w, k);
+
+  const linhas = [
+    ['Chutes', a.chutes, b.chutes, false],
+    ['No gol', a.noGol, b.noGol, false],
+    ['Para fora', a.fora, b.fora, false],
+    ['Bloqueados', a.bloq, b.bloq, false],
+    ['Precisão', a.precisao, b.precisao, true],
+    ['Defesas', a.defesas, b.defesas, false],
+    ['Escanteios', a.escanteios, b.escanteios, false],
+    ['Faltas', a.faltas, b.faltas, false]
+  ];
+  /* cada linha entra um pouco depois da anterior: a leitura acompanha, em vez
+     de oito barras saltando juntas */
+  linhas.forEach((l,i)=>{
+    const atraso = i*0.06;
+    const kk = Math.max(0, Math.min(1, (k-atraso)/(1-atraso||1)));
+    estLinha(l[0], l[1], l[2], ca, cb, x, y+250+i*64, w, kk, l[3]);
+  });
+}
+
+function drawEstCorrida(k){
+  const r = estRecorte();
+  if(!r) return estSemDados();
+  const w=1560, h=840, x=(1920-w)/2, y=(1080-h)/2;
+  const tA = tById[r.A]||{}, tB = tById[r.B]||{};
+  const ca = corSegura(tA.c1||'#F2B01E'), cb = corSegura(tB.c1||'#FF5A2C');
+
+  sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.94)'; rr(x,y,w,h,20); ctx.fill(); });
+  ctx.fillStyle=ca; rr(x,y,w/2,10,6); ctx.fill();
+  ctx.fillStyle=cb; rr(x+w/2,y,w/2,10,6); ctx.fill();
+  /* Aqui k é TEMPO, não uma cortina: o gráfico se desenha na velocidade do
+     jogo, e é isso que dá vontade de ver — a linha da Ferroviagra descolando
+     depois do intervalo conta a história sozinha. */
+  const gx = x+110, gy = y+250, gw = w-210, gh = h-390;
+  const agora = r.ini + (r.fim-r.ini)*Math.max(0, Math.min(1, k));
+  const px = t => gx + ((t-r.ini)/Math.max(1,(r.fim-r.ini)))*gw;
+
+  const serie = tid => {
+    const pts=[[r.ini,0]]; let n=0;
+    r.d.eventos.forEach(e=>{
+      if(e.tipo!=='chute' || e.time!==tid || e.t<r.ini || e.t>r.fim) return;
+      pts.push([e.t,n]); n++; pts.push([e.t,n]);
+    });
+    pts.push([r.fim,n]);
+    return pts;
+  };
+  const sa=serie(r.A), sb=serie(r.B);
+  const alto = Math.max(1, sa[sa.length-1][1], sb[sb.length-1][1]);
+  const py = v => gy+gh - (v/alto)*gh;
+
+  // o placar do cabeçalho acompanha o relógio do gráfico
+  estCabecalho(r, x, y+34, w, k,
+    SUMULA.contaAte(r.d, r.ini, agora));
+
+  // grade
+  ctx.strokeStyle='#22301F'; ctx.lineWidth=2;
+  for(let i=0;i<=4;i++){
+    const v = alto*i/4, yy = py(v);
+    ctx.beginPath(); ctx.moveTo(gx,yy); ctx.lineTo(gx+gw,yy); ctx.stroke();
+    ctx.textAlign='right';
+    txt(String(Math.round(v)), gx-16, yy+8, 22, '#8A9A8C', null, 0);
+  }
+  ctx.textAlign='center';
+  for(let i=0;i<=4;i++){
+    const t = r.ini + (r.fim-r.ini)*i/4;
+    txt(SUMULA.mmss(t), px(t), gy+gh+42, 22, '#8A9A8C', null, 0);
+  }
+  ctx.textAlign='left';
+
+  if(r.d.inicio2t!=null && r.d.inicio2t>r.ini && r.d.inicio2t<r.fim){
+    ctx.save(); ctx.setLineDash([10,8]); ctx.strokeStyle='#3a4a3c'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(px(r.d.inicio2t), gy-10);
+    ctx.lineTo(px(r.d.inicio2t), gy+gh); ctx.stroke(); ctx.restore();
+    txt('INTERVALO', px(r.d.inicio2t)+12, gy+6, 20, '#8A9A8C', null, 2);
+  }
+
+  // a linha só é desenhada até "agora"
+  const traca = (pts, cor) => {
+    const vis = pts.filter(q=>q[0]<=agora);
+    if(!vis.length) return 0;
+    const ultimo = vis[vis.length-1][1];
+    vis.push([agora, ultimo]);
+    ctx.save(); ctx.strokeStyle=cor; ctx.lineWidth=5;
+    ctx.lineJoin='round'; ctx.lineCap='round';
+    ctx.beginPath();
+    vis.forEach((q,i)=> i ? ctx.lineTo(px(q[0]), py(q[1])) : ctx.moveTo(px(q[0]), py(q[1])));
+    ctx.stroke();
+    // ponta viva
+    ctx.fillStyle=cor; ctx.beginPath();
+    ctx.arc(px(agora), py(ultimo), 9, 0, 7); ctx.fill();
+    ctx.restore();
+    return ultimo;
+  };
+  const na = traca(sa, ca), nb = traca(sb, cb);
+
+  // gols que já aconteceram
+  r.d.eventos.forEach(e=>{
+    if(e.tipo!=='chute' || !e.gol || e.t<r.ini || e.t>agora) return;
+    const pts = (e.time===r.A?sa:sb).filter(q=>q[0]<=e.t);
+    const v = pts.length ? pts[pts.length-1][1] : 0;
+    ctx.save();
+    ctx.fillStyle = corSegura((tById[e.time]||{}).c1 || '#F2B01E');
+    ctx.strokeStyle='#050807'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.arc(px(e.t), py(v), 15, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.restore();
+    ctx.textAlign='center';
+    txt('GOL', px(e.t), py(v)-30, 22, '#F4F1E6', 'blk', 1);
+    ctx.textAlign='left';
+  });
+
+  /* os dois totais moram na mesma ponta e passam o jogo quase empatados;
+     quando as linhas se encostam, os números vão um pra cada lado para não
+     virarem um borrão */
+  ctx.textAlign='left';
+  let ya = py(na)+9, yb = py(nb)+9;
+  if(Math.abs(ya-yb) < 42){
+    const m = (ya+yb)/2;
+    if(na >= nb){ ya = m-21; yb = m+21; } else { ya = m+21; yb = m-21; }
+  }
+  txt(String(na), gx+gw+18, ya, 34, ca, 'blk', 0);
+  txt(String(nb), gx+gw+18, yb, 34, cb, 'blk', 0);
+  ctx.textAlign='center';
+  txt('CHUTES ACUMULADOS  ·  ' + SUMULA.mmss(agora), x+w/2, y+h-40, 24, '#8A9A8C', null, 4);
+  ctx.textAlign='left';
+}
+
+function drawEstCraques(k){
+  const r = estRecorte();
+  if(!r) return estSemDados();
+
+  const por = {};
+  r.evs.forEach(e=>{
+    if(!e.nome && !e.j) return;
+    const c = e.j || ('~'+e.nome);
+    const o = por[c] = por[c] || {nome:e.nome||'', pid:e.j||'', time:e.time,
+                                 chutes:0, noGol:0, gols:0, defesas:0};
+    if(e.time) o.time = e.time;
+    if(e.tipo==='chute'){ o.chutes++; if(e.sub==='defendido'||e.sub==='gol') o.noGol++; if(e.gol) o.gols++; }
+    else if(e.tipo==='defesa') o.defesas++;
+  });
+  /* "apareceu" = finalizou ou defendeu. Falta não entra: a peça é pra
+     mostrar quem construiu o jogo, não quem deu pancada. */
+  const lista = Object.values(por)
+    .map(o=>{ o.peso = o.chutes + o.defesas; return o; })
+    .filter(o=>o.peso>0)
+    .sort((a,b)=>b.gols-a.gols || b.peso-a.peso)
+    .slice(0,6);
+
+  const w=1320, h=840, x=(1920-w)/2, y=(1080-h)/2;
+  sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.94)'; rr(x,y,w,h,20); ctx.fill(); });
+  ctx.fillStyle=P().ac; rr(x,y,w,10,6); ctx.fill();
+
+  ctx.textAlign='center';
+  txt('QUEM MAIS APARECEU', x+w/2, y+90, 46, '#F4F1E6', 'blk', 3);
+  txt(estMomentoTxt(r) + '  ·  ' + (r.jogo.mes||'') + ' ' + (r.jogo.temporada||''),
+      x+w/2, y+130, 24, '#8A9A8C', null, 4);
+  ctx.textAlign='left';
+
+  if(!lista.length){
+    ctx.textAlign='center';
+    txt('ninguém finalizou nesse recorte', x+w/2, y+h/2, 32, '#8A9A8C', null, 1);
+    ctx.textAlign='left'; return;
+  }
+
+  const maior = Math.max.apply(null, lista.map(o=>o.peso));
+  const bx = x+300, bw = w-420;
+  lista.forEach((o,i)=>{
+    const atraso = i*0.09;
+    const kk = ease(Math.max(0, Math.min(1, (k-atraso)/(1-atraso||1))));
+    const yy = y+220 + i*100;
+    const cor = corSegura((tById[o.time]||{}).c1 || '#F2B01E');
+    const p = o.pid ? pById[o.pid] : null;
+
+    ctx.save(); ctx.globalAlpha = kk;
+    if(p) LANCES.discoJogador(ctx, o.pid, '', x+120, yy+6, 40, cor);
+    else { ctx.fillStyle='#1b241c'; ctx.beginPath(); ctx.arc(x+120, yy+6, 40, 0, 7); ctx.fill(); }
+    ctx.restore();
+
+    txt((p ? p.apelido : o.nome).toUpperCase(), x+180, yy-4, 30, '#F4F1E6', 'blk', 1);
+    const detalhe = [o.chutes ? o.chutes+' chutes' : '',
+                     o.defesas ? o.defesas+' defesas' : '',
+                     o.gols ? o.gols+(o.gols>1?' gols':' gol') : ''].filter(Boolean).join('  ·  ');
+    txt(detalhe, x+180, yy+30, 22, o.gols?P().ac:'#8A9A8C', null, 1);
+
+    ctx.fillStyle='#1b241c'; rr(bx, yy+46, bw, 14, 7); ctx.fill();
+    ctx.fillStyle=cor; rr(bx, yy+46, bw*(o.peso/maior)*kk, 14, 7); ctx.fill();
+  });
+}
+
 function drawMarco(k){
   const num=(F.marconum.value||'').trim(), tit=(F.marcotit.value||'').trim();
   const sub=(F.marcosub.value||'').trim();
@@ -5512,9 +5886,20 @@ function curva(prog){
   return ['escalacao','formacao'].includes(F.tipo.value) ? kAtSeq(prog) : kAt(prog);
 }
 
+/* O seletor de jogo do Estúdio nasce vazio no HTML e é preenchido aqui, com
+   os mesmos jogos que a aba Estatísticas oferece — quando entrar súmula nova,
+   os dois ganham a opção junto, sem ninguém editar lista em dois lugares. */
+function preencheJogosDaSumula(){
+  const ids = SUMULA.jogos();
+  if(!F.estjogo || F.estjogo.options.length === ids.length) return;
+  F.estjogo.innerHTML = ids.map(id=>
+    '<option value="' + id + '">' + SUMULA.rotulo(id) + '</option>').join('');
+}
+
 function syncFields(){
   const t = F.tipo.value;
   ARTE_ATUAL = t;
+  preencheJogosDaSumula();
   document.querySelectorAll('[data-for]').forEach(el=>{
     el.style.display = el.dataset.for.split(' ').includes(t) ? '' : 'none';
   });
@@ -5532,9 +5917,17 @@ function syncFields(){
     : 'Escalação — um por linha: <i>POS Apelido</i>';
   $('#l-p2').textContent = t==='falta' ? 'Em quem' : 'Sai';
   if(['escalacao','formacao'].includes(t) && !F.esc.value.trim()) preencherEscalacao();
+  /* Depois do laço de data-for, não antes: aquele laço reescreve o display de
+     todo campo da arte atual, e apagaria esta regra. O minuto só faz sentido
+     quando o momento é "até o minuto". */
+  const campoMin = F.estmin && F.estmin.closest('.field');
+  if(campoMin && campoMin.style.display !== 'none' && F.estmom.value !== 'ate'){
+    campoMin.style.display = 'none';
+  }
   draw(1);
 }
 F.dest.addEventListener('change', ()=>{ destaque = F.dest.value; draw(1); });
+F.estmom.addEventListener('change', syncFields);
 Object.values(F).forEach(el=> el.addEventListener('input', el===F.tipo ? syncFields : ()=>draw(1)));
 /* As artes de Lances fazem a própria entrada e saída dentro de u. Parado,
    elas querem u=null (estado assentado); só durante a animação recebem o u

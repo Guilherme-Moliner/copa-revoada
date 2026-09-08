@@ -90,3 +90,35 @@ times e joga a lista crua de eventos dentro do `index.html`.
 Quem soma é o navegador. É isso que deixa o controle de tempo deslizar sem
 recarregar nada — e "até o minuto X" é uma pergunta que só faz sentido sendo
 interativa.
+
+## Levar os gráficos para o vídeo
+
+O Estúdio tem três artes que saem da mesma súmula, no grupo **Estatísticas do
+jogo**:
+
+| arte | o que é |
+|---|---|
+| Comparativo do jogo | as barras espelhadas, número contra número |
+| Corrida de chutes — animada | o gráfico se desenhando na velocidade do jogo |
+| Quem mais apareceu | os seis que mais finalizaram ou defenderam |
+
+Cada uma tem dois campos próprios: **Jogo** (a mesma lista da aba
+Estatísticas — súmula nova aparece nos dois lugares sozinha) e **Momento**:
+jogo todo, só o 1º tempo, só o 2º, ou **até o minuto** que você digitar.
+
+O corte vem de `SUMULA.recorte()`, o mesmo que a aba usa. Isso é de propósito:
+se cada lado tivesse a própria conta, a arte exportada diria um número e o
+site diria outro.
+
+Na **Corrida de chutes** o tempo da animação É o tempo do jogo, e o placar do
+cabeçalho acompanha. No 42' a peça mostra 0×1, porque o gol do Zaga só sai aos
+63' — mostrar 1×1 desde o começo entregaria o final antes da hora.
+
+Os botões de download são os mesmos das outras artes:
+
+- **PNG** — quadro parado, com fundo transparente.
+- **WebM** — animado, gravado sobre fundo verde para o Chroma Key.
+
+Essas três artes **não usam verde em lugar nenhum**, nem na prévia. Cor de time
+passa por `corSegura()`, então time de camisa verde vira azul de brilho
+equivalente em vez de sumir no chroma.
