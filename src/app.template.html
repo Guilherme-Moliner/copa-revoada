@@ -19,6 +19,81 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;background:var(--ink)}
+
+/* ── Estatísticas do jogo ─────────────────────────────────────────────
+   Leitura de placar de videogame: os dois times de frente um pro outro e
+   o número no meio. A barra cresce do centro pra fora, então dá pra ver
+   quem dominou sem ler nenhum número. */
+.sm-topo{display:flex;align-items:center;justify-content:center;gap:clamp(.6rem,3vw,2.4rem);
+  background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
+  border-radius:16px;padding:1.1rem clamp(.6rem,2vw,1.6rem);margin-bottom:1rem}
+.sm-time{display:flex;align-items:center;gap:.7rem;min-width:0;flex:1}
+.sm-time.dir{flex-direction:row-reverse;text-align:right}
+.sm-time b{font-family:'Archivo Black',sans-serif;font-size:clamp(.9rem,2.4vw,1.5rem);
+  text-transform:uppercase;line-height:1.05;overflow-wrap:anywhere}
+.sm-placar{font-family:'Archivo Black',sans-serif;font-size:clamp(1.8rem,6vw,3.2rem);
+  letter-spacing:.04em;white-space:nowrap;flex:none}
+.sm-placar i{color:var(--dim);font-style:normal;margin:0 .3rem}
+.sm-relogio{display:block;text-align:center;margin-top:.2rem;color:var(--gold);
+  font-family:'Barlow Condensed',sans-serif;font-weight:800;letter-spacing:.18em;font-size:.9rem}
+
+.sm-abas{display:flex;gap:.4rem;flex-wrap:wrap;margin:0 0 1rem}
+.sm-abas button{background:transparent;border:1px solid var(--line);color:var(--dim);
+  font-family:'Barlow Condensed',sans-serif;font-weight:800;letter-spacing:.14em;
+  text-transform:uppercase;font-size:.78rem;padding:.5rem .9rem;border-radius:999px;cursor:pointer}
+.sm-abas button[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);color:#0B0F0D}
+
+.sm-tempo{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:.9rem 1.1rem;margin-bottom:1.1rem}
+.sm-tempo .lin{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}
+.sm-tempo input[type=range]{flex:1;min-width:180px;accent-color:var(--gold)}
+.sm-ate{font-family:'Archivo Black',sans-serif;color:var(--gold);font-size:1.3rem;
+  min-width:4.5ch;text-align:right}
+
+.sm-linha{display:grid;grid-template-columns:3.2ch 1fr minmax(9ch,auto) 1fr 3.2ch;
+  align-items:center;gap:.6rem;padding:.42rem 0}
+.sm-linha .rot{text-align:center;color:var(--dim);font-family:'Barlow Condensed',sans-serif;
+  font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-size:.76rem;white-space:nowrap}
+.sm-linha .n{font-family:'Archivo Black',sans-serif;font-size:1rem}
+.sm-linha .n.e{text-align:right} .sm-linha .n.d{text-align:left}
+.sm-barra{height:9px;border-radius:999px;background:#1b241c;overflow:hidden;display:flex}
+.sm-barra.e{justify-content:flex-end}
+.sm-barra i{display:block;height:100%;border-radius:999px;transition:width .25s ease}
+
+.sm-aneis{display:flex;gap:1rem;flex-wrap:wrap;justify-content:center;margin:.4rem 0 1.2rem}
+.sm-anel{text-align:center;min-width:118px}
+.sm-anel .val{font-family:'Archivo Black',sans-serif;font-size:1.15rem}
+.sm-anel .cap{color:var(--dim);font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  letter-spacing:.12em;text-transform:uppercase;font-size:.68rem;margin-top:.25rem;line-height:1.25}
+
+.sm-graf{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1rem}
+.sm-graf svg{width:100%;height:auto;display:block;overflow:visible}
+.sm-leg{display:flex;gap:1.1rem;flex-wrap:wrap;justify-content:center;margin-top:.7rem;
+  color:var(--dim);font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;font-size:.72rem}
+.sm-leg span{display:flex;align-items:center;gap:.4rem}
+.sm-leg i{width:14px;height:4px;border-radius:2px;display:block}
+
+.sm-tab{width:100%;border-collapse:collapse;font-size:.92rem}
+.sm-tab th{text-align:left;color:var(--dim);font-family:'Barlow Condensed',sans-serif;
+  font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:.7rem;
+  padding:.5rem .4rem;border-bottom:1px solid var(--line)}
+.sm-tab td{padding:.5rem .4rem;border-bottom:1px solid #16201a}
+.sm-tab td.num{text-align:right;font-family:'Archivo Black',sans-serif;font-size:.9rem}
+.sm-tab .quem{display:flex;align-items:center;gap:.55rem}
+.sm-tab .quem img{width:30px;height:30px;border-radius:50%;object-fit:cover;flex:none}
+.sm-tab .pip{width:8px;height:8px;border-radius:50%;flex:none}
+
+.sm-tl{position:relative;padding:.3rem 0 0}
+.sm-tl .ev{display:grid;grid-template-columns:4.5ch 1fr;gap:.7rem;padding:.4rem 0;
+  border-bottom:1px solid #16201a;align-items:baseline}
+.sm-tl .min{font-family:'Archivo Black',sans-serif;color:var(--gold);font-size:.85rem}
+.sm-tl .txt{color:var(--chalk)} .sm-tl .txt small{color:var(--dim);display:block;font-size:.76rem}
+.sm-vazio{color:var(--dim);padding:1.2rem;text-align:center}
+@media(max-width:620px){
+  .sm-linha{grid-template-columns:2.8ch 1fr minmax(7.5ch,auto) 1fr 2.8ch;gap:.35rem}
+  .sm-linha .rot{font-size:.64rem;letter-spacing:.04em}
+}
 body{color:var(--chalk);font-family:'Barlow',system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 h1,h2,h3{font-family:'Archivo Black',sans-serif;font-weight:400;margin:0;line-height:.95;letter-spacing:-.02em}
 .num{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-variant-numeric:tabular-nums;line-height:.9}
@@ -461,6 +536,14 @@ section+section{margin-top:3rem}
       <div class="reg" id="registro"></div>
     </div>
 
+    <div class="screen" id="s-sumula">
+      <p class="eyebrow">Súmula minuto a minuto</p>
+      <h1 style="font-size:clamp(1.8rem,5vw,3rem);text-transform:uppercase;margin:.3rem 0 .3rem">Estatísticas</h1>
+      <p style="color:var(--dim);max-width:70ch;margin:0 0 1.3rem">Cada chute, defesa, escanteio e falta com a
+        hora em que aconteceu. Arraste o controle de tempo para ver como estava o jogo até qualquer minuto.</p>
+      <div id="sumula"></div>
+    </div>
+
     <div class="screen" id="s-trofeus">
       <p class="eyebrow">Galeria</p>
       <h1 style="font-size:clamp(1.8rem,5vw,3rem);text-transform:uppercase;margin:.3rem 0 1.2rem">Troféus</h1>
@@ -739,6 +822,334 @@ function blip(f=560, dur=.05, vol=.05){
 $('#snd').onclick = e => { somOn = !somOn; e.target.textContent = 'Som: ' + (somOn?'ligado':'desligado'); blip(700); };
 
 /* ================= MENU ================= */
+/* ── Estatísticas do jogo ──────────────────────────────────────────────
+   A súmula chega crua do build: uma lista de lances com o segundo em que
+   cada um aconteceu. Todas as contas são feitas aqui, no navegador, porque
+   é isso que deixa o controle de tempo deslizar sem recarregar nada — e
+   porque "até o minuto X" é uma pergunta que só faz sentido interativa.
+
+   As regras de classificação são as mesmas do build, que por sua vez são as
+   do script que gerou o PDF já circulado no grupo. Os totais batem. */
+const SUMULA = (function(){
+  const S = DADOS.sumulas || {};
+  /* ate:null quer dizer "o fim da janela". Sem esse estado separado, trocar
+     de tempo ou de jogo abriria a tela zerada em vez de mostrar o recorte
+     inteiro, que é o que a pessoa espera ver primeiro. */
+  const est = {jogo:'', aba:'resumo', janela:'todo', ate:null};
+
+  const listaJogos = () => Object.keys(S).sort().reverse();
+  const mmss = t => Math.floor(t/60) + "'";
+  const doJogo = id => jogos.find(x=>x.id===id) || {};
+
+  /* A janela é o recorte: jogo inteiro, só o 1º ou só o 2º tempo. O controle
+     deslizante move o FIM dentro dela — é o "até certo minuto". Súmula que não
+     marca intervalo só oferece o jogo inteiro. */
+  function janela(d){
+    const i2 = d.inicio2t;
+    if(est.janela==='1t' && i2!=null) return [0, i2];
+    if(est.janela==='2t' && i2!=null) return [i2, d.fim];
+    return [0, d.fim];
+  }
+
+  const zero = () => ({chutes:0,noGol:0,fora:0,bloq:0,gols:0,defesas:0,
+                       escanteios:0,faltas:0,cagadas:0,precisao:0});
+
+  function conta(evs){
+    const r = {};
+    const pega = t => (r[t] = r[t] || zero());
+    evs.forEach(e=>{
+      if(!e.time) return;
+      const a = pega(e.time);
+      if(e.tipo==='chute'){
+        a.chutes++;
+        if(e.sub==='bloqueado') a.bloq++;
+        if(e.sub==='fora') a.fora++;
+        if(e.sub==='defendido' || e.sub==='gol') a.noGol++;
+        if(e.gol) a.gols++;
+      }
+      else if(e.tipo==='defesa') a.defesas++;
+      else if(e.tipo==='escanteio') a.escanteios++;
+      else if(e.tipo==='falta') a.faltas++;
+      else if(e.tipo==='cagada') a.cagadas++;
+    });
+    Object.values(r).forEach(a=>{
+      /* precisão só sobre chute que chegou a sair: bloqueado morreu na canela
+         de alguém e não diz nada sobre a mira. */
+      const validos = a.chutes - a.bloq;
+      a.precisao = validos ? a.noGol/validos : 0;
+    });
+    return r;
+  }
+
+  const corDe = tid => corSegura((tById[tid]||{}).c1 || '#F2B01E');
+  const nomeDe = tid => (tById[tid]||{}).nome || tid || '—';
+
+  function linha(rot, a, b, ca, cb, fmt){
+    const f = fmt || (v=>v);
+    const tot = (a||0)+(b||0);
+    const pa = tot ? (a/tot)*100 : 0, pb = tot ? (b/tot)*100 : 0;
+    const ea = a>b, eb = b>a;
+    return '<div class="sm-linha">'
+      + '<span class="n e" style="color:' + (ea?ca:'var(--dim)') + '">' + f(a) + '</span>'
+      + '<span class="sm-barra e"><i style="width:' + pa + '%;background:' + (ea?ca:'#2c3a2e') + '"></i></span>'
+      + '<span class="rot">' + rot + '</span>'
+      + '<span class="sm-barra"><i style="width:' + pb + '%;background:' + (eb?cb:'#2c3a2e') + '"></i></span>'
+      + '<span class="n d" style="color:' + (eb?cb:'var(--dim)') + '">' + f(b) + '</span>'
+      + '</div>';
+  }
+
+  function anel(pct, cap, cor){
+    const R = 26, C = 2*Math.PI*R, v = Math.max(0, Math.min(1, pct||0));
+    return '<div class="sm-anel"><svg viewBox="0 0 64 64" style="width:64px;height:64px">'
+      + '<circle cx="32" cy="32" r="' + R + '" fill="none" stroke="#1b241c" stroke-width="7"/>'
+      + '<circle cx="32" cy="32" r="' + R + '" fill="none" stroke="' + cor + '" stroke-width="7"'
+      + ' stroke-linecap="round" stroke-dasharray="' + C + '" stroke-dashoffset="' + (C*(1-v))
+      + '" transform="rotate(-90 32 32)"/>'
+      + '<text x="32" y="37" text-anchor="middle" fill="' + cor + '"'
+      + ' style="font-family:\'Archivo Black\',sans-serif;font-size:15px">' + Math.round(v*100) + '%</text>'
+      + '</svg><div class="cap">' + cap + '</div></div>';
+  }
+
+  /* Corrida de chutes: a linha sobe um degrau a cada finalização. Onde uma
+     dispara e a outra fica deitada, foi pressão. */
+  function grafico(d, A, B, ini, fim){
+    const W = 760, H = 210, mE = 34, mB = 24;
+    const dur = Math.max(1, fim-ini);
+    const serie = tid => {
+      const pts = [[ini,0]]; let n = 0;
+      d.eventos.forEach(e=>{
+        if(e.tipo!=='chute' || e.time!==tid || e.t<ini || e.t>fim) return;
+        pts.push([e.t,n]); n++; pts.push([e.t,n]);
+      });
+      pts.push([fim,n]);
+      return pts;
+    };
+    const sa = serie(A), sb = serie(B);
+    const alto = Math.max(1, sa[sa.length-1][1], sb[sb.length-1][1]);
+    const x = t => mE + ((t-ini)/dur)*(W-mE-8);
+    const y = v => H-mB - (v/alto)*(H-mB-12);
+    const cam = pts => pts.map((q,i)=>(i?'L':'M') + x(q[0]).toFixed(1) + ' ' + y(q[1]).toFixed(1)).join(' ');
+
+    let marcas = '';
+    for(let k=0;k<=4;k++){
+      const t = ini + dur*k/4;
+      marcas += '<text x="' + x(t) + '" y="' + (H-6) + '" text-anchor="middle" fill="#8A9A8C"'
+        + ' style="font-family:\'Barlow Condensed\',sans-serif;font-size:12px">' + mmss(t) + '</text>';
+    }
+    const meio = (d.inicio2t!=null && d.inicio2t>ini && d.inicio2t<fim)
+      ? '<line x1="' + x(d.inicio2t) + '" y1="10" x2="' + x(d.inicio2t) + '" y2="' + (H-mB)
+        + '" stroke="#3a4a3c" stroke-width="1.5" stroke-dasharray="5 5"/>'
+        + '<text x="' + (x(d.inicio2t)+5) + '" y="20" fill="#8A9A8C"'
+        + ' style="font-family:\'Barlow Condensed\',sans-serif;font-size:11px">intervalo</text>'
+      : '';
+    const gols = d.eventos.filter(e=>e.tipo==='chute' && e.gol && e.t>=ini && e.t<=fim).map(e=>{
+      const s2 = (e.time===A?sa:sb).filter(q=>q[0]<=e.t);
+      const v = s2.length ? s2[s2.length-1][1] : 0;
+      return '<circle cx="' + x(e.t) + '" cy="' + y(v) + '" r="5" fill="' + corDe(e.time)
+        + '" stroke="var(--ink)" stroke-width="2"><title>Gol de ' + (e.nome||'')
+        + ' aos ' + mmss(e.t) + '</title></circle>';
+    }).join('');
+
+    return '<div class="sm-graf">'
+      + '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img"'
+      + ' aria-label="Chutes acumulados ao longo do tempo">'
+      + '<line x1="' + mE + '" y1="' + (H-mB) + '" x2="' + (W-8) + '" y2="' + (H-mB) + '" stroke="#22301F"/>'
+      + '<text x="4" y="' + (y(alto)+4) + '" fill="#8A9A8C"'
+      + ' style="font-family:\'Barlow Condensed\',sans-serif;font-size:12px">' + alto + '</text>'
+      + '<text x="4" y="' + (H-mB+4) + '" fill="#8A9A8C"'
+      + ' style="font-family:\'Barlow Condensed\',sans-serif;font-size:12px">0</text>'
+      + meio
+      + '<path d="' + cam(sa) + '" fill="none" stroke="' + corDe(A) + '" stroke-width="2.5"/>'
+      + '<path d="' + cam(sb) + '" fill="none" stroke="' + corDe(B) + '" stroke-width="2.5"/>'
+      + gols + marcas + '</svg>'
+      + '<div class="sm-leg">'
+      + '<span><i style="background:' + corDe(A) + '"></i>' + nomeDe(A) + '</span>'
+      + '<span><i style="background:' + corDe(B) + '"></i>' + nomeDe(B) + '</span>'
+      + '<span>bolinha = gol</span></div></div>';
+  }
+
+  function tabelaJogadores(evs){
+    const por = {};
+    evs.forEach(e=>{
+      if(!e.nome && !e.j) return;
+      const chave = e.j || ('~' + e.nome);
+      const r = por[chave] = por[chave] ||
+        {nome:e.nome||'', pid:e.j||'', time:e.time, chutes:0, noGol:0, gols:0, faltas:0, defesas:0};
+      if(e.time) r.time = e.time;
+      if(e.tipo==='chute'){
+        r.chutes++;
+        if(e.sub==='defendido' || e.sub==='gol') r.noGol++;
+        if(e.gol) r.gols++;
+      }
+      else if(e.tipo==='falta') r.faltas++;
+      else if(e.tipo==='defesa') r.defesas++;
+    });
+    const lista = Object.values(por)
+      .filter(r=>r.chutes || r.faltas || r.defesas)
+      .sort((a,b)=>b.gols-a.gols || b.chutes-a.chutes || b.defesas-a.defesas);
+    if(!lista.length) return '<p class="sm-vazio">Ninguém apareceu nesse recorte de tempo.</p>';
+    return '<table class="sm-tab"><thead><tr><th>Jogador</th>'
+      + '<th style="text-align:right">Chutes</th><th style="text-align:right">No gol</th>'
+      + '<th style="text-align:right">Gols</th><th style="text-align:right">Defesas</th>'
+      + '<th style="text-align:right">Faltas</th></tr></thead><tbody>'
+      + lista.map(r=>{
+          const p = r.pid ? pById[r.pid] : null;
+          const nome = p ? p.apelido : r.nome;
+          const foto = (p && p.foto) ? '<img src="' + p.foto + '" alt="">' : '';
+          const nota = p ? '' : ' <small style="color:var(--dim)">(fora da planilha)</small>';
+          return '<tr><td><span class="quem">'
+            + '<span class="pip" style="background:' + (r.time?corDe(r.time):'#2c3a2e') + '"></span>'
+            + foto + '<span>' + nome + nota + '</span></span></td>'
+            + '<td class="num">' + (r.chutes||'') + '</td>'
+            + '<td class="num">' + (r.noGol||'') + '</td>'
+            + '<td class="num" style="color:' + (r.gols?'var(--gold)':'inherit') + '">' + (r.gols||'') + '</td>'
+            + '<td class="num">' + (r.defesas||'') + '</td>'
+            + '<td class="num">' + (r.faltas||'') + '</td></tr>';
+        }).join('')
+      + '</tbody></table>';
+  }
+
+  const ROTULO = {chute:'chute', defesa:'defesa', escanteio:'escanteio',
+                  falta:'falta', cagada:'cagada'};
+
+  /* Uma linha da súmula pode virar vários eventos: "Chute Enzo + Defesa
+     Arthur" é um chute E uma defesa, e escanteio costuma vir junto. Na linha
+     do tempo isso apareceria como o mesmo texto repetido, o que parece erro.
+     Então agrupo pelo texto original e mostro as etiquetas do que aconteceu. */
+  function linhaDoTempo(evs){
+    const bons = evs.filter(e=>e.tipo!=='marco');
+    if(!bons.length) return '<p class="sm-vazio">Nada marcado nesse recorte.</p>';
+    const grupos = [];
+    const idx = {};
+    bons.forEach(e=>{
+      const k = e.t + '|' + (e.txt||'');
+      if(idx[k] == null){ idx[k] = grupos.length; grupos.push({t:e.t, txt:e.txt||'', tags:[], gol:false, times:[]}); }
+      const g = grupos[idx[k]];
+      const rot = ROTULO[e.tipo];
+      if(rot && g.tags.indexOf(rot)<0) g.tags.push(rot);
+      if(e.gol) g.gol = true;
+      const nome = (tById[e.time]||{}).nome;
+      if(nome && g.times.indexOf(nome)<0) g.times.push(nome);
+    });
+    return '<div class="sm-tl">' + grupos.slice().reverse().map(g=>{
+      const marca = g.gol ? '<b style="color:var(--gold)">⚽ GOL · </b>' : '';
+      return '<div class="ev"><span class="min">' + mmss(g.t) + '</span>'
+        + '<span class="txt">' + (g.txt || g.tags.join(' · '))
+        + '<small>' + marca + g.tags.join(' · ')
+        + (g.times.length ? ' · ' + g.times.join(' / ') : '') + '</small></span></div>';
+    }).join('') + '</div>';
+  }
+
+  function render(){
+    const alvo = document.querySelector('#sumula');
+    if(!alvo) return;
+    const ids = listaJogos();
+    if(!ids.length){
+      alvo.innerHTML = '<p class="sm-vazio">Nenhum jogo tem súmula minuto a minuto ainda. '
+        + 'Para entrar aqui, o jogo precisa de dois arquivos em <b>dados/sumulas/</b>: '
+        + '<b>&lt;jogo&gt;-lances.csv</b> e <b>&lt;jogo&gt;-jogadores.csv</b>.</p>';
+      return;
+    }
+    if(!S[est.jogo]) est.jogo = ids[0];
+    const d = S[est.jogo];
+    const g = doJogo(est.jogo);
+    const A = d.lados.Branco || g.casa, B = d.lados.Preto || g.fora;
+    const lim = janela(d), ini = lim[0], fimJ = lim[1];
+    if(est.ate == null || est.ate < ini || est.ate > fimJ) est.ate = fimJ;
+
+    const evs = d.eventos.filter(e=>e.t>=ini && e.t<=est.ate);
+    const c = conta(evs);
+    const a = c[A] || zero(), b = c[B] || zero();
+    const ca = corDe(A), cb = corDe(B);
+    const tA = tById[A] || {}, tB = tById[B] || {};
+
+    let corpo;
+    if(est.aba==='resumo'){
+      corpo = '<div class="sm-aneis">'
+        + anel(a.precisao, nomeDe(A) + '<br>precisão de chute', ca)
+        + anel(b.precisao, nomeDe(B) + '<br>precisão de chute', cb)
+        + '</div>'
+        + linha('Chutes', a.chutes, b.chutes, ca, cb)
+        + linha('No gol', a.noGol, b.noGol, ca, cb)
+        + linha('Para fora', a.fora, b.fora, ca, cb)
+        + linha('Bloqueados', a.bloq, b.bloq, ca, cb)
+        + linha('Defesas', a.defesas, b.defesas, ca, cb)
+        + linha('Escanteios', a.escanteios, b.escanteios, ca, cb)
+        + linha('Faltas', a.faltas, b.faltas, ca, cb)
+        + linha('Cagadas', a.cagadas, b.cagadas, ca, cb)
+        + '<div style="margin-top:1.2rem">' + grafico(d, A, B, ini, est.ate) + '</div>';
+    } else if(est.aba==='chutes'){
+      corpo = grafico(d, A, B, ini, est.ate)
+        + '<div style="margin-top:1.2rem">'
+        + linha('Chutes', a.chutes, b.chutes, ca, cb)
+        + linha('No gol', a.noGol, b.noGol, ca, cb)
+        + linha('Para fora', a.fora, b.fora, ca, cb)
+        + linha('Bloqueados', a.bloq, b.bloq, ca, cb)
+        + linha('Precisão', a.precisao, b.precisao, ca, cb, v=>Math.round(v*100)+'%')
+        + '</div>';
+    } else if(est.aba==='jogadores'){
+      corpo = tabelaJogadores(evs);
+    } else {
+      corpo = linhaDoTempo(evs);
+    }
+
+    const chip = (v,r) => '<button data-sm-jan="' + v + '" aria-pressed="' + (est.janela===v) + '"'
+      + ((v!=='todo' && d.inicio2t==null) ? ' disabled title="Esta súmula não marca o intervalo"' : '')
+      + '>' + r + '</button>';
+
+    const seletor = ids.length>1
+      ? '<div class="sm-abas" style="margin-bottom:.8rem">' + ids.map(id=>{
+          const j = doJogo(id);
+          return '<button data-sm-jogo="' + id + '" aria-pressed="' + (est.jogo===id) + '">'
+            + (j.mes||id) + ' ' + (j.temporada||'') + '</button>';
+        }).join('') + '</div>'
+      : '';
+
+    alvo.innerHTML = seletor
+      + '<div class="sm-topo">'
+      + '<span class="sm-time">' + escudoHTML(tA,44) + '<b>' + nomeDe(A) + '</b></span>'
+      + '<span style="flex:none;text-align:center">'
+      + '<span class="sm-placar">' + a.gols + '<i>×</i>' + b.gols + '</span>'
+      + '<span class="sm-relogio">até ' + mmss(est.ate) + '</span></span>'
+      + '<span class="sm-time dir">' + escudoHTML(tB,44) + '<b>' + nomeDe(B) + '</b></span>'
+      + '</div>'
+      + '<div class="sm-tempo"><div class="sm-abas" style="margin-bottom:.7rem">'
+      + chip('todo','Jogo todo') + chip('1t','1º tempo') + chip('2t','2º tempo')
+      + '</div><div class="lin">'
+      + '<span class="eyebrow" style="flex:none">Até o minuto</span>'
+      + '<input type="range" id="sm-ate" min="' + ini + '" max="' + fimJ + '" step="15" value="' + est.ate + '"'
+      + ' aria-label="Mostrar o jogo até este minuto">'
+      + '<span class="sm-ate">' + mmss(est.ate) + '</span></div></div>'
+      + '<div class="sm-abas">'
+      + '<button data-sm-aba="resumo" aria-pressed="' + (est.aba==='resumo') + '">Resumo</button>'
+      + '<button data-sm-aba="chutes" aria-pressed="' + (est.aba==='chutes') + '">Chutes</button>'
+      + '<button data-sm-aba="jogadores" aria-pressed="' + (est.aba==='jogadores') + '">Jogadores</button>'
+      + '<button data-sm-aba="tempo" aria-pressed="' + (est.aba==='tempo') + '">Linha do tempo</button>'
+      + '</div>' + corpo;
+  }
+
+  document.addEventListener('input', e=>{
+    if(e.target && e.target.id==='sm-ate'){
+      est.ate = +e.target.value;
+      render();
+      /* o render troca o HTML inteiro, então o controle perderia o foco no
+         meio do arraste — devolver o foco mantém o teclado funcionando */
+      const el = document.querySelector('#sm-ate');
+      if(el) el.focus();
+    }
+  });
+  document.addEventListener('click', e=>{
+    const j = e.target.closest('[data-sm-jogo]');
+    if(j){ est.jogo = j.dataset.smJogo; est.ate = null; render(); return; }
+    const w = e.target.closest('[data-sm-jan]');
+    if(w){ est.janela = w.dataset.smJan; est.ate = null; render(); return; }
+    const t = e.target.closest('[data-sm-aba]');
+    if(t){ est.aba = t.dataset.smAba; render(); }
+  });
+
+  return {render:render, jogos:listaJogos, estado:est};
+})();
+
 const MENU = [
   {id:'jogadores', lbl:'Jogadores', big:()=>jog.length,   unid:'atletas',
    desc:'Todo mundo que já vestiu uma camisa da copa, com jogos, gols, assistências e títulos.',
@@ -761,6 +1172,9 @@ const MENU = [
   {id:'videos', lbl:'Vídeos', big:()=>jogos.length, unid:'jogos no arquivo',
    desc:'A playlist inteira da copa, jogo por jogo, e o Instagram que um dia volta a rodar.',
    tags:['youtube','instagram','melhores momentos']},
+  {id:'sumula', lbl:'Estatísticas', big:()=>SUMULA.jogos().length, unid:'jogos com súmula',
+   desc:'Chute a chute, com controle de tempo: veja o jogo até qualquer minuto, ou só um dos tempos.',
+   tags:['chutes','defesas','precisão','linha do tempo']},
   {id:'registro', lbl:'Registro', big:()=>LANCES.estado.analise.eventos.length, unid:'lances marcados',
    desc:'Marque o jogo enquanto ele acontece: escolhe o lance, clica em quem fez, e pronto. Grava na planilha.',
    tags:['ao vivo','gol','falta','cartão']},
@@ -843,6 +1257,7 @@ function filtraArtes(grupo){
 
 function go(id){
   if(id==='registro' && typeof renderRegistro==='function') renderRegistro();
+  if(id==='sumula') SUMULA.render();
   const grupo = (id==='analise' || id==='estudio') ? id : null;
   if(grupo){ filtraArtes(grupo); id='estudio'; }
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));

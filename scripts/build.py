@@ -123,6 +123,10 @@ IGNORAR_ASSET = {"logo", "logo-azul", "logo-branco", "semperfil", "dede2",
 SEM_PERFIL = "semperfil"
 
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sumula  # noqa: E402  (precisa da pasta scripts no path)
+
+
 def aviso(msg):
     AVISOS.append(msg)
 
@@ -842,7 +846,13 @@ def main():
         "jogadores": jogadores, "times": times, "jogos": jogos,
         "trofeus": trofeus, "escalacoes": escalacoes, "desempenho": desempenho,
         "premiacoes": premiacoes, "clipes": clipes,
+        # Súmulas minuto a minuto, quando existirem: o site recebe os lances
+        # crus e faz as contas no navegador, que é o que deixa o controle de
+        # tempo deslizar sem recarregar.
+        "sumulas": sumula.carrega(jogadores, escalacoes),
     }
+    for t in sumula.AVISOS:
+        aviso(t)
 
     js = "const LOGO='data:image/png;base64,%s';\nconst DADOS=%s;\n" % (
         logo_b64(), json.dumps(dados, ensure_ascii=False, separators=(",", ":")))
