@@ -5034,7 +5034,14 @@ function camisaCv(x,y,w,u){
 const escudosCv = {};
 function escudoImg(t){
   if(!t || !t.escudo) return null;
-  if(!escudosCv[t.id]){ const im=new Image(); im.src=t.escudo; escudosCv[t.id]=im; }
+  if(!escudosCv[t.id]){
+    const im=new Image();
+    /* mesma história da foto: a imagem chega depois do primeiro desenho, e sem
+       este redesenho a peça fica com o escudo genérico até alguém mexer num
+       campo. Fora da gravação, onde cada quadro tem o seu k. */
+    im.onload = () => { if(!$('#dl-webm').dataset.gravando) draw(1); };
+    im.src=t.escudo; escudosCv[t.id]=im;
+  }
   const im=escudosCv[t.id];
   return im.complete && im.naturalWidth ? im : null;
 }
@@ -5186,6 +5193,22 @@ function estSemDados(){
   ctx.textAlign='left';
 }
 
+/* O escudo de verdade, encaixado numa CAIXA e não só numa largura.
+   crestCv usa o PNG do time (e só cai no escudo genérico de duas cores quando
+   não existe arquivo) — era o que faltava: escudoCv sozinho desenhava sempre o
+   genérico, e o Dentro FC e a Ferroviagra saíam como escudo liso com a sigla.
+   A caixa importa porque os arquivos têm proporções bem diferentes: o do
+   Dentro FC é alto, o da Ferroviagra é largo. Escalando só pela largura, um
+   sairia bem maior que o outro no mesmo cabeçalho. */
+function estEscudo(t, cx, cy, caixa){
+  const im = (typeof escudoImg==='function') ? escudoImg(t) : null;
+  if(!im) return crestCv(t, cx, cy, caixa);
+  const larg = im.naturalWidth >= im.naturalHeight
+    ? caixa
+    : caixa * (im.naturalWidth/im.naturalHeight);
+  crestCv(t, cx, cy, larg);
+}
+
 /* Cabeçalho comum: escudo, nome, placar, escudo.
    `conta` opcional troca o placar do recorte inteiro pelo placar DAQUELE
    instante — numa peça animada, mostrar 1×1 enquanto o gráfico ainda está no
@@ -5196,8 +5219,8 @@ function estCabecalho(r, x, y, w, k, conta){
   const a = c[r.A]||r.zero(), b = c[r.B]||r.zero();
   const ap = Math.min(1, k*1.5);
   ctx.save(); ctx.globalAlpha = ap;
-  escudoCv(tA, x+80, y+56, 74);
-  escudoCv(tB, x+w-80, y+56, 74);
+  estEscudo(tA, x+80, y+56, 76);
+  estEscudo(tB, x+w-80, y+56, 76);
   ctx.textAlign='left';
   txt((tA.nome||r.A).toUpperCase(), x+140, y+50, 40, corSegura(tA.c1||'#F2B01E'), 'blk', 1);
   ctx.textAlign='right';
