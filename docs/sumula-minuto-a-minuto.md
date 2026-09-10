@@ -131,7 +131,29 @@ a ficha dele mostra "0 defesas" em vez de virar ficha de jogador de linha.
 Os botões de download são os mesmos das outras artes:
 
 - **PNG** — quadro parado, com fundo transparente.
-- **WebM** — animado, gravado sobre fundo verde para o Chroma Key.
+- **MP4** — animado, H.264 sobre fundo verde. **É o formato para o DaVinci.**
+- **WebM** — animado, VP9 sobre fundo verde.
+- **Sequência PNG (.zip)** — um arquivo por quadro, sem compressão.
+
+## Por que MP4 e não WebM
+
+O Resolve no Windows não traz decodificador de VP9, que é o que o navegador
+usa no WebM. O arquivo fica íntegro no disco e mesmo assim a renderização
+falha com "could not be decoded correctly".
+
+A gravação conta os quadros antes de entregar o arquivo: são `duração x fps`,
+e cada quadro é pedido explicitamente ao codificador com `requestFrame()`. Se
+algum não entrar, o download é recusado com a contagem no lugar de sair um
+arquivo pela metade.
+
+**Mantenha a janela do navegador em primeiro plano durante a gravação.** Em
+segundo plano o Chrome limita os temporizadores a cerca de um disparo por
+segundo; o arquivo sai completo, mas mais longo do que deveria — e o app avisa,
+com o fps real medido. Nesse caso dá para interpretar o clipe no fps certo
+dentro do Resolve, ou regravar com a janela à frente.
+
+Para quadro exato garantido, sem depender de nada disso, a **sequência PNG** é
+o caminho: um arquivo por quadro, sem compressão temporal.
 
 Essas três artes **não usam verde em lugar nenhum**, nem na prévia. Cor de time
 passa por `corSegura()`, então time de camisa verde vira azul de brilho

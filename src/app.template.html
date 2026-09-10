@@ -706,6 +706,12 @@ Assistente de VAR · Ciclano</textarea></div>
           <div class="field"><label for="f-fps">Quadros por segundo da sequência</label>
             <select id="f-fps"><option value="60">60 fps — igual ao seu vídeo</option>
               <option value="30">30 fps — metade dos arquivos</option></select></div>
+          <div class="field"><label for="f-bitrate">Qualidade do vídeo</label>
+            <select id="f-bitrate">
+              <option value="24">Alta — 24 Mb/s (recomendado para editar)</option>
+              <option value="40">Máxima — 40 Mb/s (arquivo grande)</option>
+              <option value="12">Média — 12 Mb/s (arquivo leve)</option>
+            </select></div>
           <div class="field"><label for="f-escala">Tamanho da sequência</label>
             <select id="f-escala"><option value="1">100% — tamanho original</option>
               <option value="0.75">75% — bem mais leve</option>
@@ -4456,6 +4462,7 @@ document.addEventListener('click', async e=>{
 const cv = $('#cv'), ctx = cv.getContext('2d');
 const F = {tipo:$('#f-tipo'),p1:$('#f-p1'),p2:$('#f-p2'),min:$('#f-min'),time:$('#f-time'),
            estjogo:$('#f-estjogo'),estmom:$('#f-estmom'),estmin:$('#f-estmin'),
+           bitrate:$('#f-bitrate'),
            time2:$('#f-time2'),ga:$('#f-ga'),gb:$('#f-gb'),vard:$('#f-vard'),
            pa:$('#f-pa'),pb:$('#f-pb'),hist:$('#f-hist'),txt:$('#f-txt'),
            hyper:$('#f-hyper'),dist:$('#f-dist'),xg:$('#f-xg'),
@@ -6252,10 +6259,57 @@ const FORMATOS = {
   webm: ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']
 };
 
+/* Conta as amostras que REALMENTE entraram no MP4, somando os trun de cada
+   fragmento. O MediaRecorder entrega MP4 fragmentado (moof + mdat), então não
+   adianta procurar stts: ele vem vazio.
+
+   Isso existe porque tamanho de arquivo não prova nada. Uma gravação de três
+   segundos que capturou três quadros pesa 58 KB e passa por qualquer teste de
+   "não está vazio" — e só quebra no editor. */
+function contaAmostrasMp4(buf){
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  let n = 0;
+  (function varre(o, fim){
+    while(o < fim-8){
+      const tam = dv.getUint32(o);
+      const tipo = String.fromCharCode(buf[o+4],buf[o+5],buf[o+6],buf[o+7]);
+      if(tam < 8) return;
+      if(tipo==='moof' || tipo==='traf') varre(o+8, o+tam);
+      else if(tipo==='trun') n += dv.getUint32(o+12);
+      o += tam;
+    }
+  })(0, buf.length);
+  return n;
+}
+
+/* Espaçamento FIXO entre quadros, sem tentar recuperar atraso.
+   A versão anterior mirava um instante no relógio e, se estivesse atrasada,
+   emendava os quadros seguintes sem pausa nenhuma. Parece razoável e é
+   justamente o que quebra: o codificador tem uma fila, e quadro pedido mais
+   rápido do que ele consome é descartado calado. Num teste de 90 quadros
+   entraram 5.
+   O atraso vem do próprio navegador — aba em segundo plano tem o setTimeout
+   limitado a cerca de um disparo por segundo. Emendando, perdem-se quadros;
+   esperando o mesmo tanto sempre, o vídeo pode sair mais lento, mas sai
+   inteiro. Vídeo lento se conforma no editor; quadro que não existe, não. */
+function espera(ms){
+  return new Promise(res=>setTimeout(res, ms));
+}
+
 async function gravaVideo(formato){
   const botao = $(formato==='mp4' ? '#dl-mp4' : '#dl-webm');
   if(botao.dataset.gravando) return;
-  const dur=(+F.dur.value||3)*1000;
+
+  /* Quantos quadros existem é decidido AQUI, não pelo relógio. Antes o laço
+     perguntava as horas para saber em que ponto da animação estava, e o
+     arquivo ficava com os quadros que desse tempo de capturar — três, num
+     caso real de três segundos. Agora a contagem é duração x fps, e cada
+     quadro é desenhado no seu instante exato da animação. */
+  const fps = +F.fps.value || 30;
+  const segundos = +F.dur.value || 3;
+  const total = Math.max(2, Math.round(segundos*fps));
+  const passo = 1000/fps;
+
   /* o vídeo sai sempre em fundo verde, então a arte tem que sair sem verde
      nenhum — senão o Chroma Key come pedaço do desenho junto com o fundo */
   const antes = semVerde;
@@ -6271,8 +6325,17 @@ async function gravaVideo(formato){
   botao.dataset.gravando='1'; semVerde = true; animandoLance = true;
   const off=document.createElement('canvas'); off.width=1920; off.height=1080;
   const octx=off.getContext('2d');
-  const stream=off.captureStream(30);
-  const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:12e6}), parts=[];
+
+  /* captureStream(0) não captura sozinho: só entra no vídeo o quadro que a
+     gente pedir com requestFrame(). Com captureStream(30) quem decide é o
+     compositor da página, e janela minimizada ou aba em segundo plano deixa
+     de pintar — o arquivo sai com um punhado de quadros e ninguém percebe até
+     abrir no editor. */
+  const stream = off.captureStream(0);
+  const trilha = stream.getVideoTracks()[0];
+  const manual = !!(trilha && trilha.requestFrame);
+  const rec=new MediaRecorder(stream,{mimeType:mime,
+    videoBitsPerSecond: (+F.bitrate.value || 24) * 1e6}), parts=[];
   rec.ondataavailable=e=>e.data.size&&parts.push(e.data);
   const parou = new Promise(res=>{ rec.onstop=res; });
 
@@ -6280,38 +6343,56 @@ async function gravaVideo(formato){
     draw(curva(prog));
     octx.fillStyle='#00B140'; octx.fillRect(0,0,1920,1080);
     octx.drawImage(cv,0,0);
+    if(manual) trilha.requestFrame();
   };
 
   try{
-    desenhaQuadro(0);
     rec.start();
     const t0=performance.now();
-    let prog=0;
-    while(prog<1){
-      prog = Math.min(1,(performance.now()-t0)/dur);
-      desenhaQuadro(prog);
-      if(prog<1) $('#prog').textContent = 'gravando… '+Math.round(prog*100)+'%';
-      await proximoQuadro();
+    for(let i=0;i<total;i++){
+      desenhaQuadro(i/(total-1));
+      if(i % 5 === 0){
+        $('#prog').textContent = 'gravando… quadro '+(i+1)+' de '+total;
+      }
+      await espera(passo);
     }
-    await new Promise(r=>setTimeout(r,180));   // deixa o último quadro entrar
+    await new Promise(r=>setTimeout(r,220));   // deixa o último quadro entrar
     rec.stop();
     await parou;
+
     const ext = formato==='mp4' ? 'mp4' : 'webm';
     const blob = new Blob(parts,{type:mime.split(';')[0]});
-    /* Um arquivo com só o cabeçalho e nenhum quadro tem pouco mais de 100
-       bytes, e é aceito sem reclamar aqui — só estoura lá na frente, no
-       editor, como "could not be decoded". Já aconteceu: sobrou um
-       revoada-gol.webm de 110 bytes. Melhor falhar agora e em voz alta. */
-    if(blob.size < 20000){
-      throw new Error('a gravação saiu com '+blob.size+' bytes, ou seja, sem quadro '
-                      + 'nenhum — deixe esta aba visível enquanto grava');
+    if(!blob.size) throw new Error('a gravação saiu vazia');
+
+    let recado = '';
+    if(formato==='mp4'){
+      const buf = new Uint8Array(await blob.arrayBuffer());
+      const gravados = contaAmostrasMp4(buf);
+      if(gravados < total){
+        /* Não entrego arquivo incompleto fingindo que deu certo. Ou o quadro
+           está lá, ou a pessoa fica sabendo antes de levar pro DaVinci. */
+        throw new Error('só '+gravados+' dos '+total+' quadros entraram no arquivo'
+          + (manual ? '' : ' (este navegador não tem requestFrame)')
+          + ' — mantenha a janela do navegador visível durante a gravação');
+      }
+      recado = gravados+' de '+total+' quadros · H.264, abre direto no DaVinci';
+      /* Se o navegador estrangulou os temporizadores, o arquivo sai inteiro
+         mas mais longo do que devia. Melhor dizer o número do que deixar a
+         pessoa descobrir na timeline. */
+      const fpsReal = total/((performance.now()-t0)/1000);
+      if(fpsReal < fps*0.75){
+        recado += ' · ATENÇÃO: gravado a '+fpsReal.toFixed(1)+' fps reais, então o '
+                + 'clipe saiu mais lento; deixe a janela em primeiro plano, ou '
+                + 'interprete como '+fps+' fps no editor';
+      }
+    } else {
+      recado = total+' quadros pedidos · VP9';
     }
     baixar(blob, `revoada-${F.tipo.value}.${ext}`);
     $('#prog').textContent = `${ext} pronto · ${(blob.size/1048576).toFixed(1)} MB · `
-      + (formato==='mp4' ? 'H.264, abre direto no DaVinci' : 'VP9')
-      + ' · sem nenhum verde na arte';
+      + `${fps} fps · ${recado} · sem nenhum verde na arte`;
   }catch(e){
-    $('#prog').textContent = 'não deu para gravar: '+e.message+' — a sequência PNG é o caminho seguro';
+    $('#prog').textContent = 'não deu para gravar: '+e.message;
   }finally{
     try{ stream.getTracks().forEach(t=>t.stop()); }catch(_){}
     semVerde=antes; animandoLance=false;
