@@ -716,6 +716,7 @@ Assistente de VAR · Ciclano</textarea></div>
           <div class="stage-bar">
             <button class="btn primary" id="dl-png">PNG</button>
             <button class="btn" id="dl-seq">Sequência PNG (.zip)</button>
+            <button class="btn" id="dl-mp4">MP4 verde</button>
             <button class="btn" id="dl-webm">WebM verde</button>
             <button class="btn ghost" id="play">Prever animação</button>
             <button class="btn ghost" id="toggle-chroma">Fundo verde</button>
@@ -6240,16 +6241,32 @@ function proximoQuadro(limite){
   });
 }
 
-$('#dl-webm').onclick = async ()=>{
-  const botao = $('#dl-webm');
+/* H.264 dentro de MP4 primeiro, porque é o que editor de vídeo abre sem
+   pensar. O WebM do navegador sai em VP9, e o DaVinci Resolve no Windows não
+   traz decodificador de VP9 — daí o "could not be decoded correctly" na hora
+   de renderizar, mesmo com o arquivo íntegro no disco.
+   High profile antes de Baseline: mesma compatibilidade no Resolve, arquivo
+   menor para a mesma qualidade. */
+const FORMATOS = {
+  mp4:  ['video/mp4;codecs=avc1.640028','video/mp4;codecs=avc1.42E01E','video/mp4'],
+  webm: ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']
+};
+
+async function gravaVideo(formato){
+  const botao = $(formato==='mp4' ? '#dl-mp4' : '#dl-webm');
   if(botao.dataset.gravando) return;
   const dur=(+F.dur.value||3)*1000;
-  /* o WebM sai sempre em fundo verde, então a arte tem que sair sem verde
+  /* o vídeo sai sempre em fundo verde, então a arte tem que sair sem verde
      nenhum — senão o Chroma Key come pedaço do desenho junto com o fundo */
   const antes = semVerde;
-  const mime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']
+  const mime = (formato==='mp4' ? FORMATOS.mp4 : FORMATOS.webm)
     .find(m=>MediaRecorder.isTypeSupported(m));
-  if(!mime){ $('#prog').textContent='este navegador não grava webm; use a sequência PNG'; return; }
+  if(!mime){
+    $('#prog').textContent = formato==='mp4'
+      ? 'este navegador não grava mp4; use o WebM ou a sequência PNG'
+      : 'este navegador não grava webm; use a sequência PNG';
+    return;
+  }
 
   botao.dataset.gravando='1'; semVerde = true; animandoLance = true;
   const off=document.createElement('canvas'); off.width=1920; off.height=1080;
@@ -6279,19 +6296,32 @@ $('#dl-webm').onclick = async ()=>{
     await new Promise(r=>setTimeout(r,180));   // deixa o último quadro entrar
     rec.stop();
     await parou;
-    const blob = new Blob(parts,{type:'video/webm'});
-    if(!blob.size) throw new Error('a gravação saiu vazia');
-    baixar(blob, `revoada-${F.tipo.value}.webm`);
-    $('#prog').textContent = `webm pronto · ${(blob.size/1048576).toFixed(1)} MB · sem nenhum verde na arte`;
+    const ext = formato==='mp4' ? 'mp4' : 'webm';
+    const blob = new Blob(parts,{type:mime.split(';')[0]});
+    /* Um arquivo com só o cabeçalho e nenhum quadro tem pouco mais de 100
+       bytes, e é aceito sem reclamar aqui — só estoura lá na frente, no
+       editor, como "could not be decoded". Já aconteceu: sobrou um
+       revoada-gol.webm de 110 bytes. Melhor falhar agora e em voz alta. */
+    if(blob.size < 20000){
+      throw new Error('a gravação saiu com '+blob.size+' bytes, ou seja, sem quadro '
+                      + 'nenhum — deixe esta aba visível enquanto grava');
+    }
+    baixar(blob, `revoada-${F.tipo.value}.${ext}`);
+    $('#prog').textContent = `${ext} pronto · ${(blob.size/1048576).toFixed(1)} MB · `
+      + (formato==='mp4' ? 'H.264, abre direto no DaVinci' : 'VP9')
+      + ' · sem nenhum verde na arte';
   }catch(e){
-    $('#prog').textContent = 'não deu para gravar o webm: '+e.message+' — a sequência PNG é o caminho seguro';
+    $('#prog').textContent = 'não deu para gravar: '+e.message+' — a sequência PNG é o caminho seguro';
   }finally{
     try{ stream.getTracks().forEach(t=>t.stop()); }catch(_){}
     semVerde=antes; animandoLance=false;
     delete botao.dataset.gravando;
     draw(1);
   }
-};
+}
+
+$('#dl-mp4').onclick  = ()=>gravaVideo('mp4');
+$('#dl-webm').onclick = ()=>gravaVideo('webm');
 
 /* ================= boot ================= */
 (document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve())
