@@ -108,6 +108,27 @@ jogo**:
 | Corrida de chutes — animada | o gráfico se desenhando na velocidade do jogo |
 | Quem mais apareceu | os seis que mais finalizaram ou defenderam |
 | Desempenho de um jogador | a ficha de uma pessoa só, com o que ela fez no jogo |
+| Elenco do time | todos os números de todo o elenco, ninguém de fora |
+
+E três peças de encerramento, no grupo **Fim de vídeo**, que não dependem de
+súmula para existir:
+
+| arte | o que é |
+|---|---|
+| Premiação | um troféu e quem levou |
+| Campeão | escudo grande e o elenco inteiro |
+| Próxima partida | chamada de tela cheia, sem data |
+
+No **Elenco do time**, quem não finalizou aparece igual, com a linha zerada.
+Jogador ausente da peça parece esquecimento; zero é informação. O goleiro
+encabeça a lista e recebe defesas em vez de chutes.
+
+A **Premiação** usa o mesmo desenho de troféu da tela de Troféus, virado em
+imagem — assim a peça de vídeo nunca diverge do site.
+
+A **Próxima partida** é a única arte que pinta a tela toda, de propósito: não é
+sobreposição e sim um trecho do vídeo. Exportada em MP4 vira um clipe comum, e
+não há chroma a fazer.
 
 Cada uma tem dois campos próprios: **Jogo** (a mesma lista da aba
 Estatísticas — súmula nova aparece nos dois lugares sozinha) e **Momento**:

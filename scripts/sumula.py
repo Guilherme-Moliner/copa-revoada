@@ -262,6 +262,15 @@ def carrega(jogadores, escalacoes):
             "lados": {lado: tid for lado, tid in lados},
             "goleiros": {lado_time.get(lado, lado): (elenco.get(nome) or {}).get("pid", "")
                          for lado, nome in goleiro.items()},
+            # O elenco inteiro, e não só quem apareceu num lance: a arte do
+            # time precisa mostrar todo mundo que entrou em campo, inclusive
+            # quem passou o jogo sem finalizar. Zero é informação também.
+            "elenco": [
+                {"pid": i["pid"], "nome": nome,
+                 "time": lado_time.get(i["lado"], ""),
+                 "gk": sem_acento(i["posicao"]).startswith("gol")}
+                for nome, i in elenco.items()
+            ],
             "eventos": eventos,
         }
     return fora
