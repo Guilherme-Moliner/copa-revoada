@@ -40,6 +40,16 @@ individual.
 A coluna `posicao` só precisa distinguir **Goleiro** de **Linha**: é ela que
 diz quem leva o crédito das defesas.
 
+A coluna `time_id` é opcional e **manda quando existe**: é o id do time na
+planilha. Sem ela, o build deduz o time de cada lado contando quantos
+jogadores daquele lado aparecem em cada time na aba ESCALACOES, e avisa que
+deduziu.
+
+Vale preencher. A dedução serve para adivinhar uma vez, mas é péssima como
+fonte permanente: depende de uma aba que muda por outros motivos, e uma edição
+na escalação pode inverter os dois times de um jogo inteiro sem ninguém
+encostar na súmula.
+
 ### `<jogo>-lances.csv`
 
 Um lance por linha.

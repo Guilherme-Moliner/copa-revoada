@@ -644,8 +644,6 @@ section+section{margin-top:3rem}
             <select id="f-estlado"></select></div>
           <div class="field" data-for="premiacao"><label for="f-trofeu">Troféu</label>
             <select id="f-trofeu"></select></div>
-          <div class="field" data-for="premiacao"><label for="f-premsub">Linha de baixo</label>
-            <input id="f-premsub" value="Copa Revoada 2026"></div>
           <div class="field" data-for="proxima"><label for="f-proxtit">Chamada</label>
             <input id="f-proxtit" value="TEM MAIS COPA VINDO"></div>
           <div class="field" data-for="proxima"><label for="f-proxsub">Linha de baixo</label>
@@ -653,7 +651,7 @@ section+section{margin-top:3rem}
           <div class="field" data-for="estresumo estcorrida estcraques estjogador estelenco"><label for="f-estmin">Até o minuto</label>
             <input id="f-estmin" type="number" min="0" max="200" step="1" value="45"></div>
           <div class="field" data-for="gol golaco cartao falta var penalti fim"><label for="f-min">Minuto</label><input id="f-min" value="27'"></div>
-          <div class="field" data-for="gol golaco cartao sub replay escalacao falta var penalti placar fim artilheiro batedor historico penaltis intervalo formacao premiacao"><label for="f-time">Time</label><select id="f-time"></select></div>
+          <div class="field" data-for="gol golaco cartao sub replay escalacao falta var penalti placar fim artilheiro batedor historico penaltis intervalo formacao"><label for="f-time">Time</label><select id="f-time"></select></div>
           <div class="field" data-for="escalacao formacao"><label for="f-unif">Uniforme do dia</label>
             <select id="f-unif"><option value="branco">Branco</option><option value="preto">Preto</option></select></div>
           <div class="field" data-for="escalacao"><label for="f-layout">Formato</label>
@@ -4479,7 +4477,7 @@ const cv = $('#cv'), ctx = cv.getContext('2d');
 const F = {tipo:$('#f-tipo'),p1:$('#f-p1'),p2:$('#f-p2'),min:$('#f-min'),time:$('#f-time'),
            estjogo:$('#f-estjogo'),estmom:$('#f-estmom'),estmin:$('#f-estmin'),
            bitrate:$('#f-bitrate'),
-           estlado:$('#f-estlado'),trofeu:$('#f-trofeu'),premsub:$('#f-premsub'),
+           estlado:$('#f-estlado'),trofeu:$('#f-trofeu'),
            proxtit:$('#f-proxtit'),proxsub:$('#f-proxsub'),
            time2:$('#f-time2'),ga:$('#f-ga'),gb:$('#f-gb'),vard:$('#f-vard'),
            pa:$('#f-pa'),pb:$('#f-pb'),hist:$('#f-hist'),txt:$('#f-txt'),
@@ -5565,22 +5563,24 @@ function drawEstElenco(k){
      respiro, é buraco. */
   const colunas = linhas.length > 5 ? 2 : 1;
   const porColuna = Math.max(1, Math.ceil(linhas.length/colunas));
-  const alturaLin = 118;
-  const w=1680, h=Math.min(1000, 200 + porColuna*alturaLin + 46);
+  /* linha mais alta para o rosto crescer junto: o card existe para dar
+     destaque a cada jogador, e rosto pequeno não dá destaque a ninguém */
+  const alturaLin = Math.min(158, Math.floor((940 - 210) / porColuna));
+  const w=1760, h=Math.min(1020, 210 + porColuna*alturaLin + 40);
   const x=(1920-w)/2, y=(1080-h)/2;
   sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.95)'; rr(x,y,w,h,22); ctx.fill(); });
   ctx.fillStyle=cor; rr(x,y,w,10,6); ctx.fill();
 
-  estEscudo(T, x+96, y+92, 96);
-  txt((T.nome||tid).toUpperCase(), x+176, y+88, 54, cor, 'blk', 1);
+  estEscudo(T, x+100, y+96, 112);
+  txt((T.nome||tid).toUpperCase(), x+188, y+90, 62, cor, 'blk', 1);
   txt(estMomentoTxt(r) + '   ·   ' + (r.jogo.mes||'') + ' ' + (r.jogo.temporada||''),
-      x+178, y+130, 24, '#8A9A8C', 'cond', 5);
+      x+190, y+134, 26, '#8A9A8C', 'cond', 5);
 
   const c = r.c[tid] || r.zero();
   ctx.textAlign='right';
-  txt(c.gols + (c.gols===1?' GOL':' GOLS'), x+w-56, y+80, 46, '#F4F1E6', 'blk', 1);
+  txt(c.gols + (c.gols===1?' GOL':' GOLS'), x+w-60, y+84, 54, '#F4F1E6', 'blk', 1);
   txt(c.chutes+' chutes  ·  '+c.noGol+' no gol  ·  '+c.escanteios+' escanteios',
-      x+w-56, y+122, 24, '#8A9A8C', 'cond', 3);
+      x+w-60, y+128, 26, '#8A9A8C', 'cond', 3);
   ctx.textAlign='left';
 
   if(!linhas.length){
@@ -5595,24 +5595,25 @@ function drawEstElenco(k){
 
   linhas.forEach((l,i)=>{
     const col = Math.floor(i/porColuna), lin = i % porColuna;
-    const bx = x+70 + col*larguraCol, by = y+200 + lin*alturaLin;
+    const bx = x+70 + col*larguraCol, by = y+210 + lin*alturaLin;
     const atraso = i*0.05;
     const kk = ease(Math.max(0, Math.min(1, (k-atraso)/(1-atraso||1))));
 
     ctx.save(); ctx.globalAlpha = kk;
-    ctx.fillStyle='rgba(255,255,255,.04)';
-    rr(bx, by-6, larguraCol-40, alturaLin-14, 12); ctx.fill();
-    ctx.fillStyle=cor; rr(bx, by-6, 5, alturaLin-14, 3); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.05)';
+    rr(bx, by-6, larguraCol-40, alturaLin-16, 14); ctx.fill();
+    ctx.fillStyle=cor; rr(bx, by-6, 6, alturaLin-16, 3); ctx.fill();
 
     const p = l.pid ? pById[l.pid] : null;
-    const rr0 = Math.min(38, (alturaLin-26)/2);
-    if(p) LANCES.discoJogador(ctx, l.pid, '', bx+34+rr0, by+(alturaLin-14)/2-6, rr0, cor);
+    const rr0 = Math.min(54, (alturaLin-30)/2);
+    const cy = by+(alturaLin-14)/2-6;
+    if(p) LANCES.discoJogador(ctx, l.pid, '', bx+30+rr0, cy, rr0, cor);
     else { ctx.fillStyle='#1b241c'; ctx.beginPath();
-           ctx.arc(bx+34+rr0, by+(alturaLin-14)/2-6, rr0, 0, 7); ctx.fill(); }
+           ctx.arc(bx+30+rr0, cy, rr0, 0, 7); ctx.fill(); }
 
-    const nx = bx+48+rr0*2;
+    const nx = bx+46+rr0*2;
     const nome = (p ? p.apelido : l.nome).toUpperCase();
-    txt(nome, nx, by+(alturaLin-14)/2-14, fonteQueCabe(nome, 30, larguraCol-nx+bx-60, 'blk'),
+    txt(nome, nx, cy-6, fonteQueCabe(nome, 40, larguraCol-nx+bx-60, 'blk'),
         '#F4F1E6', 'blk', 1);
 
     const d = l.d;
@@ -5625,9 +5626,9 @@ function drawEstElenco(k){
          d.noGol + ' no gol',
          d.faltas ? d.faltas+(d.faltas===1?' falta':' faltas') : ''];
     const texto = pedacos.filter(Boolean).join('   ·   ') || 'sem lance registrado';
-    txt(texto, nx, by+(alturaLin-14)/2+18, 22,
+    txt(texto, nx, cy+30, 27,
         (l.gk ? d.defesas : d.gols) ? cor : '#8A9A8C', 'cond', 1);
-    if(l.gk) txt('GOL', bx+16, by+22, 16, '#8A9A8C', 'cond', 2);
+    if(l.gk) txt('GOLEIRO', bx+18, by+26, 18, '#8A9A8C', 'cond', 3);
     ctx.restore();
   });
 }
@@ -5637,51 +5638,53 @@ function drawPremiacao(k){
   const p = pById[F.p1.value];
   const tro = troById[F.trofeu.value] || DADOS.trofeus[0] || {};
   if(!p || !tro.id) return estSemDados();
-  const T = timeAtual();
   const cor = P().ac;
 
-  const w=1500, h=560, x=(1920-w)/2, y=(1080-h)/2;
-  const pop = Math.min(1, k*1.8);
+  /* Quatro coisas e nada mais: o troféu, o nome dele, o rosto e o nome de
+     quem levou. Time, ano e comentário só competiam com o que importa numa
+     peça que fica dois segundos na tela. */
+  const w=1500, h=760, x=(1920-w)/2, y=(1080-h)/2;
   sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.96)'; rr(x,y,w,h,20); ctx.fill(); });
   ctx.fillStyle=cor; rr(x,y,w,10,6); ctx.fill();
 
-  ctx.save(); ctx.globalAlpha = pop;
+  const pop = Math.min(1, k*1.8);
   ctx.textAlign='center';
-  txt('PREMIAÇÃO', 960, y+78, 26, '#8A9A8C', 'cond', 10);
-  ctx.textAlign='left'; ctx.restore();
+  ctx.save(); ctx.globalAlpha=pop;
+  txt('PREMIAÇÃO', 960, y+80, 26, '#8A9A8C', 'cond', 10);
+  ctx.restore();
 
-  /* o troféu entra crescendo e o resto vem depois: é a peça de encerramento,
-     então vale dar um tempo de respiro antes do nome */
   const kt = ease(Math.min(1, k*1.5));
-  const im = trofeuImg(tro.id, 380);
-  const tx = x+250, ty = y+h/2+26;
+  ctx.save(); ctx.globalAlpha=kt;
+  const nome = tro.nome.toUpperCase();
+  txt(nome, 960, y+168, fonteQueCabe(nome, 76, w-160, 'blk'), cor, 'blk', 1);
+  ctx.restore();
+
+  /* troféu e rosto lado a lado e do mesmo tamanho: são os dois protagonistas,
+     então nenhum dos dois pode parecer legenda do outro */
+  const centroY = y+470, cx1 = 960-240, cx2 = 960+240;
+
+  const im = trofeuImg(tro.id, 520);
   if(im){
-    const larg = 340, alt = larg*im.naturalHeight/im.naturalWidth;
+    /* o SVG do troféu tem folga em volta do desenho, então a caixa precisa
+       ser maior que a da foto para o desenho SAIR do mesmo tamanho — é o que
+       a pessoa enxerga, não a caixa */
+    const alt = 480, larg = alt*im.naturalWidth/im.naturalHeight;
     ctx.save(); ctx.globalAlpha=kt;
-    ctx.translate(tx, ty); ctx.scale(.7+.3*kt, .7+.3*kt);
+    ctx.translate(cx1, centroY); ctx.scale(.75+.25*kt, .75+.25*kt);
     ctx.drawImage(im, -larg/2, -alt/2, larg, alt);
     ctx.restore();
   }
 
-  const kn = ease(Math.max(0, Math.min(1, (k-0.25)/0.75)));
-  ctx.save(); ctx.globalAlpha = kn;
-  const nome = tro.nome.toUpperCase();
-  txt(nome, x+470, y+180, fonteQueCabe(nome, 62, w-540, 'blk'), cor, 'blk', 1);
-
-  const fw=190, fh=260;
-  retrato(p, x+470, y+215, fw, fh, 14);
-  ctx.fillStyle=cor; rr(x+470, y+215+fh-58, fw, 58, 14); ctx.fill();
+  const kn = ease(Math.max(0, Math.min(1, (k-0.2)/0.8)));
+  ctx.save(); ctx.globalAlpha=kn;
+  const fw=300, fh=380;
+  retrato(p, cx2-fw/2, centroY-fh/2, fw, fh, 16);
+  ctx.fillStyle=cor; rr(cx2-fw/2, centroY+fh/2-76, fw, 76, 16); ctx.fill();
   const ap = p.apelido.toUpperCase();
-  txt(ap, x+488, y+215+fh-18, fonteQueCabe(ap, 34, fw-36, 'blk'), '#0B0B0B', 'blk');
-
-  const cx = x+700;
-  txt((p.nome || p.apelido), cx, y+268, 40, '#F4F1E6', 'blk', 1);
-  if(p.apelido2) txt('“'+p.apelido2+'”', cx, y+312, 28, cor, 'cond', 2);
-  txt((T.nome||'').toUpperCase() + '   ·   ' + (F.premsub.value||''),
-      cx, y+368, 26, '#8A9A8C', 'cond', 4);
-  quebra(F.piada.value, 46, 3).forEach((l,i)=>
-    txt(l, cx, y+420+i*38, 28, '#D8E4DA', 'cond', 1));
+  ctx.textAlign='center';
+  txt(ap, cx2, centroY+fh/2-24, fonteQueCabe(ap, 48, fw-44, 'blk'), '#0B0B0B', 'blk');
   ctx.restore();
+  ctx.textAlign='left';
 }
 
 /* ── campeão: escudo grande e o elenco inteiro ──────────────────────── */

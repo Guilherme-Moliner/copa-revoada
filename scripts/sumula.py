@@ -74,6 +74,8 @@ def _elenco(caminho, por_nome):
         pid = por_nome.get(sem_acento(nome)) or por_nome.get(sem_acento(apelido))
         fora[nome] = {
             "lado": (r.get("time") or "").strip(),
+            # opcional, e manda quando existe: o id do time na planilha
+            "time_id": (r.get("time_id") or "").strip(),
             "posicao": (r.get("posicao") or "").strip(),
             "pid": pid or "",
             "nome": nome,
@@ -85,9 +87,29 @@ def _lados_para_times(elenco, escalacoes, jogo):
     """Descobre qual lado da súmula é qual time da planilha.
 
     A súmula chama os times de "Branco" e "Preto", que é como o pessoal se
-    referia na hora. Em vez de chutar, conto quantos jogadores de cada lado
-    aparecem em cada time na escalação daquele jogo e fico com o mais votado.
+    referia na hora.
+
+    Se o CSV do elenco trouxer a coluna `time_id`, ela manda e o assunto acaba
+    aí. Sem ela, conto quantos jogadores de cada lado aparecem em cada time na
+    aba ESCALACOES e fico com o mais votado.
+
+    A coluna existe porque a votação é boa para adivinhar uma vez e péssima
+    como fonte permanente: ela depende de uma aba que muda por outros motivos,
+    e uma edição na escalação pode inverter os dois times de um jogo inteiro
+    sem ninguém encostar na súmula. Quando a resposta já é conhecida, ela fica
+    escrita.
     """
+    fixo = {}
+    for info in elenco.values():
+        if info.get("time_id"):
+            fixo.setdefault(info["lado"], set()).add(info["time_id"])
+    if fixo and all(len(v) == 1 for v in fixo.values()):
+        return {lado: list(v)[0] for lado, v in fixo.items()}
+    if fixo:
+        _av("SUMULA %s: a coluna time_id diz coisas diferentes para o mesmo "
+            "lado (%s); voltei a deduzir pela aba ESCALACOES"
+            % (jogo, ", ".join("%s=%s" % (k, "/".join(sorted(v)))
+                               for k, v in sorted(fixo.items()))))
     do_jogo = [e for e in escalacoes if e.get("jogo") == jogo]
     time_de = {}
     for e in do_jogo:
@@ -106,6 +128,9 @@ def _lados_para_times(elenco, escalacoes, jogo):
     for lado, contagem in votos.items():
         tid, n = max(contagem.items(), key=lambda kv: kv[1])
         fora[lado] = tid
+        _av("SUMULA %s: o lado '%s' virou %s por dedução da aba ESCALACOES. "
+            "Para travar, ponha a coluna time_id no %s-jogadores.csv"
+            % (jogo, lado, tid, jogo))
         if len(contagem) > 1:
             _av("SUMULA %s: o lado '%s' tem gente de mais de um time na "
                 "escalação (%s); fiquei com %s, que tem %d"
