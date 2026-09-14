@@ -5561,11 +5561,14 @@ function drawEstElenco(k){
   /* A altura acompanha o elenco. Com painel fixo, um time de oito deixava
      quase trezentos pixels de vazio embaixo — numa peça de vídeo isso não é
      respiro, é buraco. */
-  const colunas = linhas.length > 5 ? 2 : 1;
+  /* A grade acompanha o tamanho do elenco. Com duas colunas fixas, um time de
+     nove ficava com uma fileira torta ou perdia alguém — foi o que aconteceu
+     com o Bruno. Três colunas dão linha mais alta, e linha mais alta dá rosto
+     maior, que é o ponto do card. */
+  const colunas = linhas.length <= 5 ? 1 : linhas.length <= 8 ? 2 : 3;
   const porColuna = Math.max(1, Math.ceil(linhas.length/colunas));
-  /* linha mais alta para o rosto crescer junto: o card existe para dar
-     destaque a cada jogador, e rosto pequeno não dá destaque a ninguém */
-  const alturaLin = Math.min(158, Math.floor((940 - 210) / porColuna));
+  const altoMax = colunas === 3 ? 242 : 158;
+  const alturaLin = Math.min(altoMax, Math.floor((940 - 210) / porColuna));
   const w=1760, h=Math.min(1020, 210 + porColuna*alturaLin + 40);
   const x=(1920-w)/2, y=(1080-h)/2;
   sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.95)'; rr(x,y,w,h,22); ctx.fill(); });
@@ -5589,9 +5592,28 @@ function drawEstElenco(k){
     ctx.textAlign='left'; return;
   }
 
-  /* duas colunas: com oito ou dez jogadores, uma coluna só deixaria a peça
-     comprida demais para caber na tela */
   const larguraCol = (w-140)/colunas;
+  /* Em três colunas a caixa fica estreita, então o texto de números pode não
+     caber numa linha só — a do goleiro é a mais longa. Em vez de encolher a
+     fonte até ficar ilegível, quebra em duas linhas. */
+  const medeCond = (t, tam) => {
+    ctx.save();
+    ctx.font = '800 ' + tam + 'px "Barlow Condensed", sans-serif';
+    const larg = ctx.measureText(t).width;
+    ctx.restore();
+    return larg;
+  };
+  const emLinhas = (pedacos, largura, tam) => {
+    const fora = [];
+    let atual = '';
+    pedacos.forEach(t=>{
+      const junto = atual ? atual + '   ·   ' + t : t;
+      if(atual && medeCond(junto, tam) > largura){ fora.push(atual); atual = t; }
+      else atual = junto;
+    });
+    if(atual) fora.push(atual);
+    return fora.slice(0, 2);
+  };
 
   linhas.forEach((l,i)=>{
     const col = Math.floor(i/porColuna), lin = i % porColuna;
@@ -5605,15 +5627,17 @@ function drawEstElenco(k){
     ctx.fillStyle=cor; rr(bx, by-6, 6, alturaLin-16, 3); ctx.fill();
 
     const p = l.pid ? pById[l.pid] : null;
-    const rr0 = Math.min(54, (alturaLin-30)/2);
-    const cy = by+(alturaLin-14)/2-6;
-    if(p) LANCES.discoJogador(ctx, l.pid, '', bx+30+rr0, cy, rr0, cor);
+    const rr0 = Math.min(colunas===3 ? 82 : 60, (alturaLin-34)/2);
+    const cy = by+(alturaLin-16)/2-6;
+    if(p) LANCES.discoJogador(ctx, l.pid, '', bx+28+rr0, cy, rr0, cor);
     else { ctx.fillStyle='#1b241c'; ctx.beginPath();
-           ctx.arc(bx+30+rr0, cy, rr0, 0, 7); ctx.fill(); }
+           ctx.arc(bx+28+rr0, cy, rr0, 0, 7); ctx.fill(); }
 
-    const nx = bx+46+rr0*2;
+    const nx = bx+44+rr0*2;
+    const disp = larguraCol - 40 - (nx-bx) - 22;
     const nome = (p ? p.apelido : l.nome).toUpperCase();
-    txt(nome, nx, cy-6, fonteQueCabe(nome, 40, larguraCol-nx+bx-60, 'blk'),
+    const tamNome = colunas===3 ? 36 : 40;
+    txt(nome, nx, cy-8, fonteQueCabe(nome, tamNome, disp, 'blk'),
         '#F4F1E6', 'blk', 1);
 
     const d = l.d;
@@ -5625,9 +5649,11 @@ function drawEstElenco(k){
          d.chutes + (d.chutes===1?' chute':' chutes'),
          d.noGol + ' no gol',
          d.faltas ? d.faltas+(d.faltas===1?' falta':' faltas') : ''];
-    const texto = pedacos.filter(Boolean).join('   ·   ') || 'sem lance registrado';
-    txt(texto, nx, cy+30, 27,
-        (l.gk ? d.defesas : d.gols) ? cor : '#8A9A8C', 'cond', 1);
+    const tamNum = colunas===3 ? 23 : 27;
+    const usados = pedacos.filter(Boolean);
+    const corNum = (l.gk ? d.defesas : d.gols) ? cor : '#8A9A8C';
+    (usados.length ? emLinhas(usados, disp, tamNum) : ['sem lance registrado'])
+      .forEach((t,j)=> txt(t, nx, cy+26+j*30, tamNum, corNum, 'cond', 1));
     if(l.gk) txt('GOLEIRO', bx+18, by+26, 18, '#8A9A8C', 'cond', 3);
     ctx.restore();
   });

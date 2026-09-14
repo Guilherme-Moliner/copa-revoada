@@ -141,6 +141,38 @@ def _lados_para_times(elenco, escalacoes, jogo):
     return fora
 
 
+def _elenco_do_jogo(elenco, lado_time, escalacoes, jogo, jogadores):
+    """Quem entrou em campo, juntando as duas listas que sabem disso.
+
+    A súmula só nomeia quem apareceu em algum lance — quem passou o jogo sem
+    finalizar, sem falta e sem defesa não tem linha lá. A aba ESCALACOES tem
+    todo mundo. Sem a união, o card do time mostrava oito de nove e o que
+    faltava parecia esquecimento em vez de jogo quieto.
+    """
+    fora = []
+    vistos = set()
+    for nome, i in elenco.items():
+        if i["pid"]:
+            vistos.add(i["pid"])
+        fora.append({
+            "pid": i["pid"], "nome": nome,
+            "time": lado_time.get(i["lado"], ""),
+            "gk": sem_acento(i["posicao"]).startswith("gol"),
+        })
+
+    apelido = {p["id"]: p.get("apelido") or p["id"] for p in jogadores}
+    for e in escalacoes:
+        if e.get("jogo") != jogo or e.get("oculto"):
+            continue
+        pid = e.get("jogador")
+        if not pid or pid in vistos:
+            continue
+        vistos.add(pid)
+        fora.append({"pid": pid, "nome": apelido.get(pid, pid),
+                     "time": e.get("time") or "", "gk": False})
+    return fora
+
+
 def _classifica(texto, tem_defesa):
     """Devolve (subtipo, ehGol) a partir do texto do lance."""
     t = sem_acento(texto)
@@ -290,12 +322,8 @@ def carrega(jogadores, escalacoes):
             # O elenco inteiro, e não só quem apareceu num lance: a arte do
             # time precisa mostrar todo mundo que entrou em campo, inclusive
             # quem passou o jogo sem finalizar. Zero é informação também.
-            "elenco": [
-                {"pid": i["pid"], "nome": nome,
-                 "time": lado_time.get(i["lado"], ""),
-                 "gk": sem_acento(i["posicao"]).startswith("gol")}
-                for nome, i in elenco.items()
-            ],
+            "elenco": _elenco_do_jogo(elenco, lado_time, escalacoes, jogo,
+                                      jogadores),
             "eventos": eventos,
         }
     return fora

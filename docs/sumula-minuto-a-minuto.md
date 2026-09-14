@@ -133,6 +133,13 @@ No **Elenco do time**, quem não finalizou aparece igual, com a linha zerada.
 Jogador ausente da peça parece esquecimento; zero é informação. O goleiro
 encabeça a lista e recebe defesas em vez de chutes.
 
+O elenco sai da **união de duas fontes**: a súmula e a aba ESCALACOES. A súmula
+só nomeia quem apareceu em algum lance, então quem passou o jogo sem finalizar,
+sem falta e sem defesa não tem linha lá — foi assim que o Bruno ficou de fora
+do card da Ferroviagra. A grade acompanha o tamanho: até 5 jogadores em uma
+coluna, até 8 em duas, e de 9 em diante três colunas, que dão linha mais alta e
+rosto maior.
+
 A **Premiação** usa o mesmo desenho de troféu da tela de Troféus, virado em
 imagem — assim a peça de vídeo nunca diverge do site.
 
