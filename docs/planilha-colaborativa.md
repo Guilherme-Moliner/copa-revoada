@@ -146,6 +146,18 @@ gravou e quando, então dá para saber o que aconteceu.
 Assim a URL continua a mesma e você não precisa mexer no `LANCES_URL`. Criar uma
 implantação nova do zero gera outra URL.
 
+### Versão 2 do script: tempo do vídeo
+
+A partir da versão 2, cada aba `LANCES <jogo>` ganha a coluna **H — `seg`**:
+o tempo do vídeo em segundos, gravado quando a marcação é feita com o vídeo
+carregado no Registro. As abas antigas recebem o cabeçalho na primeira gravação.
+
+**Republique o script antes de marcar um jogo com vídeo.** O script antigo
+descarta essa coluna sem reclamar. O app percebe e avisa nos dois sentidos: ao
+gravar, diz que o tempo não chegou na planilha; ao carregar, se a planilha
+devolver os lances sem tempo, não substitui o que está na tela. Enquanto isso,
+tudo fica salvo no navegador.
+
 ---
 
 ## As chaves

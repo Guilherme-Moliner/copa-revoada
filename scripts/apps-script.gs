@@ -18,6 +18,13 @@
 
 var PREFIXO = 'LANCES ';
 
+/* Versão 2: a coluna H guarda o tempo do vídeo em segundos ("seg"). É ela que
+   posiciona cada peça na timeline do DaVinci. O app pergunta a versão para
+   avisar quando o script publicado ainda é o antigo, que descartaria esse
+   tempo sem reclamar. */
+var VERSAO = 2;
+var COLUNAS = 8;
+
 function doGet(e) {
   var acao = (e.parameter.acao || 'ler');
   try {
@@ -113,7 +120,7 @@ function criaAba(jogo, chave) {
     'A chave abaixo é o que libera a edição no app — trate como senha do grupo.');
   ws.getRange('A2').setValue('chave_de_acesso');
   ws.getRange('B2').setValue(chave);
-  ws.getRange('A4:G4').setValues([['min','time','tipo','jogador','xg','por','em']]);
+  ws.getRange('A4:H4').setValues([['min','time','tipo','jogador','xg','por','em','seg']]);
   ws.setFrozenRows(4);
   return ws;
 }
@@ -128,20 +135,21 @@ function listaJogos() {
 /** Leitura é livre: qualquer um do grupo abre o app e vê o que já foi marcado. */
 function ler(jogo) {
   var ws = aba(jogo);
-  if (!ws) return {ok: true, jogo: jogo, eventos: [], existe: false};
+  if (!ws) return {ok: true, jogo: jogo, eventos: [], existe: false, versao: VERSAO};
   var ultima = ws.getLastRow();
   var eventos = [];
   if (ultima >= 5) {
-    ws.getRange(5, 1, ultima - 4, 7).getValues().forEach(function (l) {
+    ws.getRange(5, 1, ultima - 4, COLUNAS).getValues().forEach(function (l) {
       if (l[0] === '' && l[3] === '') return;
       eventos.push({
         min: Number(l[0]) || 0, t: String(l[1] || 'A'), tipo: String(l[2] || ''),
         j: String(l[3] || ''), xg: Number(l[4]) || 0,
-        por: String(l[5] || ''), em: l[6] ? String(l[6]) : ''
+        por: String(l[5] || ''), em: l[6] ? String(l[6]) : '',
+        seg: (l[7] === '' || l[7] === null) ? null : Number(l[7])
       });
     });
   }
-  return {ok: true, jogo: jogo, eventos: eventos, existe: true};
+  return {ok: true, jogo: jogo, eventos: eventos, existe: true, versao: VERSAO};
 }
 
 /**
@@ -200,17 +208,24 @@ function gravar(corpo) {
   var agora = Utilities.formatDate(new Date(),
     Session.getScriptTimeZone() || 'America/Sao_Paulo', 'dd/MM HH:mm');
 
+  /* aba criada pela versão 1 não tem o cabeçalho da coluna nova */
+  if (!ws.getRange('H4').getValue()) ws.getRange('H4').setValue('seg');
+
   var ultima = ws.getLastRow();
-  if (ultima >= 5) ws.getRange(5, 1, ultima - 4, 7).clearContent();
+  if (ultima >= 5) ws.getRange(5, 1, ultima - 4, COLUNAS).clearContent();
 
   if (eventos.length) {
     var linhas = eventos.map(function (ev) {
-      return [ev.min, ev.t, ev.tipo, ev.j, ev.xg, ev.por || quem, ev.em || agora];
+      var seg = Number(ev.seg);
+      var temSeg = ev.seg !== null && ev.seg !== undefined && ev.seg !== '' && isFinite(seg) && seg >= 0;
+      return [ev.min, ev.t, ev.tipo, ev.j, ev.xg, ev.por || quem, ev.em || agora, temSeg ? seg : ''];
     });
-    linhas.sort(function (a, b) { return a[0] - b[0]; });
-    ws.getRange(5, 1, linhas.length, 7).setValues(linhas);
+    /* com tempo do vídeo, é ele que ordena; sem, o minuto */
+    var chave = function (l) { return l[7] !== '' ? Number(l[7]) : Number(l[0]) * 60; };
+    linhas.sort(function (a, b) { return chave(a) - chave(b); });
+    ws.getRange(5, 1, linhas.length, COLUNAS).setValues(linhas);
   }
-  return {ok: true, gravados: eventos.length, jogo: jogo, em: agora};
+  return {ok: true, gravados: eventos.length, jogo: jogo, em: agora, versao: VERSAO};
 }
 
 function json(obj) {
