@@ -1,0 +1,7 @@
+# Dependências do build (scripts/build.py). O deploy e o computador local
+# instalam daqui, para não divergirem.
+openpyxl>=3.1,<4
+pillow>=12,<13
+# A versão 5 do OpenCV não traz as cascatas de detecção de rosto que o build
+# usa para centralizar os retratos.
+opencv-python-headless>=4.10,<5

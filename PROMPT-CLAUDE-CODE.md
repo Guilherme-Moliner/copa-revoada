@@ -1,3 +1,6 @@
+> **Histórico — não siga este arquivo.** É de quando o projeto começou e está desatualizado.
+> Para continuar o projeto, use `CONTINUAR-EM-OUTRO-PC.md` e `CLAUDE.md`.
+
 # Prompt para o Claude Code
 
 Abra o terminal **dentro da pasta `copa-revoada`** (a que você acabou de baixar e

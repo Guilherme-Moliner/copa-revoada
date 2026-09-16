@@ -1,3 +1,6 @@
+> **Histórico — não siga este arquivo.** É de quando o projeto começou e está desatualizado.
+> Para continuar o projeto, use `CONTINUAR-EM-OUTRO-PC.md` e `CLAUDE.md`.
+
 # Copa Revoada — o que falta para o app ficar pronto
 
 Estamos montando um site da copa: perfil de cada jogador, histórico de todos os
