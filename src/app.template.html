@@ -349,6 +349,7 @@ section+section{margin-top:3rem}
 @media(max-width:820px){.we-body{grid-template-columns:1fr}.we-mid{order:-1}}
 
 /* ============ REGISTRO DO JOGO ============ */
+.rec-nota{color:var(--dim);font-size:.82rem;margin:.6rem .2rem 0;max-width:70ch}
 .reg{display:grid;grid-template-columns:340px 1fr 1fr;gap:1rem;align-items:start}
 .rv{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:.7rem .8rem;margin-bottom:1rem}
 .rv [hidden]{display:none!important}
@@ -570,6 +571,7 @@ section+section{margin-top:3rem}
       <h1 style="font-size:clamp(1.8rem,5vw,3rem);text-transform:uppercase;margin:.3rem 0 1.2rem">Recordes</h1>
       <div class="rail" id="rec-tabs" style="margin-bottom:1.2rem"></div>
       <div class="card"><table class="tbl" id="rec-tbl"></table></div>
+      <p id="rec-nota" class="rec-nota" hidden></p>
     </div>
 
     <div class="screen" id="s-registro">
@@ -1373,7 +1375,7 @@ const MENU = [
    desc:'Cada temporada teve seu duelo. Escolha um escudo e compare as campanhas lado a lado.',
    tags:temporadas.map(String)},
   {id:'recordes', lbl:'Recordes', big:()=>jogos.reduce((a,g)=>a+g.gc+g.gf,0), unid:'gols na história',
-   desc:'Artilharia, garçons, presença e títulos. O ranking que gera treta no grupo.',
+   desc:'Artilharia, assistências, presença e títulos. O ranking que gera treta no grupo.',
    tags:['artilharia','assistências','títulos']},
   /* o número são só os troféus de verdade; os simulados continuam na galeria,
      com etiqueta. Sem essa linha o card dizia "0 entregues" com seis troféus
@@ -1554,8 +1556,9 @@ function perfil(id){
     </div>
   </div>
   <div class="kpis">
-    <div class="kpi"><b class="num">${p.jogos}</b><span>${p.presencas>p.jogos?'Jogos válidos':'Jogos'}</span></div>
-    ${p.presencas>p.jogos?`<div class="kpi" title="Inclui 2020 e 2021, em que só o título conta">
+    <div class="kpi" title="Jogos em que os gols e as assistências foram conferidos um a um">
+      <b class="num">${p.jogos}</b><span>${p.presencas>p.jogos?'Jogos com dados apurados':'Jogos'}</span></div>
+    ${p.presencas>p.jogos?`<div class="kpi" title="Todos os jogos em que esteve no elenco, apurados ou não">
       <b class="num" style="color:var(--chalk)">${p.presencas}</b><span>Presenças</span></div>`:''}
     <div class="kpi"><b class="num">${p.gols}</b><span>Gols</span></div>
     <div class="kpi"><b class="num">${p.assist}</b><span>Assistências</span></div>
@@ -2084,30 +2087,58 @@ function matchHTML(g){
 renderFifa();
 
 /* ================= RECORDES ================= */
+/* A copa teve 13 jogos, mas só 10 foram apurados lance a lance: nos três
+   primeiros ninguém anotou gol nem assistência por jogador. Misturar as duas
+   contagens numa coluna chamada só "jogos" confundiu quem olhava — agora cada
+   aba diz o que cada coluna é, e usa a base que faz sentido para ela.
+
+   Presença e título valem pelos 13, porque estar no elenco e ser campeão não
+   dependem de alguém ter anotado os lances. Gol, assistência e participação
+   valem pelos 10, porque fora deles esse número não existe. */
 const RECS = [
-  {id:'jogos',  lbl:'Presença',      campo:'jogos'},
-  {id:'gols',   lbl:'Artilharia',    campo:'gols'},
-  {id:'assist', lbl:'Garçons',       campo:'assist'},
-  {id:'titulos',lbl:'Títulos',       campo:'titulos'},
-  {id:'part',   lbl:'Participações', campo:null}
+  {id:'jogos',   lbl:'Presença',
+   esq:{t:'Jogos apurados', v:p=>p.jogos},
+   dir:{t:'Presenças',      v:p=>p.presencas},
+   nota:'Presença conta os 13 jogos da copa. A coluna de apurados mostra em quantos '
+      + 'deles os lances foram conferidos um a um.'},
+  {id:'gols',    lbl:'Artilharia',
+   esq:{t:'Jogos auditados', v:p=>p.jogos},
+   dir:{t:'Nº de Gols',      v:p=>p.gols}},
+  {id:'assist',  lbl:'Assistências',
+   esq:{t:'Jogos auditados', v:p=>p.jogos},
+   dir:{t:'Assistências',    v:p=>p.assist}},
+  {id:'titulos', lbl:'Títulos',
+   esq:{t:'Presenças no elenco', v:p=>p.presencas, apurados:true},
+   dir:{t:'Títulos',             v:p=>p.titulos},
+   nota:'Título conta os 13 jogos da copa. Entre parênteses, quantas dessas '
+      + 'presenças foram em jogos com os dados apurados.'},
+  {id:'part',    lbl:'Participações',
+   esq:{t:'Jogos auditados',      v:p=>p.jogos},
+   dir:{t:'Participações em Gols', v:p=>p.gols+p.assist},
+   nota:'Participação em gol = gols + assistências.'}
 ];
 let recSel = 'gols';
 function renderRec(){
   $('#rec-tabs').innerHTML = RECS.map(r=>
     `<button class="chip" data-rec="${r.id}" aria-pressed="${r.id===recSel}">${r.lbl}</button>`).join('');
   const r = RECS.find(x=>x.id===recSel);
-  const val = p => r.campo ? p[r.campo] : p.gols+p.assist;
+  const val = r.dir.v;
   const lista = jog.slice().filter(p=>val(p)>0 || r.id==='jogos').sort((a,b)=>val(b)-val(a)).slice(0,20);
   const max = Math.max(...lista.map(val), 1);
   $('#rec-tbl').innerHTML =
-    `<thead><tr><th>#</th><th>Jogador</th><th>Jogos</th><th>${r.lbl}</th><th style="width:34%"></th></tr></thead><tbody>`+
+    `<thead><tr><th>#</th><th>Jogador</th><th>${r.esq.t}</th><th>${r.dir.t}</th>
+      <th style="width:34%"></th></tr></thead><tbody>`+
     lista.map((p,i)=>`<tr>
       <td class="n" style="color:var(--gold)">${i+1}</td>
       <td><b>${p.apelido}</b>${p.pos==='GOL'?' <span style="color:var(--grass-l);font-size:.75rem">GK</span>':''}</td>
-      <td class="n">${p.jogos}</td><td class="n">${val(p)}</td>
+      <td class="n">${r.esq.v(p)}${r.esq.apurados && p.jogos!==p.presencas
+          ? ` <span style="color:var(--dim);font-size:.78rem">(${p.jogos} apurados)</span>` : ''}</td>
+      <td class="n">${val(p)}</td>
       <td><div class="track" style="height:7px;background:var(--panel2);border:1px solid var(--line);border-radius:4px;overflow:hidden">
         <div style="height:100%;width:${val(p)/max*100}%;background:linear-gradient(90deg,var(--grass),var(--grass-l))"></div></div></td>
     </tr>`).join('')+`</tbody>`;
+  const nota = $('#rec-nota');
+  if(nota){ nota.textContent = r.nota || ''; nota.hidden = !r.nota; }
 }
 document.addEventListener('click', e=>{
   const r = e.target.closest('[data-rec]'); if(r){ recSel = r.dataset.rec; renderRec(); blip(600,.04); }
