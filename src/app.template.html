@@ -349,6 +349,24 @@ section+section{margin-top:3rem}
 @media(max-width:820px){.we-body{grid-template-columns:1fr}.we-mid{order:-1}}
 
 /* ============ REGISTRO DO JOGO ============ */
+.clipes{display:flex;flex-direction:column;gap:.6rem}
+.clipe{border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden}
+.clipe-cab{display:flex;align-items:center;gap:.7rem;width:100%;text-align:left;cursor:pointer;
+  background:none;border:0;color:inherit;font:inherit;padding:.85rem 1rem}
+.clipe-cab:hover{background:var(--panel2)}
+.clipe-cab .seta{color:var(--gold);font-size:.9rem;transition:transform .18s ease;flex:none}
+.clipe-cab[aria-expanded="true"] .seta{transform:rotate(90deg)}
+.clipe-cab .nm b{display:block;font-size:1.02rem}
+.clipe-cab .nm small{color:var(--dim);font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  letter-spacing:.12em;text-transform:uppercase;font-size:.72rem}
+.clipe-palco{border-top:1px solid var(--line);background:#000}
+.clipe-palco .moldura{position:relative;margin:0 auto;aspect-ratio:16/9;
+  /* travado pela altura da janela: em tela larga o vídeo tomava a tela toda
+     e o cabeçalho da gaveta sumia de vista ao abrir */
+  width:min(100%, calc(58vh * 16 / 9))}
+.clipe-palco iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}
+.clipe-palco .fora{display:block;padding:.5rem 1rem;background:var(--panel);color:var(--dim);
+  font-size:.78rem}
 .rec-nota{color:var(--dim);font-size:.82rem;margin:.6rem .2rem 0;max-width:70ch}
 .reg{display:grid;grid-template-columns:340px 1fr 1fr;gap:1rem;align-items:start}
 .rv{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:.7rem .8rem;margin-bottom:1rem}
@@ -1598,11 +1616,17 @@ function perfil(id){
 
   <section>
     <div class="sec-head"><h2>Melhores momentos</h2></div>
-    ${clipes.length ? `<div class="grid g3">${clipes.map(c=>
-        `<a class="card" style="text-decoration:none;color:inherit" target="_blank" rel="noopener"
-           href="https://youtu.be/${c.video}?t=${c.inicio||0}">
-           <p class="eyebrow">${c.temporada||''}</p>
-           <h3 style="font-size:1.05rem;margin-top:.4rem">${c.titulo}</h3></a>`).join('')}</div>`
+    ${clipes.length ? `<div class="clipes">${clipes.map((c,i)=>
+        `<div class="clipe">
+           <button class="clipe-cab" data-clipe="${i}" aria-expanded="false"
+             data-video="${c.video}" data-ini="${c.inicio||0}" data-fim="${c.fim||''}">
+             <span class="seta">▸</span>
+             <span class="nm"><b>${c.titulo}</b>
+               <small>${c.temporada||''}${c.fim?` · ${mmssClipe(c.inicio)} a ${mmssClipe(c.fim)}`
+                 :` · a partir de ${mmssClipe(c.inicio)}`}</small></span>
+           </button>
+           <div class="clipe-palco" hidden></div>
+         </div>`).join('')}</div>`
       : `<div class="card empty">Sem clipes ainda. Para pôr um, é uma linha na aba <b>CLIPES</b> da planilha:
           o link do vídeo e o minuto do lance, como <b>12:34</b>. Não precisa cortar nada.</div>`}
   </section>`;
@@ -2085,6 +2109,50 @@ function matchHTML(g){
       ${g.video?`<a class="link" target="_blank" rel="noopener" href="https://youtu.be/${g.video}">Assistir</a>`:''}</div></div>`;
 }
 renderFifa();
+
+/* ── clipes: gaveta com o player ───────────────────────────────────────
+   O player só é criado quando a gaveta abre, e é destruído ao fechar. Criar
+   todos de uma vez carregaria um vídeo por clipe ao abrir o perfil; e fechar
+   sem destruir deixaria o áudio tocando de uma gaveta invisível. */
+function mmssClipe(seg){
+  const s = Math.max(0, Math.floor(seg||0));
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), r = s%60;
+  const dd = n => String(n).padStart(2,'0');
+  return h ? h+':'+dd(m)+':'+dd(r) : m+':'+dd(r);
+}
+
+function fechaClipe(cab){
+  const palco = cab.nextElementSibling;
+  palco.innerHTML = '';
+  palco.hidden = true;
+  cab.setAttribute('aria-expanded','false');
+}
+
+document.addEventListener('click', e=>{
+  const cab = e.target.closest && e.target.closest('[data-clipe]');
+  if(!cab) return;
+  const aberto = cab.getAttribute('aria-expanded') === 'true';
+  /* um de cada vez: dois vídeos tocando juntos viram bagunça */
+  document.querySelectorAll('[data-clipe][aria-expanded="true"]').forEach(fechaClipe);
+  if(aberto) return;
+
+  const {video, ini, fim} = cab.dataset;
+  const palco = cab.nextElementSibling;
+  const params = new URLSearchParams({start: ini || '0', autoplay: '1',
+                                      rel: '0', playsinline: '1'});
+  if(fim) params.set('end', fim);
+  palco.innerHTML =
+    '<div class="moldura"><iframe src="https://www.youtube.com/embed/' + video + '?' + params
+    + '" title="Melhor momento" allow="autoplay; encrypted-media; fullscreen"'
+    + ' allowfullscreen loading="lazy"></iframe></div>'
+    /* se o vídeo não permitir ser incorporado, o quadro fica preto e sem esta
+       saída a pessoa não teria como assistir */
+    + '<a class="fora" target="_blank" rel="noopener" href="https://youtu.be/'
+    + video + '?t=' + (ini||0) + '">não carregou? abrir no YouTube ↗</a>';
+  palco.hidden = false;
+  cab.setAttribute('aria-expanded','true');
+  blip(660,.05);
+});
 
 /* ================= RECORDES ================= */
 /* A copa teve 13 jogos, mas só 10 foram apurados lance a lance: nos três
