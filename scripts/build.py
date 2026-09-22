@@ -537,10 +537,12 @@ def baixa_planilha():
 
     try:
         print(f"  baixando a planilha de {PLANILHA_URL[:60]}...")
-        # O Apps Script às vezes responde com erro por um instante e volta logo
-        # depois. Três tentativas espaçadas cobrem isso sem prender o deploy.
+        # O Apps Script devolve 404 de vez em quando aos servidores do GitHub e
+        # volta logo depois — medido em 22/09: numa rodada, três 404 em 33 s; na
+        # seguinte, 404 e depois leitura normal 8 s mais tarde. Daqui de fora ele
+        # respondia sempre. Quatro tentativas em até ~2 minutos cobrem isso.
         erro = None
-        for espera in (0, 8, 25):
+        for espera in (0, 10, 30, 60):
             if espera:
                 print(f"  tentando de novo em {espera} s ({erro})")
                 time.sleep(espera)
