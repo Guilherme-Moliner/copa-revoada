@@ -29,9 +29,13 @@ scripts/build.py  ── + assets/ (fotos e escudos) + dados/sumulas/ (lances)
 index.html  ── o site inteiro num arquivo só
 ```
 
-- O deploy roda a cada push na `main` e **de hora em hora**, lendo a planilha
-  (`.github/workflows/publicar.yml`). A rodada agendada só republica se o
-  `index.html` mudou.
+- O deploy roda a cada push na `main` e por agendamento, lendo a planilha
+  (`.github/workflows/publicar.yml`). O cron pede de hora em hora, mas o GitHub
+  na prática roda a cada 3 a 6 horas.
+- **No deploy, se a planilha não responder, o build falha e nada é publicado**
+  (`EXIGIR_PLANILHA=1`). Antes ele caía na cópia do repositório e republicava
+  dado velho por cima do certo — aconteceu em 22/09.
+- O site mostra no canto inferior esquerdo de onde vieram os dados e quando.
 - A planilha é privada. Quem lê é o Apps Script; a URL dele está nas variáveis
   do repositório `PLANILHA_URL` e `LANCES_URL` (`gh variable get PLANILHA_URL`).
 - Sem `PLANILHA_URL`, o build usa `dados/COPA_REVOADA_planilha.xlsx`, que é só
@@ -65,6 +69,7 @@ $env:PLANILHA_URL = gh variable get PLANILHA_URL
 | **Próximo capítulo: pacote de mídias** | `docs/pacote-de-midias.md` |
 | Modelo de chance de gol | `docs/como-funciona-a-chance-de-gol.md` |
 | Diagnóstico de vídeo exportado | `scripts/checa-webm.py` |
+| Como os jogadores adicionam clipes | `docs/como-adicionar-clipes.md` |
 
 ## Lições que custaram caro
 

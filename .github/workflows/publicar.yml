@@ -39,6 +39,8 @@ jobs:
         env:
           PLANILHA_URL: ${{ vars.PLANILHA_URL }}
           LANCES_URL: ${{ vars.LANCES_URL }}
+          # se a planilha não responder, falha em vez de publicar a cópia velha
+          EXIGIR_PLANILHA: '1'
         run: python3 scripts/build.py
 
       # Só nas rodadas agendadas: se o index.html gerado ficou igual ao que já

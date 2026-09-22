@@ -63,6 +63,17 @@ PLANILHA_URL = os.environ.get("PLANILHA_URL", "").strip()
 # aba. Ver docs/planilha-colaborativa.md.
 LANCES_URL = os.environ.get("LANCES_URL", "").strip()
 
+# No deploy automático, NÃO cair na cópia do repositório quando a planilha
+# falha. A cópia existe para o build local não quebrar sem internet; no deploy
+# ela fazia o contrário do que devia: numa falha passageira do Google (um 404 em
+# 22/09), o site foi republicado com dado velho por cima do certo. Com esta
+# variável ligada, o build falha, nada é publicado, e o site fica como estava.
+EXIGIR_PLANILHA = os.environ.get("EXIGIR_PLANILHA", "").strip() in ("1", "sim", "true")
+
+# De onde vieram os dados deste build, e quando. Vai para o site, que mostra
+# isso no canto da tela.
+FONTE = {"origem": "repositorio", "lidaEm": "", "erro": ""}
+
 # Nos três primeiros jogos ninguém anotou gol nem assistência por jogador, só
 # quem foi campeão. Decisão do grupo: esses jogos contam título e nada mais.
 # É o que faz cada um ter 10 jogos válidos e 13 presenças.
@@ -181,6 +192,31 @@ def _id_video(v):
     # gravada — sem ele os links da planilha entravam como id inválido
     m = re.search(r"(?:v=|youtu\.be/|embed/|shorts/|live/)([\w-]{6,})", t)
     return m.group(1) if m else t
+
+
+def _segundos(v):
+    """Tempo de um clipe: aceita 754, "12:34" ou "1:02:03".
+
+    Quem assiste o vídeo lê minutos e segundos na barra do YouTube, não um
+    número de segundos — pedir 754 no lugar de 12:34 era convite ao erro.
+    """
+    if v is None or str(v).strip() == "":
+        return None
+    t = str(v).strip().replace(",", ".")
+    if ":" in t:
+        partes = t.split(":")
+        try:
+            numeros = [float(x) for x in partes]
+        except ValueError:
+            return None
+        s = 0.0
+        for n in numeros:
+            s = s * 60 + n
+        return int(s)
+    try:
+        return int(float(t))
+    except ValueError:
+        return None
 
 
 def num(v, padrao=0):
@@ -489,13 +525,32 @@ def baixa_planilha():
     o Sheets estiver fora do ar na hora do deploy.
     """
     import urllib.request
+    import time
+    from datetime import datetime, timezone
     copia = os.path.join(RAIZ, "dados", "COPA_REVOADA_baixada.xlsx")
     copia_json = os.path.join(RAIZ, "dados", "COPA_REVOADA_baixada.json")
-    try:
-        print(f"  baixando a planilha de {PLANILHA_URL[:60]}...")
+
+    def busca():
         req = urllib.request.Request(PLANILHA_URL, headers={"User-Agent": "copa-revoada"})
         with urllib.request.urlopen(req, timeout=60) as r:
-            dados = r.read()
+            return r.read()
+
+    try:
+        print(f"  baixando a planilha de {PLANILHA_URL[:60]}...")
+        # O Apps Script às vezes responde com erro por um instante e volta logo
+        # depois. Três tentativas espaçadas cobrem isso sem prender o deploy.
+        erro = None
+        for espera in (0, 8, 25):
+            if espera:
+                print(f"  tentando de novo em {espera} s ({erro})")
+                time.sleep(espera)
+            try:
+                dados = busca()
+                break
+            except Exception as e:
+                erro = e
+        else:
+            raise erro
         if dados[:1] == b"{":
             pacote = json.loads(dados.decode("utf-8"))
             if not pacote.get("ok"):
@@ -505,14 +560,22 @@ def baixa_planilha():
                 json.dump(abas, f, ensure_ascii=False)
             print(f"  planilha lida do Google Sheets — {len(abas)} abas, "
                   f"{sum(len(v) for v in abas.values())} linhas")
+            FONTE.update(origem="planilha",
+                         lidaEm=datetime.now(timezone.utc).isoformat(timespec="seconds"))
             return _Planilha(abas)
         if len(dados) < 5000 or dados[:2] != b"PK":
             raise ValueError("a resposta não parece planilha — confira a URL")
         with open(copia, "wb") as f:
             f.write(dados)
         print(f"  planilha baixada — {len(dados)//1024} KB")
+        FONTE.update(origem="planilha",
+                     lidaEm=datetime.now(timezone.utc).isoformat(timespec="seconds"))
         return copia
     except Exception as e:
+        FONTE.update(origem="copia", erro=str(e)[:200])
+        if EXIGIR_PLANILHA:
+            sys.exit(f"\nNÃO PUBLICADO: a planilha não respondeu ({e}).\n"
+                     "O site continua com a última versão boa. A próxima rodada tenta de novo.")
         if os.path.exists(copia_json):
             aviso(f"não deu para ler a planilha online ({e}); usando a última cópia baixada")
             return _Planilha(json.load(open(copia_json, encoding="utf-8")))
@@ -520,6 +583,7 @@ def baixa_planilha():
             aviso(f"não deu para ler a planilha online ({e}); usando a última cópia baixada")
             return copia
         aviso(f"não deu para ler a planilha online ({e}); usando o arquivo do repositório")
+        FONTE["origem"] = "repositorio"
         return PLANILHA
 
 
@@ -829,12 +893,35 @@ def main():
             if pid not in porId:
                 aviso(f"CLIPES: jogador '{pid}' não existe na aba JOGADORES")
                 continue
+            vid = _id_video(video)
+            if not re.fullmatch(r"[\w-]{6,}", vid):
+                aviso(f"CLIPES: não reconheci o vídeo do clipe '{r.get('titulo')}' "
+                      f"de {pid} ({video[:40]})")
+                continue
+            ini, fim = _segundos(r.get("inicio_seg")), _segundos(r.get("fim_seg"))
+            if ini is None:
+                bruto = str(r.get("inicio_seg") or "")
+                if bruto.startswith("1899-12-3"):
+                    # O Sheets leu "12:34" como HORA do dia e o que chega é a
+                    # data-base dele. Sem esta mensagem o aviso parecia erro de
+                    # digitação, e a pessoa digitaria de novo o mesmo 12:34.
+                    aviso(f"CLIPES: o Google Sheets transformou o tempo do clipe "
+                          f"'{r.get('titulo')}' de {pid} em hora. Formate as colunas "
+                          f"inicio_seg e fim_seg como Texto simples e digite de novo")
+                else:
+                    aviso(f"CLIPES: o início do clipe '{r.get('titulo')}' de {pid} não é "
+                          f"um tempo que eu entenda ({bruto}) — use 12:34 ou 754")
+                continue
+            if fim is not None and fim <= ini:
+                aviso(f"CLIPES: o clipe '{r.get('titulo')}' de {pid} termina antes de "
+                      f"começar — fim ignorado")
+                fim = None
             clipes.append({
                 "jogador": pid,
                 "titulo": str(r.get("titulo") or "Melhor momento").strip(),
-                "video": video,
-                "inicio": num(r.get("inicio_seg")),
-                "fim": num(r.get("fim_seg")) or None,
+                "video": vid,
+                "inicio": ini,
+                "fim": fim,
                 "temporada": num(r.get("temporada")) or None,
             })
 
@@ -842,7 +929,7 @@ def main():
 
     dados = {
         "copa": {"nome": "Copa Revoada", "antigo": "Milior Fut", "playlist": PLAYLIST,
-                 "lancesUrl": LANCES_URL},
+                 "lancesUrl": LANCES_URL, "fonte": FONTE},
         "jogadores": jogadores, "times": times, "jogos": jogos,
         "trofeus": trofeus, "escalacoes": escalacoes, "desempenho": desempenho,
         "premiacoes": premiacoes, "clipes": clipes,

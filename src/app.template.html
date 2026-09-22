@@ -143,6 +143,18 @@ button{font:inherit;color:inherit}
 .mr-tags{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:1.4rem}
 .tag{border:1px solid var(--line);border-radius:999px;padding:.3rem .8rem;font-family:'Barlow Condensed',sans-serif;
   font-weight:700;letter-spacing:.14em;font-size:.7rem;text-transform:uppercase;color:var(--dim)}
+.fonte{position:fixed;left:.8rem;bottom:.8rem;z-index:4;display:flex;align-items:center;gap:.45rem;
+  background:rgba(8,12,10,.92);border:1px solid var(--line);border-radius:999px;padding:.32rem .75rem;
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.08em;font-size:.72rem;
+  text-transform:uppercase;color:var(--dim);cursor:pointer}
+.fonte i{width:8px;height:8px;border-radius:50%;background:var(--dim);flex:none}
+.fonte.ok i{background:#2BE07A} .fonte.velho i{background:var(--gold)} .fonte.erro i{background:var(--ember)}
+.fonte.erro{color:var(--chalk)}
+body:has(#menu-foot.on) .fonte{bottom:3.4rem}
+.fonte-det{position:fixed;left:.8rem;bottom:3.1rem;z-index:5;max-width:320px;background:var(--panel2);
+  border:1px solid var(--line);border-radius:12px;padding:.7rem .85rem;font-size:.82rem;line-height:1.45;
+  color:var(--chalk);box-shadow:0 10px 30px rgba(0,0,0,.5)}
+body:has(#menu-foot.on) .fonte-det{bottom:5.7rem}
 .menu-foot{position:fixed;bottom:0;left:0;right:0;z-index:3;border-top:1px solid var(--line);
   background:rgba(5,8,7,.9);backdrop-filter:blur(10px);display:none}
 .menu-foot.on{display:block}
@@ -507,6 +519,10 @@ section+section{margin-top:3rem}
   </div>
   <div class="menu-right" id="menu-right"></div>
 </div>
+<!-- de onde vieram os dados e quando: o site é gerado, não fica ligado na
+     planilha, então "conectado" seria mentira — o honesto é a hora da leitura -->
+<button class="fonte" id="fonte" type="button" aria-expanded="false"></button>
+<div class="fonte-det" id="fonte-det" hidden></div>
 <div class="menu-foot on" id="menu-foot">
   <div class="in">
     <span class="key"><b>↑↓</b> navegar</span>
@@ -1302,6 +1318,53 @@ const SUMULA = (function(){
           rotulo:rotuloJogo, mmss:mmss, contaAte:contaAte, doJogador:doJogador};
 })();
 
+/* ── selo de origem dos dados ───────────────────────────────────────────
+   O site é gerado de tempos em tempos a partir da planilha; ele não fica
+   "conectado". O que dá para mostrar com honestidade é de onde vieram os
+   dados desta versão e quando foram lidos. */
+(function(){
+  const f = (DADOS.copa && DADOS.copa.fonte) || {};
+  const selo = document.getElementById('fonte'), det = document.getElementById('fonte-det');
+  if(!selo) return;
+  const quando = f.lidaEm ? new Date(f.lidaEm) : null;
+  const horas = quando ? (Date.now() - quando.getTime())/36e5 : null;
+  const fmt = d => d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})
+                 + ' ' + d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  let classe, rotulo, texto;
+  if(f.origem === 'planilha' && quando){
+    /* o GitHub roda o agendamento a cada poucas horas, não de hora em hora;
+       passou de meio dia sem atualizar, algo travou */
+    classe = horas > 12 ? 'velho' : 'ok';
+    rotulo = 'Planilha · ' + fmt(quando);
+    texto = 'Dados lidos da planilha do Google em <b>' + fmt(quando) + '</b>. '
+      + 'O site se atualiza sozinho algumas vezes por dia: o que mudar na planilha aparece '
+      + 'na próxima atualização, não na hora.'
+      + (horas > 12 ? '<br><br>Faz mais de 12 horas sem atualizar. Dá para forçar em '
+        + 'GitHub › Actions › Publicar site › Run workflow.' : '');
+  } else if(f.origem === 'copia'){
+    classe = 'erro'; rotulo = 'Cópia salva — planilha fora';
+    texto = 'Nesta atualização a planilha não respondeu, e os dados vêm da última cópia salva. '
+      + 'Podem estar desatualizados.' + (f.erro ? '<br><small>' + f.erro + '</small>' : '');
+  } else {
+    classe = 'erro'; rotulo = 'Arquivo do repositório';
+    texto = 'Estes dados vêm do arquivo do repositório, e não da planilha do Google. '
+      + 'Servem de cópia de segurança e podem estar bem desatualizados.';
+  }
+  selo.className = 'fonte ' + classe;
+  selo.innerHTML = '<i></i><span>' + rotulo + '</span>';
+  selo.title = 'De onde vêm os dados do site';
+  det.innerHTML = texto;
+  selo.addEventListener('click', ()=>{
+    det.hidden = !det.hidden;
+    selo.setAttribute('aria-expanded', String(!det.hidden));
+  });
+  document.addEventListener('click', e=>{
+    if(!det.hidden && !det.contains(e.target) && !selo.contains(e.target)){
+      det.hidden = true; selo.setAttribute('aria-expanded','false');
+    }
+  });
+})();
+
 const MENU = [
   {id:'jogadores', lbl:'Jogadores', big:()=>jog.length,   unid:'atletas',
    desc:'Todo mundo que já vestiu uma camisa da copa, com jogos, gols, assistências e títulos.',
@@ -1537,7 +1600,8 @@ function perfil(id){
            href="https://youtu.be/${c.video}?t=${c.inicio||0}">
            <p class="eyebrow">${c.temporada||''}</p>
            <h3 style="font-size:1.05rem;margin-top:.4rem">${c.titulo}</h3></a>`).join('')}</div>`
-      : `<div class="card empty">Sem clipes. Cole o ID do vídeo e o segundo do lance na aba <b>CLIPES</b> — não precisa cortar nada.</div>`}
+      : `<div class="card empty">Sem clipes ainda. Para pôr um, é uma linha na aba <b>CLIPES</b> da planilha:
+          o link do vídeo e o minuto do lance, como <b>12:34</b>. Não precisa cortar nada.</div>`}
   </section>`;
 }
 
