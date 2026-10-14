@@ -820,6 +820,11 @@ Assistente de VAR · Ciclano</textarea></div>
 /* ================= util ================= */
 const $ = s => document.querySelector(s);
 const jog = DADOS.jogadores, times = DADOS.times, jogos = DADOS.jogos;
+/* Fut avulso (conta_na_copa = NAO na aba JOGOS) e os times mistos montados no
+   dia. Só o Registro e o pacote de mídias enxergam: estatística, recordes e
+   troféus continuam olhando para jogos e times, sem eles. */
+const amistosos = DADOS.amistosos || [], mistos = DADOS.mistos || [];
+const jogosRegistro = jogos.concat(amistosos).sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0);
 
 /* Troféu marcado como SIMULADO na planilha é enfeite, para a gente ver a tela
    funcionando antes de existir premiação de verdade. A galeria mostra os dois,
@@ -829,7 +834,7 @@ const jog = DADOS.jogadores, times = DADOS.times, jogos = DADOS.jogos;
 const ehSimulado = a => /simula/i.test(a.obs||'');
 const PREMIOS = DADOS.premiacoes.filter(a=>!ehSimulado(a));
 const pById = Object.fromEntries(jog.map(p=>[p.id,p]));
-const tById = Object.fromEntries(times.map(t=>[t.id,t]));
+const tById = Object.fromEntries(times.concat(mistos).map(t=>[t.id,t]));
 const troById = Object.fromEntries(DADOS.trofeus.map(t=>[t.id,t]));
 const temporadas = [...new Set(jogos.map(g=>g.temporada))].sort((a,b)=>b-a);
 const ini = p => p.apelido.replace(/[^A-Za-zÀ-ú ]/g,'').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
@@ -3796,6 +3801,11 @@ return {
    quem fez. Nada de formulário com seis campos no meio do jogo.
    Escreve na mesma lista que a Análise do jogo lê, então os dois andam juntos. */
 const REG = {jogo:'', timeA:'', timeB:'', minuto:1, armado:{A:'noGol', B:'noGol'}};
+/* A Análise Tática nasce com lances de exemplo para a tela não abrir vazia.
+   O Registro não pode herdar esse exemplo: num navegador sem nada salvo, ele
+   aparecia como se fossem lances do jogo, e um Gravar mandava tudo para a
+   planilha — e dali para o pacote de mídias, com gol que não aconteceu. */
+const EVENTOS_EXEMPLO = LANCES.estado.analise.eventos;
 /* eventos sem dono: valem para o time inteiro */
 const TIPOS_TIME = ['escant','falta'];
 
@@ -3804,6 +3814,8 @@ const TIPOS_TIME = ['escant','falta'];
    que nunca jogou por aquele time. */
 function jogadoresDoTime(tid){
   if(!tid) return [];
+  /* time misto não tem escalação: qualquer um pode ter jogado */
+  if(tById[tid] && tById[tid].misto) return jog.slice().sort((a,b)=>a.apelido.localeCompare(b.apelido));
   const ids = [...new Set(DADOS.escalacoes.filter(e=>e.time===tid && !e.oculto).map(e=>e.jogador))];
   return ids.map(id=>pById[id]).filter(Boolean)
     .sort((a,b)=>a.apelido.localeCompare(b.apelido));
@@ -3847,6 +3859,9 @@ function regColunaTime(lado){
     + '<div class="field"><select data-reg-time="'+lado+'">'
     + '<option value="">— escolha o time —</option>'
     + times.map(x=>'<option value="'+x.id+'"'+(x.id===tid?' selected':'')+'>'+x.nome+' '+x.temporada+'</option>').join('')
+    + (mistos.length ? '<optgroup label="Times montados no dia">'
+      + mistos.map(x=>'<option value="'+x.id+'"'+(x.id===tid?' selected':'')+'>'+x.nome+'</option>').join('')
+      + '</optgroup>' : '')
     + '</select></div>' + corpo + '</div></div>';
 }
 
@@ -3992,7 +4007,7 @@ const REGVIDEO = (function(){
        para esse jogo, depois o vídeo que está na aba JOGOS */
     const campo = r.querySelector('[data-rv-url]');
     if(campo && campo.dataset.jogo !== REG.jogo && document.activeElement !== campo){
-      const g = jogos.find(x=>x.id===REG.jogo) || {};
+      const g = jogosRegistro.find(x=>x.id===REG.jogo) || {};
       campo.value = local('rvd-video-'+REG.jogo) || (g.video ? 'https://youtu.be/'+g.video : '');
       campo.dataset.jogo = REG.jogo;
     }
@@ -4161,8 +4176,8 @@ function regQuando(){
 
 function renderRegistro(){
   const url = (DADOS.copa && DADOS.copa.lancesUrl) || '';
-  const de2026 = jogos.filter(g=>g.temporada>=2026);
-  const lista = de2026.length ? de2026 : jogos;
+  const de2026 = jogosRegistro.filter(g=>g.temporada>=2026);
+  const lista = de2026.length ? de2026 : jogosRegistro;
   if(!REG.jogo && lista.length){
     const g = lista[lista.length-1];
     REG.jogo = g.id; REG.timeA = g.casa; REG.timeB = g.fora;
@@ -4170,13 +4185,15 @@ function renderRegistro(){
   if(!REG.localLido){
     REG.localLido = true;
     const salvo = regCarregaLocal(REG.jogo);
-    if(salvo && !LANCES.estado.analise.eventos.length) LANCES.estado.analise.eventos = salvo;
+    if(LANCES.estado.analise.eventos === EVENTOS_EXEMPLO) LANCES.estado.analise.eventos = salvo || [];
+    else if(salvo && !LANCES.estado.analise.eventos.length) LANCES.estado.analise.eventos = salvo;
   }
   REGVIDEO.monta();
   const opsJogo = lista.map(g=>{
     const a=tById[g.casa], b=tById[g.fora];
     return '<option value="'+g.id+'"'+(g.id===REG.jogo?' selected':'')+'>'
-      + g.id+' · '+(a?a.nome:g.casa)+' × '+(b?b.nome:g.fora)+'</option>';
+      + g.id+' · '+(a?a.nome:g.casa)+' × '+(b?b.nome:g.fora)
+      + (amistosos.includes(g) ? ' · só vídeo' : '')+'</option>';
   }).join('');
   const gravacao = url
     ? '<div class="field"><label>Quem está marcando</label>'
@@ -4328,7 +4345,7 @@ document.addEventListener('input', e=>{
        anterior na tela, e gravar misturava dois jogos numa aba só */
     regSalvaLocal();
     REG.jogo=el.value;
-    const g=jogos.find(x=>x.id===REG.jogo);
+    const g=jogosRegistro.find(x=>x.id===REG.jogo);
     if(g){ REG.timeA=g.casa; REG.timeB=g.fora; }
     LANCES.estado.analise.eventos = regCarregaLocal(REG.jogo) || [];
     /* o vídeo aberto era do outro jogo; marcar com ele daria tempos errados */
@@ -4580,8 +4597,8 @@ function painelZagueiros(){
 function painelMapaPlanilha(t){
   const url = (DADOS.copa && DADOS.copa.lancesUrl) || '';
   if(!url) return '';
-  const de2026 = jogos.filter(g=>g.temporada>=2026);
-  const lista = de2026.length ? de2026 : jogos;
+  const de2026 = jogosRegistro.filter(g=>g.temporada>=2026);
+  const lista = de2026.length ? de2026 : jogosRegistro;
   return '<div class="field"><label>Guardar na planilha</label>'
     + '<select data-mp-jogo>'
     + lista.map(g=>'<option value="'+g.id+'">'+g.id+'</option>').join('')

@@ -80,6 +80,17 @@ FONTE = {"origem": "repositorio", "lidaEm": "", "erro": ""}
 # Esvaziar este conjunto devolve a contagem antiga de 13.
 SO_TITULO = {"2020-12", "2021-07", "2021-12"}
 
+# Times montados no dia, para fut avulso: ninguém precisa cadastrar time na
+# planilha para marcar o jogo no Registro. Liberam o elenco inteiro na hora de
+# escolher quem fez o lance. Quando o time for de verdade, o certo continua
+# sendo cadastrar na aba TIMES.
+MISTOS = [
+    {"id": "misto-branco", "nome": "Misto Branco", "temporada": None, "sigla": "BRA",
+     "c1": "#F2EFE5", "c2": "#141414", "escudo": "", "foto": "", "misto": True},
+    {"id": "misto-preto", "nome": "Misto Preto", "temporada": None, "sigla": "PRE",
+     "c1": "#17181A", "c2": "#F2EFE5", "escudo": "", "foto": "", "misto": True},
+]
+
 EXTS = (".jpg", ".jpeg", ".png", ".webp")
 AVISOS = []
 
@@ -657,11 +668,17 @@ def main():
     # ---------------- jogos ----------------
     ws = wb["JOGOS"]
     jogos = []
+    # jogo com conta_na_copa = NAO é fut avulso: existe para o Registro marcar
+    # e para o pacote de mídias, e fica de fora de toda estatística da copa
+    amistosos = []
     for r in linhas(ws, acha_cabecalho(ws, "id")):
         gid = str(r.get("id") or "").strip()
         if not gid:
             continue
-        jogos.append({
+        destino = jogos
+        if str(r.get("conta_na_copa") or "SIM").strip().upper() in ("NAO", "NÃO"):
+            destino = amistosos
+        destino.append({
             "id": gid,
             "temporada": num(r.get("temporada")),
             "mes": str(r.get("mes") or "").strip(),
@@ -677,11 +694,13 @@ def main():
                       "video", "youtube", "link") if r.get(k)), "")),
         })
     jogos.sort(key=lambda g: g["id"])
+    amistosos.sort(key=lambda g: g["id"])
     jogoIds = {g["id"] for g in jogos}
+    mistoIds = {t["id"] for t in MISTOS}
 
-    for g in jogos:
+    for g in jogos + amistosos:
         for campo in ("casa", "fora"):
-            if g[campo] and g[campo] not in timeIds:
+            if g[campo] and g[campo] not in timeIds | mistoIds:
                 aviso(f"JOGOS {g['id']}: time '{g[campo]}' não existe na aba TIMES")
 
     # ---------------- escalações ----------------
@@ -696,6 +715,8 @@ def main():
             if jid.upper().startswith("EXEMPLO") or pid.upper().startswith("EXEMPLO"):
                 continue
             if jid not in jogoIds:
+                if jid in {g["id"] for g in amistosos}:
+                    continue      # fut avulso não entra em estatística
                 aviso(f"ESCALACOES: jogo '{jid}' não existe na aba JOGOS")
                 continue
             oculto = pid in EXCLUIR_DO_SITE
@@ -933,6 +954,7 @@ def main():
         "copa": {"nome": "Copa Revoada", "antigo": "Milior Fut", "playlist": PLAYLIST,
                  "lancesUrl": LANCES_URL, "fonte": FONTE},
         "jogadores": jogadores, "times": times, "jogos": jogos,
+        "amistosos": amistosos, "mistos": MISTOS,
         "trofeus": trofeus, "escalacoes": escalacoes, "desempenho": desempenho,
         "premiacoes": premiacoes, "clipes": clipes,
         # Súmulas minuto a minuto, quando existirem: o site recebe os lances

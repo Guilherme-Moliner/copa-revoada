@@ -90,11 +90,53 @@ os últimos arquivos. Fora do navegador, quadro a quadro, sai tudo com fps
 exato, em qualquer velocidade, e **com transparência de verdade**: sem fundo
 verde, sem chroma key para configurar, sem franja na borda.
 
-## Validação
+## Decisões de 14/10/2026
 
-O jogo de Agosto/2026 já tem súmula, vídeo e a edição feita à mão. Rodar a
-cadeia inteira nele e comparar com a edição manual valida o modelo antes do
-próximo jogo.
+- **Formato: ProRes 4444 em .mov**, com transparência. O Resolve gratuito
+  decodifica no Windows. Descartados: WebM VP9 (o Resolve no Windows não
+  decodifica), H.264 (não tem transparência) e sequência de PNG (funciona,
+  mas são milhares de arquivos; fica como reserva).
+- **Uma pasta por jogo**, fora do Git: `midias/<jogo>/`, com os `.mov` e um
+  `manifesto.tsv` (lance, peça, arquivo, seg_video, quadro, timecode, trilha,
+  duração).
+- **Conversão de tempo**: quadro = início da timeline + arredonda(seg × 24).
+  O script lê o início e o fps da própria timeline e para se não for 24 fps.
+- **Em cada gol**: placar animado + barra do jogador + GOL em tela cheia. O
+  placar fica fixo no canto o jogo inteiro, com o placar novo depois de cada
+  gol.
+- **Script do DaVinci em Lua**, por *Workspace › Scripts*: o Resolve roda Lua
+  sem depender do Python instalado. Não mexe na V1 nem na A1. As mídias vão da
+  V2 para cima.
+- **Ligação direta, sem clique**, exige o Resolve Studio (pago): no gratuito,
+  só é possível rodar o script de dentro do programa.
+
+## Validação: fut de 20/09/2026
+
+O jogo de Agosto/2026 deu lugar ao fut de domingo de 20/09: `2026-09`, Misto
+Branco × Misto Preto, só vídeo (não conta para a copa).
+
+- Prévia: https://youtu.be/0KRqe7et2cA
+- DaVinci: projeto "Fut Domingo 2009 copy", "Timeline 1", 1920x1080, 24 fps,
+  começa em 01:00:00:00. Hoje tem V1 (multicam) e A1.
+- Tempo do vídeo 00:00 = timeline 01:00:00:00.
+
+Gabarito, anotado na timeline à mão (também como marcadores, importados por EDL):
+
+| Tempo | Gol | Placar (Branco × Preto) |
+|---|---|---|
+| 11:35 | 1º Preto | 0 × 1 |
+| 21:35 | 1º Branco | 1 × 1 |
+| 31:30 | 2º Branco | 2 × 1 |
+| 32:00 | 3º Branco | 3 × 1 |
+| 40:35 | 4º Branco | 4 × 1 |
+| 41:35 | 2º Preto | 4 × 2 |
+| 45:20 | 5º Branco | 5 × 2 |
+| 45:50 | 3º Preto | 5 × 3 |
+| 51:40 | 4º Preto | 5 × 4 |
+| 53:10 | 5º Preto | 5 × 5 (final) |
+
+O que o Registro gravar tem que bater com esta tabela, e o placar calculado
+pelo gerador também.
 
 ## Depois: levar para outros grupos
 

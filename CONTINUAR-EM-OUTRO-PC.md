@@ -1,6 +1,6 @@
 # Continuar a Copa Revoada em outro computador
 
-Atualizado em 08/10/2026.
+Atualizado em 14/10/2026.
 
 **O projeto inteiro já está no GitHub.** Não precisa copiar pasta, pendrive nem
 o `.rar`: no computador novo você baixa direto de lá. O que fica para trás nesta
@@ -77,6 +77,16 @@ arquivo. Ele lê o `CLAUDE.md` sozinho, e as regras do projeto vêm junto.
    linhas da linha 5 para baixo antes.
 3. **Aba CLIPES: formatar as colunas D e E como texto** (Formatar › Número ›
    Texto simples). Sem isso o Sheets transforma `12:34` em hora do dia.
+4. **Cadastrar o fut de 20/09 na aba JOGOS**, para o Registro poder gravar os
+   lances dele. Na linha 3 (cabeçalho), escreva `conta_na_copa` na primeira
+   coluna livre. Depois a linha do jogo:
+
+   | id | temporada | mes | dia | time_casa | gols_casa | gols_fora | time_fora | estadio | campeao_time_id | video_youtube | conta_na_copa |
+   |---|---|---|---|---|---|---|---|---|---|---|---|
+   | 2026-09 | 2026 | Setembro | 20 | misto-branco | 5 | 5 | misto-preto | | | 0KRqe7et2cA | NAO |
+
+   `NAO` deixa o jogo fora de toda estatística da copa: ele só aparece no
+   Registro e no pacote de mídias.
 
 ### De dados, com os amigos
 
@@ -111,6 +121,19 @@ aconteceu em 22/09.
 - **Registro com vídeo**: cola o link da prévia do YouTube e cada lance grava o
   tempo exato do vídeo.
 
+### O que mudou desde 08/10
+
+- **Jogo só vídeo**: coluna opcional `conta_na_copa` na aba JOGOS. Com `NAO`, o
+  jogo fica fora de estatística, recordes, troféus e da tela Vídeos, e aparece
+  no Registro com a etiqueta "só vídeo".
+- **Times mistos**: "Misto Branco" e "Misto Preto" vêm prontos no app (ids
+  `misto-branco` e `misto-preto`), sem cadastro na planilha. No Registro, eles
+  liberam todos os jogadores. Time de verdade continua sendo cadastrado na aba
+  TIMES.
+- **O Registro abre vazio** num navegador sem nada salvo. Antes ele herdava os
+  11 lances de exemplo da Análise Tática, e um Gravar mandava esses lances
+  falsos para a planilha.
+
 ## 6. Próximo capítulo: pacote de mídias
 
 Plano completo em **`docs/pacote-de-midias.md`**. Em resumo: marcar o jogo no
@@ -123,8 +146,18 @@ Já decidido:
 - **Marcação pelo Registro**, assistindo a prévia no YouTube.
 - **Instalar ffmpeg e Playwright dentro da pasta do projeto está autorizado**,
   no computador que tem o DaVinci.
-- **Validar primeiro no jogo de Agosto/2026**, que já tem súmula e edição manual
-  para comparar.
+- **Validar no fut de 20/09/2026** (`2026-09`, Misto Branco × Misto Preto,
+  5 × 5). Prévia: https://youtu.be/0KRqe7et2cA. Projeto do DaVinci "Fut
+  Domingo 2009 copy", "Timeline 1", 24 fps, começa em 01:00:00:00. Os 10 gols
+  anotados na timeline são o gabarito: ver `docs/pacote-de-midias.md`.
+- **Formato: ProRes 4444 em .mov, com transparência.** O Resolve gratuito
+  decodifica no Windows. WebM VP9 não decodifica, e H.264 não tem
+  transparência. Validar com um clipe de teste antes de gerar o resto.
+- **Em cada gol**: placar animado, barra do jogador e GOL em tela cheia. O
+  placar fica fixo no canto o jogo inteiro.
+- **Ligação direta do Claude com o DaVinci** (sem clique) exige o Resolve
+  Studio, que é pago. No gratuito, o script é disparado uma vez por
+  *Workspace › Scripts*.
 
 ## Mensagem para colar no Claude Code
 
