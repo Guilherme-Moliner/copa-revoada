@@ -1,4 +1,4 @@
-# temporários de sistema
+﻿# temporários de sistema
 .DS_Store
 Thumbs.db
 desktop.ini
@@ -26,3 +26,8 @@ img/
 *.drp
 dados/COPA_REVOADA_baixada.xlsx
 dados/COPA_REVOADA_baixada.json
+
+# pacote de mídias: ffmpeg e Chromium do Playwright (centenas de MB, por
+# máquina; como instalar em docs/pacote-de-midias.md) e as mídias geradas de cada jogo
+ferramentas/
+midias/
