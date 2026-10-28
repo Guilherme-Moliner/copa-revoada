@@ -159,9 +159,21 @@ Já decidido:
   fora do Git: ffmpeg 9.0.2 em `ferramentas/ffmpeg` (SHA-256 conferido) e
   Chromium do Playwright 1.64 em `ferramentas/ms-playwright` (277 MB).
   Playwright no `.venv`.
-- **Gerador**: `scripts/pacote.py`. Hoje só tem `teste`, que gera
-  `midias/teste/teste-gol-barra.mov` (2 s, 48 quadros, ProRes 4444 com
-  transparência). Falta confirmar no DaVinci que a transparência aparece.
+- **Transparência confirmada no DaVinci** (28/10): o clipe de teste caiu na V2
+  sem fundo preto.
+- **Jogo avulso no Registro**: "＋ Novo jogo avulso" cria um jogo que vive só
+  no navegador, sem tocar na planilha. O fut de 20/09 NÃO foi cadastrado na
+  aba JOGOS, de propósito.
+- **Baixar lances / Abrir arquivo** no Registro: o arquivo `.json` é o que o
+  gerador lê, e é como a equipe passa as marcações de um para outro.
+- **Gerador completo**: `scripts/pacote.py gerar <lances.json>`. Gols viram
+  placar animado, GOL em tela cheia e barra do jogador, e o placar fica fixo
+  entre os gols. Saída em `midias/<jogo>/` com `manifesto.tsv`.
+- **Script do DaVinci**: `scripts/davinci/Copa Revoada - importar pacote.lua`,
+  instalado no menu por `scripts/davinci/instala.ps1`.
+- **Próximo passo**: rodar o script no DaVinci com o pacote do gabarito
+  (`midias/avulso-gabarito-20-09`) e conferir contra os marcadores. Depois, a
+  equipe marca os gols com jogador e gera o pacote de verdade.
 - **Ligação direta do Claude com o DaVinci** (sem clique) exige o Resolve
   Studio, que é pago. No gratuito, o script é disparado uma vez por
   *Workspace › Scripts*.

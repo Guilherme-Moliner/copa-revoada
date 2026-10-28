@@ -825,6 +825,20 @@ const jog = DADOS.jogadores, times = DADOS.times, jogos = DADOS.jogos;
    troféus continuam olhando para jogos e times, sem eles. */
 const amistosos = DADOS.amistosos || [], mistos = DADOS.mistos || [];
 const jogosRegistro = jogos.concat(amistosos).sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0);
+/* Jogo avulso: fut de fim de semana que não entra na planilha de jeito
+   nenhum. Existe só neste navegador, e os lances saem por "Baixar lances",
+   que é o arquivo que o pacote de mídias lê. */
+function avulsosLocais(){
+  try{
+    const v = JSON.parse(localStorage.getItem('rvd-avulsos') || '[]');
+    return Array.isArray(v) ? v : [];
+  }catch(_){ return []; }
+}
+function guardaAvulsos(lista){
+  try{ localStorage.setItem('rvd-avulsos', JSON.stringify(lista)); }catch(_){}
+}
+function jogosDoRegistro(){ return jogosRegistro.concat(avulsosLocais()); }
+const ehAvulso = id => avulsosLocais().some(g=>g.id===id);
 
 /* Troféu marcado como SIMULADO na planilha é enfeite, para a gente ver a tela
    funcionando antes de existir premiação de verdade. A galeria mostra os dois,
@@ -855,6 +869,8 @@ function forma(p, nota){
    representam o gramado — e mesmo nelas cai fora se o fundo verde estiver
    ligado. Todo o resto usa a cor de destaque, que alterna amarelo e azul. */
 let semVerde = false;
+/* O pacote de mídias troca por "GOL" quando o jogo não conta para a copa. */
+let TITULO_GOL = 'GOL NA COPA REVOADA';
 let destaque = 'amarelo';
 /* Artes que podem usar verde na prévia porque o export liga o modo sem-verde.
    As de estatística ficam de FORA de propósito: foi pedido que elas não tenham
@@ -4007,7 +4023,7 @@ const REGVIDEO = (function(){
        para esse jogo, depois o vídeo que está na aba JOGOS */
     const campo = r.querySelector('[data-rv-url]');
     if(campo && campo.dataset.jogo !== REG.jogo && document.activeElement !== campo){
-      const g = jogosRegistro.find(x=>x.id===REG.jogo) || {};
+      const g = jogosDoRegistro().find(x=>x.id===REG.jogo) || {};
       campo.value = local('rvd-video-'+REG.jogo) || (g.video ? 'https://youtu.be/'+g.video : '');
       campo.dataset.jogo = REG.jogo;
     }
@@ -4142,8 +4158,13 @@ const REGVIDEO = (function(){
     });
   }, 250);
 
+  function duracao(){
+    if(!ativo()) return null;
+    const d = player.getDuration();
+    return (typeof d === 'number' && isFinite(d) && d > 0) ? d : null;
+  }
   return {monta, fecha, ativo, agora, mmss, marcaInstante, consomeInstante,
-          cancela, vai, pendente: () => marcado, local};
+          cancela, vai, pendente: () => marcado, local, duracao};
 })();
 
 /* Ordem dos lances: tempo do vídeo quando existe, minuto quando não. A lista
@@ -4176,8 +4197,9 @@ function regQuando(){
 
 function renderRegistro(){
   const url = (DADOS.copa && DADOS.copa.lancesUrl) || '';
-  const de2026 = jogosRegistro.filter(g=>g.temporada>=2026);
-  const lista = de2026.length ? de2026 : jogosRegistro;
+  const todos = jogosDoRegistro();
+  const de2026 = todos.filter(g=>g.temporada>=2026);
+  const lista = de2026.length ? de2026 : todos;
   if(!REG.jogo && lista.length){
     const g = lista[lista.length-1];
     REG.jogo = g.id; REG.timeA = g.casa; REG.timeB = g.fora;
@@ -4193,9 +4215,22 @@ function renderRegistro(){
     const a=tById[g.casa], b=tById[g.fora];
     return '<option value="'+g.id+'"'+(g.id===REG.jogo?' selected':'')+'>'
       + g.id+' · '+(a?a.nome:g.casa)+' × '+(b?b.nome:g.fora)
-      + (amistosos.includes(g) ? ' · só vídeo' : '')+'</option>';
-  }).join('');
-  const gravacao = url
+      + (amistosos.includes(g) ? ' · só vídeo' : g.avulso ? ' · avulso, só neste navegador' : '')+'</option>';
+  }).join('') + '<option value="__novo">＋ Novo jogo avulso…</option>';
+  const avulso = ehAvulso(REG.jogo);
+  const temLances = regOrdenados().length > 0;
+  const arquivo = '<div style="display:flex;gap:.4rem;margin-top:.5rem">'
+    + '<button class="btn" data-reg-baixar style="flex:1"'+(temLances?'':' disabled')+'>Baixar lances</button>'
+    + '<label class="btn" style="flex:1;text-align:center;cursor:pointer">Abrir arquivo'
+    + '<input type="file" accept=".json,application/json" data-reg-abrir hidden></label></div>'
+    + '<p data-reg-msg-arq style="font-size:.72rem;color:var(--dim);margin:.35rem 0 0">O arquivo baixado '
+    + 'é o que o pacote de mídias lê. "Abrir" carrega um arquivo que alguém da equipe marcou.</p>'
+    + (avulso ? '<button class="btn ghost" data-reg-apagar-avulso style="width:100%;margin-top:.5rem;'
+      + 'font-size:.75rem">Apagar este jogo avulso deste navegador</button>' : '');
+  const gravacao = avulso
+    ? '<div class="card empty" style="padding:.7rem;text-align:left">Jogo avulso: os lances ficam '
+      + 'só neste navegador e não vão para a planilha.</div>'
+    : url
     ? '<div class="field"><label>Quem está marcando</label>'
       + '<input data-reg-por value="'+(localStorage.getItem('rvd-por')||'')+'" placeholder="seu nome"></div>'
       + '<div class="field"><label>Chave — só para gravar</label>'
@@ -4226,9 +4261,33 @@ function renderRegistro(){
         + '<input type="number" min="0" max="200" data-reg-minuto value="'+REG.minuto+'">'
         + '<button class="btn" data-reg-min="1">+</button></div>'
         + '<p class="eyebrow" style="margin:0 0 .5rem">minuto do lance</p>')
-    + gravacao + '</div>'
+    + gravacao + arquivo + '</div>'
     + regResumo() + regListaEventos() + '</div>'
     + regColunaTime('A') + regColunaTime('B');
+}
+
+/* O arquivo que o pacote de mídias lê. Leva os times inteiros (nome, sigla e
+   cores) porque o jogo avulso não existe na planilha, e o tempo de cada lance
+   em segundos do vídeo — é ele que posiciona as peças na timeline. */
+function baixaLances(){
+  const g = jogosDoRegistro().find(x=>x.id===REG.jogo) || {id:REG.jogo};
+  const time = id => { const t = tById[id] || {};
+    return {id, nome:t.nome||id, sigla:t.sigla||'', c1:t.c1||'', c2:t.c2||''}; };
+  const pacote = {
+    formato:'copa-revoada-lances/1',
+    jogo:REG.jogo, nome:g.nome || REG.jogo,
+    conta_na_copa: !(g.avulso || amistosos.includes(g)),
+    casa:time(REG.timeA), fora:time(REG.timeB),
+    video: REGVIDEO.local('rvd-video-'+REG.jogo) || (g.video ? 'https://youtu.be/'+g.video : ''),
+    duracao_video: REGVIDEO.duracao(),
+    exportado_em: new Date().toISOString(),
+    eventos: regOrdenados().map(e=>({seg:e.seg != null ? e.seg : null, min:e.min, t:e.t,
+      tipo:e.tipo, j:e.j||'', xg:e.xg||0}))
+  };
+  const blob = new Blob([JSON.stringify(pacote, null, 1)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'lances-'+REG.jogo+'.json'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
 }
 
 function registraLance(lado, apelido){
@@ -4284,6 +4343,16 @@ document.addEventListener('click', async e=>{
     regSalvaLocal();
     renderRegistro(); return;
   }
+  if(b.hasAttribute('data-reg-baixar')){ baixaLances(); return; }
+  if(b.hasAttribute('data-reg-apagar-avulso')){
+    if(!confirm('Apagar o jogo avulso "'+REG.jogo+'" e os lances dele deste navegador? '
+      + 'Baixe os lances antes, se ainda for usar.')) return;
+    guardaAvulsos(avulsosLocais().filter(g=>g.id!==REG.jogo));
+    try{ localStorage.removeItem('rvd-reg-'+REG.jogo); localStorage.removeItem('rvd-video-'+REG.jogo); }catch(_){}
+    REG.jogo=''; REG.localLido=false; LANCES.estado.analise.eventos=[];
+    if(REGVIDEO.ativo()) REGVIDEO.fecha();
+    renderRegistro(); return;
+  }
   const msg = m => { const el=document.querySelector('[data-reg-msg]'); if(el) el.textContent=m; };
   const val = k => { const el=document.querySelector('[data-reg-'+k+']'); return el?el.value.trim():''; };
   if(b.hasAttribute('data-reg-ler')){
@@ -4336,16 +4405,52 @@ document.addEventListener('click', async e=>{
     b.disabled=false; return;
   }
 });
+/* Abrir um arquivo de lances baixado por alguém da equipe. Arquivo de outro
+   jogo só entra com confirmação, para não misturar dois jogos. */
+document.addEventListener('change', async e=>{
+  const el=e.target;
+  if(!el.matches || !el.matches('[data-reg-abrir]') || !el.files.length) return;
+  const msg = m => { const p=document.querySelector('[data-reg-msg-arq]'); if(p) p.textContent=m; };
+  try{
+    const d = JSON.parse(await el.files[0].text());
+    if(d.formato !== 'copa-revoada-lances/1' || !Array.isArray(d.eventos))
+      throw new Error('não é um arquivo de lances da Copa Revoada');
+    if(d.jogo !== REG.jogo && !confirm('O arquivo é do jogo "'+d.jogo+'", e o aberto é "'+REG.jogo
+        +'". Trocar os lances deste jogo pelos do arquivo mesmo assim?')){ el.value=''; return; }
+    LANCES.estado.analise.eventos = d.eventos.map(x=>{
+      const ev = {min:x.min, t:x.t, tipo:x.tipo, j:x.j||'', xg:x.xg||0};
+      if(x.seg != null) ev.seg = +x.seg;
+      return ev;
+    });
+    regSalvaLocal(); renderRegistro();
+  }catch(err){ msg('não deu para abrir: '+err.message); }
+  el.value='';
+});
 document.addEventListener('input', e=>{
   const el=e.target;
   if(!el.closest || !el.closest('#registro')) return;
+  if(el.matches('[data-reg-abrir]')) return;
   if(el.dataset.regMinuto!==undefined) REG.minuto=+el.value||0;
   if(el.dataset.regJogo!==undefined){
     /* cada jogo tem a sua lista: antes trocar de jogo mantinha os lances do
        anterior na tela, e gravar misturava dois jogos numa aba só */
     regSalvaLocal();
     REG.jogo=el.value;
-    const g=jogosRegistro.find(x=>x.id===REG.jogo);
+    if(el.value === '__novo'){
+      const nome = (prompt('Nome do jogo avulso (ex.: Fut 20/09)') || '').trim();
+      if(!nome){ el.value = REG.jogo; return; }
+      const base = 'avulso-' + nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+        .replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+      const lista = avulsosLocais();
+      let id = base, n = 2;
+      while(lista.some(g=>g.id===id) || jogosRegistro.some(g=>g.id===id)) id = base+'-'+(n++);
+      lista.push({id, nome, temporada:new Date().getFullYear(), casa:'misto-branco',
+                  fora:'misto-preto', avulso:true});
+      guardaAvulsos(lista);
+      el.value = id;
+    }
+    REG.jogo=el.value;
+    const g=jogosDoRegistro().find(x=>x.id===REG.jogo);
     if(g){ REG.timeA=g.casa; REG.timeB=g.fora; }
     LANCES.estado.analise.eventos = regCarregaLocal(REG.jogo) || [];
     /* o vídeo aberto era do outro jogo; marcar com ele daria tempos errados */
@@ -4354,6 +4459,9 @@ document.addEventListener('input', e=>{
   }
   if(el.dataset.regTime){
     if(el.dataset.regTime==='A') REG.timeA=el.value; else REG.timeB=el.value;
+    if(ehAvulso(REG.jogo)){
+      guardaAvulsos(avulsosLocais().map(g=>g.id===REG.jogo ? {...g, casa:REG.timeA, fora:REG.timeB} : g));
+    }
     renderRegistro();
   }
 });
@@ -5036,7 +5144,8 @@ F.comp.innerHTML = '<option value="">— sem comparação —</option>' +
   jog.map(p=>`<option value="${p.id}">${p.apelido}</option>`).join('');
 
 const optTimes = times.map(t=>`<option value="${t.id}">${t.nome} ${t.temporada}</option>`).join('');
-F.time.innerHTML = optTimes;
+F.time.innerHTML = optTimes + (mistos.length ? '<optgroup label="Times montados no dia">'
+  + mistos.map(t=>`<option value="${t.id}">${t.nome}</option>`).join('') + '</optgroup>' : '');
 F.time.value = times[times.length-1].id;
 F.time2.innerHTML = optTimes;
 /* adversário começa no par da mesma temporada, que é o duelo real daquele ano */
@@ -5196,7 +5305,7 @@ function draw(k){
     sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.94)'; rr(x,y,w,h,16); ctx.fill(); });
     ctx.fillStyle=corSegura(T.c1); rr(x,y,16,h,8); ctx.fill();
     retrato(p1, x+46, y+22, 136, 136, 12);
-    txt('GOL NA COPA REVOADA', x+218, y+62, 32, P().ac,'cond',7);
+    txt(TITULO_GOL, x+218, y+62, 32, P().ac,'cond',7);
     txt(p1.apelido.toUpperCase(), x+218, y+134, 70, '#F4F1E6','blk');
     txt(T.nome.toUpperCase()+'   ·   '+F.min.value, x+220, y+170, 28, '#8A9A8C','cond',5);
     marca(x+w-120, y+34, 112);

@@ -5,17 +5,77 @@ Registro e o app gera **o conjunto inteiro de mídias** a partir dessas
 marcações. Num passo seguinte, um script dentro do DaVinci importa tudo e
 posiciona na timeline.
 
-Estado em 16/09/2026: **a etapa 1 está pronta**; as outras dependem de
-instalar ferramentas no computador que tem o DaVinci.
+Estado em 28/10/2026: **a cadeia inteira existe para os gols.** Falta
+validar o posicionamento no DaVinci com o pacote do gabarito e, depois, entrar
+com os outros tipos de lance.
 
 ## Etapas
 
 | # | Etapa | Situação |
 |---|---|---|
 | 1 | Marcar o jogo no Registro com o tempo do vídeo do YouTube | pronta |
-| 2 | Regras: cada tipo de lance vira quais peças | a fazer |
-| 3 | Render em lote, fora do navegador, com transparência | a fazer — precisa das instalações |
-| 4 | Script do DaVinci: importar, posicionar, ajustar | a fazer — DaVinci gratuito |
+| 2 | Regras: cada tipo de lance vira quais peças | gols prontos; os outros tipos, a fazer |
+| 3 | Render em lote, fora do navegador, com transparência | pronta (`scripts/pacote.py`) |
+| 4 | Script do DaVinci: importar, posicionar | pronto, falta validar no Resolve |
+
+## Como usar, do jogo à timeline
+
+1. **Registro**: escolha o jogo, ou **＋ Novo jogo avulso** para um fut que não
+   entra na planilha. Cole o link da prévia, **Carregar vídeo**, e marque.
+2. **Baixar lances**: sai o arquivo `lances-<jogo>.json`. Quem marcou em
+   outro computador manda esse arquivo, e **Abrir arquivo** carrega ele no
+   Registro.
+3. **Gerar o pacote**:
+
+   ```powershell
+   .venv\Scripts\python.exe scripts\pacote.py gerar C:\caminho\lances-<jogo>.json
+   ```
+
+   As peças saem em `midias/<jogo>/`, com o `manifesto.tsv`. O gerador
+   imprime cada gol com o placar calculado: confira antes de seguir.
+4. **No DaVinci**, com o projeto e a timeline abertos: *Workspace › Scripts ›
+   Copa Revoada - importar pacote*. As peças vão para *IA › Pacote <jogo>* no
+   Media Pool e para a timeline, da V2 para cima. O resumo aparece em
+   *Workspace › Console*.
+
+O script do DaVinci entra no menu uma vez por computador:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\davinci\instala.ps1
+```
+
+Rode de novo sempre que `scripts/davinci/*.lua` mudar.
+
+### Guia de tempo de cada peça
+
+Fica em `PECAS_GOL`, no começo de `scripts/pacote.py`. Cada peça entra, segura
+e sai dentro da própria duração. A regra: **1 s a mais do que parece bastar**,
+para dar tempo de ler — e mais ainda para peça densa.
+
+| Peça | Trilha | Entra | Dura |
+|---|---|---|---|
+| Placar fixo | V2 | o jogo inteiro, com o placar do momento | até o gol seguinte |
+| Placar com a animação do gol | V2 | no instante do gol | 5 s |
+| GOL em tela cheia | V3 | no instante do gol | 4 s |
+| Barra do jogador (foto, nome, time, minuto) | V4 | 4 s depois do gol | 6 s |
+
+O "instante do gol" é o tempo gravado no Registro, que é quando se clicou em
+**Gol**.
+
+### Instalar as ferramentas num computador novo
+
+Tudo dentro da pasta do projeto, fora do Git (`ferramentas/` e `midias/`
+estão no `.gitignore`):
+
+- **ffmpeg**: baixar o "release essentials" em gyan.dev, conferir o SHA-256
+  publicado ao lado e copiar só a pasta `bin` para `ferramentas\ffmpeg\`.
+- **Playwright**: `.venv\Scripts\python.exe -m pip install playwright`
+- **Chromium do Playwright**, dentro do projeto:
+
+  ```powershell
+  $env:PLAYWRIGHT_BROWSERS_PATH = 'C:\copa-revoada\ferramentas\ms-playwright'
+  .venv\Scripts\python.exe -m playwright install chromium --only-shell
+  ```
 
 ## 1. Marcação com o vídeo
 
@@ -119,6 +179,11 @@ Branco × Misto Preto, só vídeo (não conta para a copa).
 - DaVinci: projeto "Fut Domingo 2009 copy", "Timeline 1", 1920x1080, 24 fps,
   começa em 01:00:00:00. Hoje tem V1 (multicam) e A1.
 - Tempo do vídeo 00:00 = timeline 01:00:00:00.
+
+O arquivo `midias/teste/lances-gabarito-20-09.json` (fora do Git) tem estes
+10 gols, com tempo e time mas **sem jogador** — o gabarito não diz quem fez.
+Com ele, o pacote sai só com os placares, o bastante para conferir o
+posicionamento.
 
 Gabarito, anotado na timeline à mão (também como marcadores, importados por EDL):
 
