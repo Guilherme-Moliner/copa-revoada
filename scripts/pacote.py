@@ -8,6 +8,7 @@ pasta só daquele jogo, todas as peças com transparência de verdade (ProRes
 DaVinci lê para posicionar cada uma na timeline.
 
     .venv\\Scripts\\python.exe scripts\\pacote.py gerar caminho\\lances-<jogo>.json
+    .venv\\Scripts\\python.exe scripts\\pacote.py gerar        (pega o mais novo em Downloads)
     .venv\\Scripts\\python.exe scripts\\pacote.py teste
 
 Opções do gerar:
@@ -47,23 +48,10 @@ os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", os.path.join(FERRAMENTAS, "ms-
 # arte e quadro de vídeo andam juntos, sem o Resolve reamostrar nada.
 FPS = 24
 
-# ---------------------------------------------------------------------------
-# GUIA DE TEMPO DE CADA PEÇA — é aqui que se ajusta.
-#
-# Cada peça entra, segura e sai dentro da duração. Peça mais densa precisa de
-# mais tempo para dar para ler: a regra é 1 s a mais do que parece bastar.
-#
-#   chave: (trilha, começa N s depois do gol, duração em s, o que é)
-#
-# O placar fixo fica na mesma trilha do placar animado: ele some enquanto o
-# gol anima e volta com o placar novo.
-PECAS_GOL = {
-    "placar": (2, 0.0, 5.0, "placar de transmissão com a animação do gol"),
-    "golaco": (3, 0.0, 4.0, "GOL em tela cheia com o nome de quem fez"),
-    "barra":  (4, 4.0, 6.0, "barra inferior com foto, nome, time e minuto"),
-}
-TRILHA_PLACAR_FIXO = 2
-# ---------------------------------------------------------------------------
+# O que cada lance vira, em que trilha, quando entra e quanto dura: tudo em
+# dados/regras-pacote.json. É o mesmo arquivo que o Registro mostra ao lado de
+# cada lance, para o que se vê na marcação ser o que sai no vídeo.
+REGRAS = os.path.join(RAIZ, "dados", "regras-pacote.json")
 
 
 def servidor():
@@ -165,61 +153,181 @@ def mmss(seg):
 # o que gerar
 
 
-def planeja(dados, inicio, fim):
+# Peça que chega com a trilha ocupada espera a anterior sair. Esperar mais do
+# que isto já não faz sentido: o lance passou, e a peça fica de fora.
+ESPERA_MAXIMA = 8.0
+
+
+class Trilhas:
+    """Quem ocupa cada trilha. Peças da mesma trilha aparecem no mesmo lugar
+    da tela, então duas ao mesmo tempo ficariam uma por cima da outra — subir
+    a segunda para outra trilha não resolve isso. Ela entra em fila: começa
+    quando a anterior termina."""
+
+    def __init__(self):
+        self.ocupado = {}
+
+    def reserva(self, trilha, quadro, dur):
+        self.ocupado.setdefault(trilha, []).append((quadro, quadro + dur))
+
+    def encaixa(self, trilha, quadro, dur):
+        """Devolve o quadro em que a peça entra, ou None se a espera passar
+        do limite."""
+        pedido = quadro
+        mexeu = True
+        while mexeu:
+            mexeu = False
+            for i, f in self.ocupado.get(trilha, []):
+                if quadro < f and quadro + dur > i:
+                    quadro, mexeu = f, True
+        if quadro - pedido > ESPERA_MAXIMA * FPS:
+            return None
+        self.reserva(trilha, quadro, dur)
+        return quadro
+
+
+def planeja(dados, regras, inicio, fim):
     """Transforma os lances em peças: cada uma com arquivo, trilha, quadro de
     entrada e duração em quadros. O placar é calculado gol a gol, na ordem do
     tempo do vídeo."""
-    gols = [e for e in dados["eventos"] if e.get("tipo") == "gol"]
-    sem_tempo = [e for e in gols if e.get("seg") is None]
+    avisos = []
+    lances = [e for e in dados["eventos"] if regras["lances"].get(e.get("tipo"))]
+    sem_tempo = [e for e in lances if e.get("seg") is None]
+    if any(e["tipo"] == "gol" for e in sem_tempo):
+        sys.exit("Há gol sem o tempo do vídeo. Sem ele não há onde pôr a peça, e o placar "
+                 "sairia errado: marque de novo com o vídeo carregado no Registro.")
     if sem_tempo:
-        sys.exit(f"{len(sem_tempo)} gol(s) sem o tempo do vídeo. Sem ele não há onde pôr a "
-                 "peça: marque de novo com o vídeo carregado no Registro.")
-    gols.sort(key=lambda e: float(e["seg"]))
+        avisos.append(f"{len(sem_tempo)} lance(s) sem o tempo do vídeo ficaram de fora")
+    lances = sorted((e for e in lances if e.get("seg") is not None), key=lambda e: float(e["seg"]))
 
-    pecas = []
+    do_jogo = {r["peca"]: r for r in regras.get("jogo", [])}
+    fixo = do_jogo.get("placar-fixo")
+    trilhas = Trilhas()
+    if fixo:      # a trilha do placar é dele o jogo inteiro
+        trilhas.reserva(fixo["trilha"], round(inicio * FPS), round((fim - inicio) * FPS))
+
+    pecas, gols = [], []
     gc = gf = 0
     q_cursor = round(inicio * FPS)
     q_fim = round(fim * FPS)
-    for n, g in enumerate(gols, 1):
-        seg = float(g["seg"])
-        if g["t"] == "A":
-            gc += 1
+
+    # abertura, artilheiro e fim têm hora marcada: reservam o lugar antes, e os
+    # lances é que esperam por eles
+    lugar = {}
+    for nome in ("abertura", "artilheiro", "fim"):
+        r = do_jogo.get(nome)
+        if not r:
+            continue
+        dur = round(r["dura"] * FPS)
+        if "antes_do_fim" in r:
+            quadro = round((fim - r["antes_do_fim"]) * FPS)
         else:
-            gf += 1
-        g["placar_depois"] = (gc, gf)
-        lance = f"gol-{n:02d}"
+            quadro = round((inicio + r.get("entra", 0)) * FPS)
+        if quadro < round(inicio * FPS) or quadro + dur > q_fim:
+            avisos.append(f"sem {nome}: não cabe entre {mmss(inicio)} e {mmss(fim)}")
+            continue
+        trilhas.reserva(r["trilha"], quadro, dur)
+        lugar[nome] = (r["trilha"], quadro, dur)
+    conta = {}
+    for e in lances:
+        seg = float(e["seg"])
+        conta[e["tipo"]] = conta.get(e["tipo"], 0) + 1
+        lance = f"{e['tipo'].lower()}-{conta[e['tipo']]:02d}"
+        eh_gol = e["tipo"] == "gol"
+        if eh_gol:
+            if e["t"] == "A":
+                gc += 1
+            else:
+                gf += 1
+            e["placar_depois"] = (gc, gf)
+            gols.append(e)
+        for r in regras["lances"][e["tipo"]]:
+            dur = round(r["dura"] * FPS)
+            quadro = round((seg + r.get("entra", 0)) * FPS)
+            if r["peca"] == "placar":
+                if not eh_gol:
+                    continue
+                if quadro < q_cursor:
+                    avisos.append(f"{lance} aos {mmss(seg)} veio colado no gol anterior: a animação "
+                                  f"do placar começa {(q_cursor - quadro) / FPS:.1f} s depois")
+                    quadro = q_cursor
+                antes = (gc - (e["t"] == "A"), gf - (e["t"] != "A"))
+                if fixo and quadro > q_cursor:
+                    pecas.append(dict(lance=f"placar-{antes[0]}x{antes[1]}", peca="placar-fixo",
+                                      arquivo=f"placar-fixo-{antes[0]}x{antes[1]}.png", tipo="imagem",
+                                      quadro=q_cursor, duracao=quadro - q_cursor,
+                                      trilha=fixo["trilha"], gc=antes[0], gf=antes[1]))
+                pecas.append(dict(lance=lance, peca="placar", arquivo=f"{lance}-placar.mov",
+                                  tipo="video", quadro=quadro, duracao=dur,
+                                  trilha=fixo["trilha"] if fixo else r["trilha"],
+                                  gc=gc, gf=gf, seg=seg,
+                                  evento="golCasa" if e["t"] == "A" else "golFora"))
+                q_cursor = quadro + dur
+                continue
+            titulo = r.get("titulo", "")
+            if dados.get("conta_na_copa", True) and r.get("titulo_copa"):
+                titulo = r["titulo_copa"]
+            if not e.get("j"):
+                avisos.append(f"sem {r['peca']} no {lance} ({mmss(seg)}): o lance foi marcado sem jogador")
+                continue
+            entra = trilhas.encaixa(r["trilha"], quadro, dur)
+            if entra is None:
+                avisos.append(f"sem {r['peca']} no {lance} ({mmss(seg)}): a tela ainda estava ocupada "
+                              f"por outra peça {ESPERA_MAXIMA:.0f} s depois")
+                continue
+            if entra != quadro:
+                avisos.append(f"{r['peca']} do {lance} ({mmss(seg)}) entra {(entra - quadro) / FPS:.1f} s "
+                              "depois, esperando a peça anterior sair")
+            pecas.append(dict(lance=lance, peca=r["peca"], arquivo=f"{lance}-{r['peca']}.mov",
+                              tipo="video", quadro=entra, duracao=dur, trilha=r["trilha"],
+                              jogador=e["j"], lado=e["t"], minuto=e.get("min"),
+                              seg=seg, titulo=titulo))
 
-        trilha, desloc, dur, _ = PECAS_GOL["placar"]
-        q_anim = round((seg + desloc) * FPS)
-        if q_anim < q_cursor:
-            print(f"  ! {lance} aos {mmss(seg)} veio colado no anterior: a animação do placar "
-                  f"começa {(q_cursor - q_anim) / FPS:.1f} s depois")
-            q_anim = q_cursor
-        antes = (gc - (g["t"] == "A"), gf - (g["t"] != "A"))
-        if q_anim > q_cursor:
-            pecas.append(dict(lance=f"placar-{antes[0]}x{antes[1]}", peca="placar-fixo",
-                              arquivo=f"placar-fixo-{antes[0]}x{antes[1]}.png", tipo="imagem",
-                              quadro=q_cursor, duracao=q_anim - q_cursor,
-                              trilha=TRILHA_PLACAR_FIXO, gc=antes[0], gf=antes[1]))
-        q_dur = round(dur * FPS)
-        pecas.append(dict(lance=lance, peca="placar", arquivo=f"{lance}-placar.mov", tipo="video",
-                          quadro=q_anim, duracao=q_dur, trilha=trilha, gc=gc, gf=gf,
-                          evento="golCasa" if g["t"] == "A" else "golFora", seg=seg))
-        q_cursor = q_anim + q_dur
-
-        for peca in ("golaco", "barra"):
-            trilha, desloc, dur, _ = PECAS_GOL[peca]
-            pecas.append(dict(lance=lance, peca=peca, arquivo=f"{lance}-{peca}.mov", tipo="video",
-                              quadro=round((seg + desloc) * FPS), duracao=round(dur * FPS),
-                              trilha=trilha, jogador=g.get("j") or "", lado=g["t"],
-                              minuto=g.get("min"), seg=seg))
-
-    if q_fim > q_cursor:
+    if fixo and q_fim > q_cursor:
         pecas.append(dict(lance=f"placar-{gc}x{gf}", peca="placar-fixo",
                           arquivo=f"placar-fixo-{gc}x{gf}.png", tipo="imagem",
                           quadro=q_cursor, duracao=q_fim - q_cursor,
-                          trilha=TRILHA_PLACAR_FIXO, gc=gc, gf=gf))
-    return gols, pecas
+                          trilha=fixo["trilha"], gc=gc, gf=gf))
+
+    # ---- peças do jogo, nos lugares reservados lá em cima
+    if "abertura" in lugar:
+        t, q, dur = lugar["abertura"]
+        pecas.append(dict(lance="jogo", peca="abertura", arquivo="jogo-abertura.mov", tipo="video",
+                          quadro=q, duracao=dur, trilha=t))
+    if "fim" in lugar:
+        t, q, dur = lugar["fim"]
+        pecas.append(dict(lance="jogo", peca="fim", arquivo="jogo-fim.mov", tipo="video",
+                          quadro=q, duracao=dur, trilha=t, gc=gc, gf=gf))
+    if "artilheiro" in lugar and gols:
+        # Artilheiro só sai quando é fato: todo gol com jogador, e um só na frente.
+        # Empate ou gol sem dono não se decide aqui.
+        if any(not g.get("j") for g in gols):
+            avisos.append("sem artilheiro do dia: há gol marcado sem jogador")
+        else:
+            soma = {}
+            for g in gols:
+                soma[(g["j"], g["t"])] = soma.get((g["j"], g["t"]), 0) + 1
+            topo = max(soma.values())
+            lideres = [k for k, v in soma.items() if v == topo]
+            if len(lideres) > 1:
+                avisos.append("sem artilheiro do dia: empate entre "
+                              + ", ".join(k[0] for k in lideres) + f" ({topo} cada)")
+            else:
+                t, q, dur = lugar["artilheiro"]
+                pecas.append(dict(lance="jogo", peca="artilheiro", arquivo="jogo-artilheiro.mov",
+                                  tipo="video", quadro=q, duracao=dur, trilha=t,
+                                  jogador=lideres[0][0], lado=lideres[0][1], gols=topo))
+    return gols, pecas, avisos
+
+
+def competicao(dados):
+    if dados.get("conta_na_copa", True):
+        return "COPA REVOADA"
+    return (dados.get("nome") or dados["jogo"]).upper()
+
+
+def time_de(dados, lado):
+    return dados["casa"]["id"] if lado == "A" else dados["fora"]["id"]
 
 
 def js_placar(dados, p, segundos):
@@ -238,47 +346,106 @@ def js_placar(dados, p, segundos):
     }}"""
 
 
-def js_gol(dados, p):
-    """Campos da barra de gol e do GOL em tela cheia."""
-    time = dados["casa"]["id"] if p["lado"] == "A" else dados["fora"]["id"]
-    titulo = "GOL NA COPA REVOADA" if dados.get("conta_na_copa", True) else "GOL"
+def js_jogador(dados, p, arte):
+    """Peças com um jogador: barra, GOL em tela cheia, artilheiro do dia."""
+    time = time_de(dados, p["lado"])
     minuto = "" if p.get("minuto") is None else f"{p['minuto']}'"
     return f"""F => {{
         const quem = jog.find(x=>x.apelido === {json.dumps(p['jogador'])});
-        if(!quem) return 'jogador {p['jogador']} não está no site';
-        if(!tById[{json.dumps(time)}]) return 'time desconhecido no site: {time}';
-        F.tipo.value = {json.dumps('gol' if p['peca'] == 'barra' else 'golaco')};
+        if(!quem) return 'jogador ' + {json.dumps(p['jogador'])} + ' não está no site';
+        if(!tById[{json.dumps(time)}]) return 'time desconhecido no site: ' + {json.dumps(time)};
+        F.tipo.value = {json.dumps(arte)};
         F.p1.value = quem.id;
         F.time.value = {json.dumps(time)};
         F.min.value = {json.dumps(minuto)};
-        TITULO_GOL = {json.dumps(titulo)};
+        TITULO_GOL = {json.dumps(p.get('titulo') or 'GOL')};
+        GOLS_DO_DIA = {json.dumps(p.get('gols'))};
         return '';
     }}"""
 
 
-def competicao(dados):
-    if dados.get("conta_na_copa", True):
-        return "COPA REVOADA"
-    return (dados.get("nome") or dados["jogo"]).upper()
+def js_cartao_do_jogo(dados, p):
+    """Abertura (os dois escudos) e fim de jogo (com o placar final)."""
+    return f"""F => {{
+        const casa = {json.dumps(dados['casa']['id'])}, fora = {json.dumps(dados['fora']['id'])};
+        if(!tById[casa] || !tById[fora]) return 'time desconhecido no site: '+casa+' ou '+fora;
+        F.tipo.value = {json.dumps('fim' if p['peca'] == 'fim' else 'placar')};
+        F.time.value = casa; F.time2.value = fora;
+        F.ga.value = {p.get('gc', 0)}; F.gb.value = {p.get('gf', 0)};
+        F.min.value = '';
+        TITULO_PLACAR = {json.dumps(competicao(dados))};
+        return '';
+    }}"""
 
 
-def gerar(arquivo, inicio=0.0, fim=None):
+ARTE_DA_PECA = {"barra": "gol", "golaco": "golaco", "artilheiro": "artilheiro"}
+
+
+def mais_recente_nos_downloads():
+    pasta = os.path.join(os.path.expanduser("~"), "Downloads")
+    achados = glob.glob(os.path.join(pasta, "lances-*.json"))
+    if not achados:
+        sys.exit(f"Não achei nenhum lances-*.json em {pasta}.\n"
+                 "No Registro, clique em Baixar lances — ou arraste o arquivo para cima do "
+                 "\"Gerar pacote de midias.bat\".")
+    return max(achados, key=os.path.getmtime)
+
+
+def garante_site():
+    """As peças são desenhadas pelo index.html. Se o template, as regras ou o
+    build mudaram depois dele, refaz — lendo a planilha, quando o gh deixa."""
+    site = os.path.join(RAIZ, "index.html")
+    fontes = [os.path.join(RAIZ, "src", "app.template.html"), REGRAS,
+              os.path.join(RAIZ, "scripts", "build.py")]
+    if os.path.isfile(site) and all(os.path.getmtime(site) >= os.path.getmtime(f) for f in fontes):
+        return
+    print("o site local está desatualizado: refazendo…")
+    amb = dict(os.environ, PYTHONIOENCODING="utf-8")
+    for var in ("PLANILHA_URL", "LANCES_URL"):
+        if amb.get(var):
+            continue
+        for gh in ("gh", r"C:\Program Files\GitHub CLI\gh.exe"):
+            try:
+                r = subprocess.run([gh, "variable", "get", var, "-R", "Guilherme-Moliner/copa-revoada"],
+                                   capture_output=True, text=True, timeout=30)
+                if r.returncode == 0 and r.stdout.strip():
+                    amb[var] = r.stdout.strip()
+                    break
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+    r = subprocess.run([sys.executable, os.path.join(RAIZ, "scripts", "build.py")],
+                       env=amb, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if r.returncode:
+        sys.exit("o build do site falhou:\n" + (r.stdout + r.stderr)[-1500:])
+    origem = [l.strip() for l in r.stdout.splitlines() if "planilha" in l.lower()]
+    print("  " + (origem[0] if origem else "site refeito"))
+    if not amb.get("PLANILHA_URL"):
+        print("  ! sem acesso à planilha online (gh): usei a cópia do repositório, que pode "
+              "estar sem jogador novo")
+
+
+def gerar(arquivo=None, inicio=0.0, fim=None):
     from playwright.sync_api import sync_playwright
     if not os.path.isfile(FFMPEG):
         sys.exit("falta o ffmpeg em ferramentas/ffmpeg — ver docs/pacote-de-midias.md")
+    if not arquivo:
+        arquivo = mais_recente_nos_downloads()
+    print(f"lances: {arquivo}")
     dados = json.load(open(arquivo, encoding="utf-8"))
     if dados.get("formato") != "copa-revoada-lances/1":
         sys.exit(f"{arquivo} não é um arquivo de lances do Registro")
+    regras = json.load(open(REGRAS, encoding="utf-8"))
+    garante_site()
     if fim is None:
         if dados.get("duracao_video"):
             fim = float(dados["duracao_video"])
         else:
             segs = [float(e["seg"]) for e in dados["eventos"] if e.get("seg") is not None]
             fim = (max(segs) if segs else 0) + 30
-            print(f"  ! o arquivo não traz a duração do vídeo: o placar fixo vai até {mmss(fim)}"
+            print(f"  ! o arquivo não traz a duração do vídeo: o jogo vai até {mmss(fim)}"
                   " (30 s depois do último lance). Use --fim para mudar.")
 
-    gols, pecas = planeja(dados, inicio, fim)
+    gols, pecas, avisos = planeja(dados, regras, inicio, fim)
     print(f"{dados.get('nome') or dados['jogo']}: {dados['casa']['nome']} × {dados['fora']['nome']}")
     for n, g in enumerate(gols, 1):
         lado = dados["casa"]["nome"] if g["t"] == "A" else dados["fora"]["nome"]
@@ -297,32 +464,32 @@ def gerar(arquivo, inicio=0.0, fim=None):
         with sync_playwright() as p:
             nav = p.chromium.launch()
             pg = abre_estudio(nav, srv.server_address[1])
-            for peca in pecas:
+            for n, peca in enumerate(pecas, 1):
                 destino = os.path.join(pasta, peca["arquivo"])
+                seg_dur = peca["duracao"] / FPS
                 if peca["peca"] == "placar-fixo":
-                    if os.path.exists(destino):         # mesmo placar já desenhado
-                        feitas.append(peca)
-                        continue
-                    erro = prepara(pg, js_placar(dados, peca, 1), 1)
-                    if erro:
-                        sys.exit(erro)
-                    open(destino, "wb").write(quadro_png(pg, None))
-                elif peca["peca"] == "placar":
-                    erro = prepara(pg, js_placar(dados, peca, peca["duracao"] / FPS), peca["duracao"] / FPS)
-                    if erro:
-                        sys.exit(erro)
-                    grava_mov(pg, peca["duracao"] / FPS, destino)
+                    if not os.path.exists(destino):     # mesmo placar já desenhado
+                        erro = prepara(pg, js_placar(dados, peca, 1), 1)
+                        if erro:
+                            sys.exit(erro)
+                        open(destino, "wb").write(quadro_png(pg, None))
+                    feitas.append(peca)
+                    continue
+                if peca["peca"] == "placar":
+                    js = js_placar(dados, peca, seg_dur)
+                elif peca["peca"] in ("abertura", "fim"):
+                    js = js_cartao_do_jogo(dados, peca)
                 else:
-                    if not peca["jogador"]:
-                        puladas.append((peca, "o gol foi marcado sem jogador"))
-                        continue
-                    erro = prepara(pg, js_gol(dados, peca), peca["duracao"] / FPS)
-                    if erro:
-                        puladas.append((peca, erro))
-                        continue
-                    grava_mov(pg, peca["duracao"] / FPS, destino)
+                    js = js_jogador(dados, peca, ARTE_DA_PECA[peca["peca"]])
+                erro = prepara(pg, js, seg_dur)
+                if erro:
+                    if peca["peca"] in ("placar", "abertura", "fim"):
+                        sys.exit(erro)
+                    puladas.append((peca, erro))
+                    continue
+                grava_mov(pg, seg_dur, destino)
                 feitas.append(peca)
-                print(f"  ok  {peca['arquivo']}")
+                print(f"  {n:3d}/{len(pecas)}  {peca['arquivo']}")
             nav.close()
     finally:
         srv.shutdown()
@@ -337,9 +504,18 @@ def gerar(arquivo, inicio=0.0, fim=None):
     # é por aqui que o script do DaVinci acha o pacote mais recente
     open(os.path.join(MIDIAS, "ultimo-pacote.txt"), "w", encoding="utf-8").write(pasta)
 
-    print(f"\n{pasta}\n  {len(feitas)} peças no manifesto")
+    por_trilha = {}
+    for p in feitas:
+        por_trilha[p["trilha"]] = por_trilha.get(p["trilha"], 0) + 1
+    print(f"\n{pasta}\n  {len(feitas)} peças no manifesto · "
+          + " · ".join(f"V{t}: {n}" for t, n in sorted(por_trilha.items())))
     for peca, motivo in puladas:
-        print(f"  ! sem {peca['peca']} no {peca['lance']} ({mmss(peca['seg'])}): {motivo}")
+        quando = f" ({mmss(peca['seg'])})" if peca.get("seg") is not None else ""
+        print(f"  ! sem {peca['peca']} no {peca['lance']}{quando}: {motivo}")
+    for a in avisos:
+        print(f"  ! {a}")
+    print("\nNo DaVinci: Workspace > Scripts > Copa Revoada - importar pacote")
+    return pasta
 
 
 def teste():
@@ -372,7 +548,8 @@ if __name__ == "__main__":
     acao = sys.argv[1] if len(sys.argv) > 1 else ""
     if acao == "teste":
         teste()
-    elif acao == "gerar" and len(sys.argv) > 2:
-        gerar(sys.argv[2], inicio=opcao("--inicio", 0.0), fim=opcao("--fim"))
+    elif acao == "gerar":
+        arq = sys.argv[2] if len(sys.argv) > 2 and not sys.argv[2].startswith("--") else None
+        gerar(arq, inicio=opcao("--inicio", 0.0), fim=opcao("--fim"))
     else:
         sys.exit(__doc__)

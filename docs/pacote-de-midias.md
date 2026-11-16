@@ -5,9 +5,14 @@ Registro e o app gera **o conjunto inteiro de mídias** a partir dessas
 marcações. Num passo seguinte, um script dentro do DaVinci importa tudo e
 posiciona na timeline.
 
-Estado em 28/10/2026: **a cadeia inteira existe para os gols.** Falta
-validar o posicionamento no DaVinci com o pacote do gabarito e, depois, entrar
-com os outros tipos de lance.
+Estado em 15/11/2026: **a cadeia inteira existe**, com gols, defesaça,
+cagada, cartão, abertura, artilheiro e fim de jogo. Falta validar o
+posicionamento no DaVinci com o pacote do gabarito: o script do Resolve ainda
+não foi rodado nenhuma vez.
+
+**O DaVinci não lê o `.json`.** O arquivo de lances é do gerador. O que o
+DaVinci recebe são os `.mov` e `.png` prontos e o `manifesto.tsv`, que o
+script lê para pôr cada peça no lugar.
 
 ## Etapas
 
@@ -25,11 +30,10 @@ com os outros tipos de lance.
 2. **Baixar lances**: sai o arquivo `lances-<jogo>.json`. Quem marcou em
    outro computador manda esse arquivo, e **Abrir arquivo** carrega ele no
    Registro.
-3. **Gerar o pacote**:
-
-   ```powershell
-   .venv\Scripts\python.exe scripts\pacote.py gerar C:\caminho\lances-<jogo>.json
-   ```
+3. **Gerar o pacote**: dois cliques em **`Gerar pacote de midias.bat`**, na
+   pasta do projeto. Ele pega o `lances-*.json` mais novo da pasta Downloads
+   (ou arraste um arquivo para cima do `.bat`). Se o site local estiver
+   desatualizado, ele refaz antes, lendo a planilha.
 
    As peças saem em `midias/<jogo>/`, com o `manifesto.tsv`. O gerador
    imprime cada gol com o placar calculado: confira antes de seguir.
@@ -46,21 +50,35 @@ powershell -ExecutionPolicy Bypass -File scripts\davinci\instala.ps1
 
 Rode de novo sempre que `scripts/davinci/*.lua` mudar.
 
-### Guia de tempo de cada peça
+### O que cada lance vira: `dados/regras-pacote.json`
 
-Fica em `PECAS_GOL`, no começo de `scripts/pacote.py`. Cada peça entra, segura
-e sai dentro da própria duração. A regra: **1 s a mais do que parece bastar**,
-para dar tempo de ler — e mais ainda para peça densa.
+Um arquivo só manda nisso. O **Registro mostra essas regras ao lado de cada
+lance** (as etiquetas douradas; riscada = não entra, com o motivo ao passar o
+mouse), e o gerador segue as mesmas. Mudou o arquivo, mudou nos dois.
 
-| Peça | Trilha | Entra | Dura |
-|---|---|---|---|
-| Placar fixo | V2 | o jogo inteiro, com o placar do momento | até o gol seguinte |
-| Placar com a animação do gol | V2 | no instante do gol | 5 s |
-| GOL em tela cheia | V3 | no instante do gol | 4 s |
-| Barra do jogador (foto, nome, time, minuto) | V4 | 4 s depois do gol | 6 s |
+| Lance | Peça | Trilha | Entra | Dura |
+|---|---|---|---|---|
+| Gol | placar com a animação do gol | V2 | no lance | 5 s |
+| Gol | GOL em tela cheia | V3 | no lance | 4 s |
+| Gol | barra do jogador | V4 | 4 s depois | 6 s |
+| Defesaça, Cagada, Cartão | barra do jogador, com o nome do lance | V4 | 1 s depois | 5 s |
+| *o jogo* | placar fixo | V2 | o jogo inteiro | até o gol seguinte |
+| *o jogo* | placar de abertura | V3 | 1 s do começo | 7 s |
+| *o jogo* | artilheiro do dia | V3 | 17 s antes do fim | 7 s |
+| *o jogo* | fim de jogo, com o placar final | V3 | 9 s antes do fim | 8 s |
 
-O "instante do gol" é o tempo gravado no Registro, que é quando se clicou em
-**Gol**.
+Chute, falta e escanteio não geram peça. Para ligar, desligar ou mudar tempo,
+edite o arquivo: cada linha é uma peça. Guia de duração: **1 s a mais do que
+parece bastar**, e mais ainda para peça densa.
+
+Regras que o gerador aplica sozinho, e avisa no fim:
+
+- **Peça com jogador precisa do jogador.** Gol marcado sem dono gera só o
+  placar.
+- **Duas peças no mesmo lugar da tela não se sobrepõem**: a segunda espera a
+  primeira sair. Se a espera passar de 8 s, ela fica de fora.
+- **Artilheiro do dia só sai quando é fato**: todo gol com jogador e um só na
+  frente. Empate não é decidido pelo gerador.
 
 ### Instalar as ferramentas num computador novo
 

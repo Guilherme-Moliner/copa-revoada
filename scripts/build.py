@@ -37,6 +37,8 @@ except ImportError:
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLANILHA = os.path.join(RAIZ, "dados", "COPA_REVOADA_planilha.xlsx")
 LEGADO = os.path.join(RAIZ, "dados", "ranking-legado.json")
+# O que cada lance do Registro vira no vídeo. O site mostra, o pacote gera.
+REGRAS_PACOTE = os.path.join(RAIZ, "dados", "regras-pacote.json")
 TEMPLATE = os.path.join(RAIZ, "src", "app.template.html")
 LOGO = os.path.join(RAIZ, "assets", "logo.png")
 FOTOS = os.path.join(RAIZ, "fotos")
@@ -955,6 +957,8 @@ def main():
                  "lancesUrl": LANCES_URL, "fonte": FONTE},
         "jogadores": jogadores, "times": times, "jogos": jogos,
         "amistosos": amistosos, "mistos": MISTOS,
+        "regrasPacote": {k: v for k, v in json.load(
+            open(REGRAS_PACOTE, encoding="utf-8")).items() if not k.startswith("_")},
         "trofeus": trofeus, "escalacoes": escalacoes, "desempenho": desempenho,
         "premiacoes": premiacoes, "clipes": clipes,
         # Súmulas minuto a minuto, quando existirem: o site recebe os lances

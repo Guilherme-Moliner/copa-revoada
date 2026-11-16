@@ -1,6 +1,6 @@
 # Continuar a Copa Revoada em outro computador
 
-Atualizado em 14/10/2026.
+Atualizado em 15/11/2026.
 
 **O projeto inteiro já está no GitHub.** Não precisa copiar pasta, pendrive nem
 o `.rar`: no computador novo você baixa direto de lá. O que fica para trás nesta
@@ -171,6 +171,12 @@ Já decidido:
   entre os gols. Saída em `midias/<jogo>/` com `manifesto.tsv`.
 - **Script do DaVinci**: `scripts/davinci/Copa Revoada - importar pacote.lua`,
   instalado no menu por `scripts/davinci/instala.ps1`.
+- **Regras num arquivo só** (15/11): `dados/regras-pacote.json` diz o que cada
+  lance vira. O Registro mostra ao lado de cada lance, o gerador segue.
+- **Peças novas**: barra para defesaça, cagada e cartão; placar de abertura,
+  artilheiro do dia e fim de jogo. Peças no mesmo lugar da tela entram em fila.
+- **`Gerar pacote de midias.bat`**: dois cliques geram o pacote do
+  `lances-*.json` mais novo em Downloads.
 - **Próximo passo**: rodar o script no DaVinci com o pacote do gabarito
   (`midias/avulso-gabarito-20-09`) e conferir contra os marcadores. Depois, a
   equipe marca os gols com jogador e gera o pacote de verdade.
