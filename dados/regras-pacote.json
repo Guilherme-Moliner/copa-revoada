@@ -2,32 +2,43 @@
  "_leia": [
   "Regras do pacote de mídias: o que cada lance marcado no Registro vira no vídeo.",
   "O Registro mostra estas regras ao lado de cada lance, e scripts/pacote.py gera as peças por elas.",
-  "trilha = trilha de vídeo no DaVinci (a V1 é do jogo e nunca é usada).",
+  "camada = camada gráfica. A camada 1 é a primeira trilha de gráficos no DaVinci; as trilhas abaixo dela são das câmeras e nunca são tocadas.",
   "entra  = segundos depois do instante marcado.   dura = segundos na tela, com entrada e saída.",
   "Guia de duração: 1 s a mais do que parece bastar. Peça densa precisa de tempo para ler.",
-  "Para desligar uma peça, apague a linha dela. Tipo de lance sem linha não gera nada."
+  "Para desligar uma peça, apague a linha dela. Tipo de lance sem linha não gera nada.",
+  "Peças da mesma camada entram em fila. Camadas diferentes podem aparecer juntas: por isso cada camada ocupa uma região da tela."
  ],
+ "camadas": {
+  "primeira_trilha": 4,
+  "_primeira_trilha": "V1, V2 e V3 são das câmeras dos replays. A camada 1 é a V4.",
+  "nomes": {
+   "1": "placar",
+   "2": "GOL tela cheia",
+   "3": "barras",
+   "4": "cartões do jogo"
+  }
+ },
  "lances": {
   "gol": [
-   {"peca": "placar", "nome": "placar anima", "trilha": 2, "entra": 0, "dura": 5},
-   {"peca": "golaco", "nome": "GOL tela cheia", "trilha": 3, "entra": 0, "dura": 4},
-   {"peca": "barra", "nome": "barra do jogador", "trilha": 4, "entra": 4, "dura": 6,
+   {"peca": "placar", "nome": "placar anima", "camada": 1, "entra": 0, "dura": 5},
+   {"peca": "golaco", "nome": "GOL tela cheia", "camada": 2, "entra": 0, "dura": 4},
+   {"peca": "barra", "nome": "barra do jogador", "camada": 3, "entra": 4, "dura": 6,
     "titulo": "GOL", "titulo_copa": "GOL NA COPA REVOADA"}
   ],
   "defesa": [
-   {"peca": "barra", "nome": "barra do jogador", "trilha": 4, "entra": 1, "dura": 5, "titulo": "DEFESAÇA"}
+   {"peca": "barra", "nome": "barra do jogador", "camada": 3, "entra": 1, "dura": 5, "titulo": "DEFESAÇA"}
   ],
   "cagada": [
-   {"peca": "barra", "nome": "barra do jogador", "trilha": 4, "entra": 1, "dura": 5, "titulo": "CAGADA"}
+   {"peca": "barra", "nome": "barra do jogador", "camada": 3, "entra": 1, "dura": 5, "titulo": "CAGADA"}
   ],
   "cartao": [
-   {"peca": "barra", "nome": "barra do jogador", "trilha": 4, "entra": 1, "dura": 5, "titulo": "CARTÃO"}
+   {"peca": "barra", "nome": "barra do jogador", "camada": 3, "entra": 1, "dura": 5, "titulo": "CARTÃO"}
   ]
  },
  "jogo": [
-  {"peca": "placar-fixo", "nome": "placar fixo o jogo inteiro", "trilha": 2},
-  {"peca": "abertura", "nome": "placar de abertura", "trilha": 3, "entra": 1, "dura": 7},
-  {"peca": "artilheiro", "nome": "artilheiro do dia", "trilha": 3, "antes_do_fim": 17, "dura": 7},
-  {"peca": "fim", "nome": "fim de jogo", "trilha": 3, "antes_do_fim": 9, "dura": 8}
+  {"peca": "placar-fixo", "nome": "placar fixo o jogo inteiro", "camada": 1},
+  {"peca": "abertura", "nome": "placar de abertura", "camada": 4, "entra": 1, "dura": 7},
+  {"peca": "artilheiro", "nome": "artilheiro do dia", "camada": 4, "antes_do_fim": 17, "dura": 7},
+  {"peca": "fim", "nome": "fim de jogo", "camada": 4, "antes_do_fim": 9, "dura": 8}
  ]
 }

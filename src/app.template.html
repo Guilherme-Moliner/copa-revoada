@@ -3927,22 +3927,38 @@ function pecasDoLance(e){
     let falta = '';
     if(e.seg == null) falta = 'sem o tempo do vídeo';
     else if(r.peca !== 'placar' && !e.j) falta = 'sem jogador';
-    return {nome:r.nome || r.peca, dura:r.dura, trilha:r.trilha, falta};
+    return {nome:r.nome || r.peca, dura:r.dura, camada:r.camada, falta};
   });
+}
+/* Camada gráfica = trilha de gráfico no DaVinci, da V4 para cima (as de baixo
+   são das câmeras). Quem marca pensa em camada; a conta da trilha fica no
+   regras-pacote.json. */
+function nomeCamada(c){
+  return (((DADOS.regrasPacote||{}).camadas||{}).nomes||{})[c] || '';
+}
+function regLegendaCamadas(){
+  const cam = (DADOS.regrasPacote||{}).camadas || {};
+  const nomes = cam.nomes || {};
+  const ks = Object.keys(nomes).sort((a,b)=>a-b);
+  if(!ks.length) return '';
+  const v1 = +cam.primeira_trilha || 4;
+  return '<p class="reg-pacote" title="camada gráfica 1 = V'+v1+'; V1 a V'+(v1-1)+' ficam para as câmeras">Camadas: '
+    + ks.map(k=>'<b>'+k+'</b> '+nomes[k]).join(' · ') + '</p>';
 }
 function regChipsPecas(e){
   const P = pecasDoLance(e);
   if(!P.length) return '';
   return '<span class="pcs">' + P.map(p=>
     '<span class="pc'+(p.falta?' nao':'')+'" title="'
-      + (p.falta ? 'não entra no pacote: '+p.falta : 'V'+p.trilha+' · '+p.dura+' s na tela')
-      + '">'+p.nome+(p.falta?'':' · '+p.dura+'s')+'</span>').join('') + '</span>';
+      + (p.falta ? 'não entra no pacote: '+p.falta
+                 : 'camada gráfica '+p.camada+' ('+nomeCamada(p.camada)+') · '+p.dura+' s na tela')
+      + '">'+p.nome+(p.falta?'':' · camada '+p.camada+' · '+p.dura+'s')+'</span>').join('') + '</span>';
 }
 function regResumoPacote(E){
   let sim = 0, nao = 0;
   E.forEach(e=>pecasDoLance(e).forEach(p=>{ if(p.falta) nao++; else sim++; }));
   if(!sim && !nao) return '';
-  return '<p class="reg-pacote">No vídeo: <b>'+sim+'</b> '+(sim===1?'peça':'peças')+' destes lances'
+  return regLegendaCamadas() + '<p class="reg-pacote">No vídeo: <b>'+sim+'</b> '+(sim===1?'peça':'peças')+' destes lances'
     + (nao ? ', e <b>'+nao+'</b> de fora (riscadas: passe o mouse para ver o motivo)' : '')
     + ', mais placar fixo, abertura e fim de jogo.</p>';
 }

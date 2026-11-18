@@ -56,16 +56,16 @@ Um arquivo só manda nisso. O **Registro mostra essas regras ao lado de cada
 lance** (as etiquetas douradas; riscada = não entra, com o motivo ao passar o
 mouse), e o gerador segue as mesmas. Mudou o arquivo, mudou nos dois.
 
-| Lance | Peça | Trilha | Entra | Dura |
+| Lance | Peça | Camada (trilha) | Entra | Dura |
 |---|---|---|---|---|
-| Gol | placar com a animação do gol | V2 | no lance | 5 s |
-| Gol | GOL em tela cheia | V3 | no lance | 4 s |
-| Gol | barra do jogador | V4 | 4 s depois | 6 s |
-| Defesaça, Cagada, Cartão | barra do jogador, com o nome do lance | V4 | 1 s depois | 5 s |
-| *o jogo* | placar fixo | V2 | o jogo inteiro | até o gol seguinte |
-| *o jogo* | placar de abertura | V3 | 1 s do começo | 7 s |
-| *o jogo* | artilheiro do dia | V3 | 17 s antes do fim | 7 s |
-| *o jogo* | fim de jogo, com o placar final | V3 | 9 s antes do fim | 8 s |
+| Gol | placar com a animação do gol | camada 1 (V4) | no lance | 5 s |
+| Gol | GOL em tela cheia | camada 2 (V5) | no lance | 4 s |
+| Gol | barra do jogador | camada 3 (V6) | 4 s depois | 6 s |
+| Defesaça, Cagada, Cartão | barra do jogador, com o nome do lance | camada 3 (V6) | 1 s depois | 5 s |
+| *o jogo* | placar fixo | camada 1 (V4) | o jogo inteiro | até o gol seguinte |
+| *o jogo* | placar de abertura | camada 4 (V7) | 1 s do começo | 7 s |
+| *o jogo* | artilheiro do dia | camada 4 (V7) | 17 s antes do fim | 7 s |
+| *o jogo* | fim de jogo, com o placar final | camada 4 (V7) | 9 s antes do fim | 8 s |
 
 Chute, falta e escanteio não geram peça. Para ligar, desligar ou mudar tempo,
 edite o arquivo: cada linha é uma peça. Guia de duração: **1 s a mais do que
@@ -94,6 +94,138 @@ estão no `.gitignore`):
   $env:PLAYWRIGHT_BROWSERS_PATH = 'C:\copa-revoada\ferramentas\ms-playwright'
   .venv\Scripts\python.exe -m playwright install chromium --only-shell
   ```
+
+## Camadas gráficas
+
+**V1, V2 e V3 são das câmeras** (os replays usam vários ângulos). Os gráficos
+começam na V4, que é a **camada gráfica 1**. Para quem edita, a conversa é
+sempre por camada; a conta camada → trilha mora só em
+`dados/regras-pacote.json` (`camadas.primeira_trilha`), para os outros
+projetos reaproveitarem mudando um número.
+
+| Camada | Trilha | O que vai |
+|---|---|---|
+| 1 · placar | V4 | placar fixo no canto e placar com a animação do gol |
+| 2 · GOL tela cheia | V5 | GOL em tela cheia |
+| 3 · barras | V6 | barras de jogador (gol, defesaça, cagada, cartão) |
+| 4 · cartões do jogo | V7 | abertura, artilheiro do dia, fim de jogo |
+
+Proteções, nos dois lados: o gerador recusa regra com `primeira_trilha`
+abaixo de 4, e o script do DaVinci recusa qualquer peça abaixo da V4, diga o
+manifesto o que disser. O script dá nome às trilhas ("Gráfico 1 · placar"),
+sem renomear trilha que alguém já batizou. O manifesto traz `camada` e
+`camada_nome` além da trilha, e o Registro mostra a camada em cada etiqueta.
+
+## Revisão das 36 artes do Estúdio (17/11/2026)
+
+Medido, não estimado: cada arte foi desenhada no Estúdio e a área ocupada de
+verdade foi lida do canvas. "Opaca" = cobre o vídeo inteiro.
+
+**Regiões da tela:**
+
+- **Topo esquerdo** — placar de transmissão (x 72–1120, y 40–236).
+- **Topo direito** — selo de replay (x 1360–1848, y 72–256).
+- **Rodapé** — barras de gol, falta, cartão (x 80–1196, y 772–1008),
+  substituição (y 684–1012) e fim do 1º tempo, que é larga (x 180–1736,
+  y 632–1076).
+- **Centro** — quase todo o resto: GOL tela cheia (x 564–1356, y 120–788),
+  abertura, fim de jogo, artilheiro, VAR, pênalti, estatísticas, premiação…
+- **Tela cheia opaca** — mapa tático, chance de gol, jogada, análise do jogo,
+  condições de jogo, próxima partida. Escondem o jogo: são inserções.
+
+| Arte | Região | No pacote hoje | Deveria entrar? Quando | Camada proposta | O que falta para entrar |
+|---|---|---|---|---|---|
+| Gol — barra inferior | rodapé | sim (gol, defesaça, cagada, cartão) | — | barras | — |
+| Gol — tela cheia | centro | sim | — | centro | — |
+| Histórico de gols na copa | centro | não | talvez: depois da barra, em gol de jogo da copa | centro | regra nova |
+| Artilheiro do dia | centro | sim | — | centro | — |
+| Falta | rodapé | não | não: é lance comum, encheria a tela | barras | — |
+| Checagem do VAR | centro | não | sim, se houver lance de VAR | centro | tipo de lance VAR no Registro |
+| Pênalti | centro | não | sim, no pênalti | centro | tipo de lance pênalti no Registro |
+| Cartão | rodapé | não (sai como barra "CARTÃO") | sim, com a cor | barras | Registro gravar amarelo/vermelho |
+| Placar da disputa | centro | não | sim, em disputa de pênaltis | centro | marcação da disputa |
+| Chamada do batedor | centro | não | sim, em disputa de pênaltis | centro | marcação da disputa |
+| Placar de abertura | centro | sim | — | centro | — |
+| Fim de jogo | centro | sim | — | centro | — |
+| Fim do 1º tempo | rodapé (largo) | não | sim, no intervalo | barras | marco de intervalo no Registro (a súmula já tem) |
+| Escalação do time | lateral esquerda / rodapé | não | sim, logo depois da abertura | centro | escalação lançada na planilha |
+| Formação no campo | quase tela cheia | não | talvez, na abertura | centro | formação de cada time |
+| Substituição | rodapé | não | sim, na troca | barras | tipo de lance substituição |
+| Mapa tático do lance | tela cheia opaca | não | não automático: o desenho é feito à mão | tela cheia | — |
+| Chance de gol (xG) | tela cheia opaca | não | idem | tela cheia | — |
+| Jogada completa | tela cheia opaca | não | idem | tela cheia | — |
+| Análise do jogo | tela cheia opaca | não | talvez, no intervalo e no fim | tela cheia | súmula do jogo |
+| Comparativo do jogo | centro | não | sim, no intervalo e no fim | centro | súmula do jogo |
+| Corrida de chutes | centro | não | sim, no fim | centro | súmula do jogo |
+| Quem mais apareceu | centro | não | sim, no fim | centro | súmula do jogo |
+| Desempenho de um jogador | centro | não | talvez, depois do artilheiro | centro | súmula do jogo |
+| Elenco do time | quase tela cheia | não | não: é peça de redes sociais | — | — |
+| Placar de transmissão | topo esquerdo | sim (fixo + animação) | — | placar | — |
+| Condições de jogo | tela cheia opaca | não | talvez, na abertura | tela cheia | local e hora do jogo |
+| Marco da copinha | centro | não | sim, quando o marco acontece (100º gol…) | centro | cálculo automático do marco |
+| Especial 100 Gols | centro | não | não: é peça especial | — | — |
+| Premiação | centro | não | sim, no fim, em jogo da copa | centro | troféus do jogo |
+| Campeão | quase tela cheia | não | sim, no fim, em jogo da copa | centro | campeão na aba JOGOS |
+| Próxima partida | tela cheia opaca | não | sim, nos últimos segundos | tela cheia | data da próxima |
+| Arbitragem | centro | não | talvez, na abertura | centro | nomes da arbitragem |
+| Sala do VAR | centro | não | talvez, na abertura | centro | nomes |
+| Replay | topo direito | não | **sim, em todo replay** | selo | marcação de replay no Registro |
+| Ficha do jogador | centro | não | talvez, depois do artilheiro | centro | — |
+
+**Conflitos encontrados:**
+
+1. **GOL tela cheia e os cartões do jogo ocupam o mesmo centro, em camadas
+   diferentes.** A fila só olha a própria camada, então um gol nos primeiros
+   8 s ou nos últimos 17 s do vídeo poria o GOL em cima da abertura ou do
+   artilheiro. Juntar os dois na mesma camada resolve: a fila passa a ver.
+2. **Fim do 1º tempo, substituição e as barras dividem o rodapé.** Se
+   entrarem, vão para a camada das barras, para entrar em fila.
+3. **As inserções opacas cobrem tudo, inclusive o placar.** Precisam ficar na
+   trilha mais alta, e o placar fixo continua por baixo delas.
+4. **Placar e GOL tela cheia aparecem juntos no gol**: conferido no quadro, o
+   logo do GOL fica ao lado do placar, sem encostar. Não é conflito.
+
+**Divisão final proposta (5 camadas, por região da tela):**
+
+| Camada | Trilha | Região | Peças |
+|---|---|---|---|
+| 1 · placar | V4 | topo esquerdo | placar fixo, placar anima (e o placar da disputa de pênaltis fica no centro) |
+| 2 · barras | V5 | rodapé | barras de lance, falta, cartão, substituição, fim do 1º tempo |
+| 3 · centro | V6 | centro | GOL tela cheia, abertura, fim, artilheiro, VAR, pênalti, estatísticas, premiação, campeão, marco, escalação |
+| 4 · selo | V7 | topo direito | replay |
+| 5 · tela cheia | V8 | tudo, opaco | mapa, chance, jogada, análise, condições, próxima partida |
+
+A regra por trás: **uma camada por região da tela**. Assim a fila de cada
+camada garante que nada se sobrepõe, e a ordem das trilhas decide quem fica
+por cima. **Ainda não implementada** — está aqui para decisão. Hoje vale a
+tabela de 4 camadas acima.
+
+## Teste com o jogo de Agosto/2026
+
+Vídeo: "Revoada Jogo 2 — Tempos Jogados", https://youtu.be/O0UMFeoH050 (cerca
+de 70 min). A súmula `dados/sumulas/2026-08-lances.csv` vai até 1:09:02 e foi
+anotada nesse vídeo — **a primeira conferência é se os tempos batem**: o gol
+do Vitão tem que estar em 37:02, e o do Zaga em 1:03:49.
+
+```powershell
+# os lances verdadeiros, convertidos da súmula
+.venv\Scripts\python.exe scripts\pacote.py da-sumula 2026-08
+.venv\Scripts\python.exe scripts\pacote.py gerar midias\lances\lances-2026-08-sumula.json --video C:\caminho\jogo.mp4
+
+# a bateria de teste: todos os tipos de peça no começo, meio e fim
+.venv\Scripts\python.exe scripts\pacote.py bateria 2026-08 --video C:\caminho\jogo.mp4
+.venv\Scripts\python.exe scripts\pacote.py gerar midias\lances\lances-2026-08-bateria.json --video C:\caminho\jogo.mp4
+```
+
+- `da-sumula` não inventa: gol, chute, falta, escanteio e cagada saem de
+  linhas da súmula. **Defesa comum não vira defesaça** (a súmula não diz qual
+  foi difícil). Resultado: 2 gols (Vitão 37:02, Zaga 1:03:49), 7 cagadas,
+  10 faltas, 17 escanteios, 61 chutes; 1 × 1, igual à aba JOGOS.
+- `bateria` é teste e diz isso no placar ("BATERIA DE TESTE"): em cada bloco,
+  gol, cagada, cartão, defesaça, gol e outro gol 2 s depois (para a fila do
+  placar). Jogadores reais do elenco de Agosto, lances inventados.
+- O script do DaVinci sempre importa o **último pacote gerado**
+  (`midias/ultimo-pacote.txt`). Para trocar de pacote, gere de novo.
 
 ## 1. Marcação com o vídeo
 

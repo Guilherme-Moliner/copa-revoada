@@ -1,6 +1,6 @@
 # Continuar a Copa Revoada em outro computador
 
-Atualizado em 15/11/2026.
+Atualizado em 18/11/2026.
 
 **O projeto inteiro já está no GitHub.** Não precisa copiar pasta, pendrive nem
 o `.rar`: no computador novo você baixa direto de lá. O que fica para trás nesta
@@ -177,6 +177,16 @@ Já decidido:
   artilheiro do dia e fim de jogo. Peças no mesmo lugar da tela entram em fila.
 - **`Gerar pacote de midias.bat`**: dois cliques geram o pacote do
   `lances-*.json` mais novo em Downloads.
+- **Camadas gráficas** (18/11): V1–V3 ficam para as câmeras; os gráficos vão
+  da V4 para cima, em camadas nomeadas (1 placar, 2 GOL tela cheia, 3 barras,
+  4 cartões do jogo). O script do DaVinci recusa qualquer peça abaixo da V4 e
+  dá nome às trilhas. Revisão das 36 artes e a proposta de 5 camadas por
+  região da tela em `docs/pacote-de-midias.md` — proposta, não implementada.
+- **Teste com o jogo de Agosto/2026** (https://youtu.be/O0UMFeoH050):
+  `pacote.py da-sumula 2026-08` converte a súmula em lances (2 gols, 1 × 1);
+  `pacote.py bateria 2026-08 --video jogo.mp4` gera lances de teste com todas
+  as peças. Falta: baixar o vídeo, montar a timeline a 24 fps e rodar no
+  DaVinci.
 - **Próximo passo**: rodar o script no DaVinci com o pacote do gabarito
   (`midias/avulso-gabarito-20-09`) e conferir contra os marcadores. Depois, a
   equipe marca os gols com jogador e gera o pacote de verdade.

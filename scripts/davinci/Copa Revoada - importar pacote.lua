@@ -13,8 +13,9 @@ O que faz:
   4. cria as trilhas de vídeo que faltarem e põe cada peça no quadro e na
      trilha do manifesto.tsv.
 
-Nunca mexe na V1 nem no áudio. Rodar de novo não duplica: peça que já está no
-mesmo lugar é pulada.
+Nunca mexe nas trilhas das câmeras (V1, V2 e V3) nem no áudio: os gráficos
+começam na V4, a camada gráfica 1. Dá nome às trilhas de gráfico ("Gráfico 1 ·
+placar"). Rodar de novo não duplica: peça que já está no mesmo lugar é pulada.
 
 Este arquivo é copiado para a pasta de scripts do Resolve por
 scripts/davinci/instala.ps1, que troca __RAIZ__ pela pasta do projeto.
@@ -22,6 +23,9 @@ scripts/davinci/instala.ps1, que troca __RAIZ__ pela pasta do projeto.
 
 local RAIZ = [[__RAIZ__]]
 local FPS = 24
+-- V1 a V3 são das câmeras. Nenhuma peça entra abaixo desta trilha, diga o
+-- manifesto o que disser.
+local MENOR_TRILHA_GRAFICA = 4
 
 local function fala(...) print("[Copa Revoada] " .. string.format(...)) end
 local function para(...) fala(...); fala("nada foi alterado na timeline."); error("parado", 0) end
@@ -64,6 +68,8 @@ local ok, erro = pcall(function()
         lance = c[cab.lance], peca = c[cab.peca], arquivo = c[cab.arquivo], tipo = c[cab.tipo],
         quadro = tonumber(c[cab.quadro]), duracao = tonumber(c[cab.duracao]),
         trilha = tonumber(c[cab.trilha]), timecode = c[cab.timecode],
+        camada = cab.camada and tonumber(c[cab.camada]) or nil,
+        camada_nome = cab.camada_nome and c[cab.camada_nome] or nil,
       }
     end
   end
@@ -84,7 +90,10 @@ local ok, erro = pcall(function()
 
   local maior = 0
   for _, l in ipairs(linhas) do
-    if not l.trilha or l.trilha < 2 then para("a peça %s pede a trilha %s: a V1 é do jogo e não é tocada.", l.arquivo, tostring(l.trilha)) end
+    if not l.trilha or l.trilha < MENOR_TRILHA_GRAFICA then
+      para("a peça %s pede a trilha V%s, mas V1 a V%d são das câmeras e não são tocadas.",
+           l.arquivo, tostring(l.trilha), MENOR_TRILHA_GRAFICA - 1)
+    end
     if l.trilha > maior then maior = l.trilha end
   end
 
@@ -116,8 +125,22 @@ local ok, erro = pcall(function()
   -- 4. trilhas e posições
   while tl:GetTrackCount("video") < maior do tl:AddTrack("video") end
 
+  -- nome nas trilhas de gráfico; trilha que alguém já batizou não é renomeada
+  local nomeDe = {}
+  for _, l in ipairs(linhas) do
+    if l.camada and not nomeDe[l.trilha] then
+      nomeDe[l.trilha] = "Gráfico " .. l.camada .. ((l.camada_nome and l.camada_nome ~= "") and (" · " .. l.camada_nome) or "")
+    end
+  end
+  for t, nome in pairs(nomeDe) do
+    local okNome, atual = pcall(function() return tl:GetTrackName("video", t) end)
+    if okNome and (atual == nil or atual == "" or atual == ("Video " .. t) or atual == ("V" .. t)) then
+      pcall(function() tl:SetTrackName("video", t, nome) end)
+    end
+  end
+
   local ja = {}
-  for t = 2, maior do
+  for t = MENOR_TRILHA_GRAFICA, maior do
     for _, it in pairs(tl:GetItemListInTrack("video", t) or {}) do
       ja[t .. ":" .. it:GetStart()] = true
     end
