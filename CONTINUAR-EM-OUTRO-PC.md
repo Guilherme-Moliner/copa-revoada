@@ -1,6 +1,6 @@
 # Continuar a Copa Revoada em outro computador
 
-Atualizado em 19/11/2026.
+Atualizado em 19/11/2026 (noite).
 
 **O projeto inteiro já está no GitHub.** Não precisa copiar pasta, pendrive nem
 o `.rar`: no computador novo você baixa direto de lá. O que fica para trás nesta
@@ -193,6 +193,24 @@ Já decidido:
   parou na linha 104: a 19.0 beta devolve listas com números misturados aos
   objetos. Corrigido (só objetos passam), junto com dois erros que viriam
   logo depois. Falta rodar de novo e conferir na timeline.
+- **Segunda execução no DaVinci** (19/11): 16 de 18 peças no lugar certo. Os
+  dois primeiros placares fixos sumiram porque os nomes terminavam em número e
+  o DaVinci juntou os dois numa "sequência de imagens". Corrigido (nome
+  termina em letra; o script acha o clipe pelo caminho do arquivo). A barra de
+  cagada parecia gol: agora é marrom, com contador, e há ranking de cagadas.
+- **Plano da edição no Registro** (19/11, Fase 1 do briefing "planejamento
+  das peças no portal"): o plano é calculado por `PACOTE.planeja`, dentro do
+  site, e o gerador abre o site e pede o mesmo cálculo. Linha do tempo por
+  camada, editor de peça, ＋ Peça, fila por área medida
+  (`dados/areas-artes.json`), 10 camadas (V4 a V13), lances novos (cartão com
+  cor, substituição, assistência, replay, fim do 1º tempo), formato de lances
+  2 com o plano. Detalhes em `docs/pacote-de-midias.md`; Fase 2 (código da
+  arte, ficha com IA) só proposta, em `docs/proposta-fase-2-codigo-da-arte.md`.
+- **Limite conhecido:** a aba LANCES da planilha (Apps Script v2) perde
+  assistência, cor do cartão, quem saiu e fim do replay. Resolve na v3 (Fase 2).
+- **DaVinci 19 → 21:** o Guilherme está avaliando. A versão atual é a 19.0
+  beta. Antes de atualizar: exportar o projeto (.drp); depois, rodar o mesmo
+  pacote e mandar o Console.
 - **Próximo passo**: rodar o script no DaVinci com o pacote do gabarito
   (`midias/avulso-gabarito-20-09`) e conferir contra os marcadores. Depois, a
   equipe marca os gols com jogador e gera o pacote de verdade.

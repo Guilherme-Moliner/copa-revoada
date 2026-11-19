@@ -432,6 +432,45 @@ section+section{margin-top:3rem}
 .reg-ev .pc.nao{border-color:rgba(255,255,255,.18);color:var(--dim);text-decoration:line-through}
 .reg-pacote{font-size:.78rem;color:var(--dim);padding:.5rem .6rem 0}
 .reg-pacote b{color:var(--gold)}
+.reg-ev .pc.espera{border-style:dashed;border-color:#FF8A3D;color:#FF8A3D}
+.reg-jogo-bts{display:flex;gap:.4rem;margin:.5rem 0}
+.reg-jogo-bts .btn{flex:1;font-size:.78rem;padding:.35rem .4rem}
+.reg-cor{display:flex;gap:.35rem;margin:.2rem 0 .5rem}
+.reg-cor button{flex:1;border:2px solid transparent;border-radius:8px;padding:.3rem;font-weight:700;cursor:pointer}
+.reg-cor button[aria-pressed="true"]{border-color:var(--chalk,#F4F1E6)}
+.plano{margin-top:1.4rem;border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden}
+.plano-cab{display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center;padding:.8rem 1rem;border-bottom:1px solid var(--line)}
+.plano-cab h3{margin:0;font-size:1rem;text-transform:uppercase;letter-spacing:.06em}
+.plano-cab .resumo{color:var(--dim);font-size:.82rem;flex:1}
+.plano-cab .resumo b{color:var(--gold)}
+.plano-corpo{display:flex}
+.plano-nomes{flex:none;width:11rem;border-right:1px solid var(--line)}
+.plano-nomes div,.plano-faixa{height:30px;border-bottom:1px solid rgba(255,255,255,.05)}
+.plano-nomes div{font-size:.72rem;padding:.45rem .6rem;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plano-nomes div b{color:var(--gold)}
+.plano-nomes .regua-nome,.plano-regua{height:22px}
+.plano-trilhas{flex:1;overflow-x:auto;position:relative}
+.plano-tela{position:relative}
+.plano-regua{position:relative;border-bottom:1px solid var(--line);font-size:.65rem;color:var(--dim)}
+.plano-regua span{position:absolute;top:4px;transform:translateX(2px);white-space:nowrap}
+.plano-regua i{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,.12)}
+.plano-faixa{position:relative}
+.pl-b{position:absolute;top:4px;height:22px;border-radius:5px;font-size:.62rem;line-height:22px;padding:0 4px;
+  overflow:hidden;white-space:nowrap;cursor:pointer;color:#0B0B0B;min-width:4px;box-sizing:border-box}
+.pl-b.lance{background:#F2B01E}
+.pl-b.jogo{background:#7FB2FF}
+.pl-b.manual{background:#E58BE0}
+.pl-b.espera{outline:2px dashed #FF8A3D;outline-offset:-2px}
+.pl-b.fora{background:repeating-linear-gradient(45deg,rgba(224,58,47,.55) 0 6px,rgba(224,58,47,.2) 6px 12px);color:#fff;opacity:.85}
+.pl-b.sel{box-shadow:0 0 0 2px #fff}
+.plano-cursor{position:absolute;top:0;bottom:0;width:2px;background:#E03A2F;pointer-events:none}
+.plano-pe{display:grid;grid-template-columns:1fr 1fr;gap:1rem;padding:1rem;border-top:1px solid var(--line)}
+@media (max-width:800px){.plano-pe{grid-template-columns:1fr}}
+.plano-pe h4{margin:0 0 .5rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--dim)}
+.plano-pe .linha{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin:.35rem 0}
+.plano-pe input,.plano-pe select{background:var(--panel2);color:inherit;border:1px solid var(--line);border-radius:8px;padding:.3rem .45rem}
+.plano-fora{padding:0 1rem 1rem;font-size:.78rem;color:var(--dim)}
+.plano-fora li{margin:.15rem 0}
 .reg-resumo{display:grid;grid-template-columns:1fr auto 1fr;gap:.4rem;align-items:center;
   padding:.6rem .8rem;border-top:1px solid var(--line);font-family:'Barlow Condensed',sans-serif}
 .reg-resumo .pl{font-family:'Archivo Black',sans-serif;font-size:1.8rem;color:var(--gold)}
@@ -609,6 +648,9 @@ section+section{margin-top:3rem}
            clique, e o vídeo recarregaria junto a cada lance marcado -->
       <div id="reg-video"></div>
       <div class="reg" id="registro"></div>
+      <!-- o plano da edição fica fora de #registro para a rolagem da linha do
+           tempo não voltar ao começo a cada lance marcado -->
+      <div id="reg-plano"></div>
     </div>
 
     <div class="screen" id="s-sumula">
@@ -675,6 +717,7 @@ section+section{margin-top:3rem}
                 <option value="estcraques">Quem mais apareceu</option>
                 <option value="estjogador">Desempenho de um jogador</option>
                 <option value="estelenco">Elenco do time — todos os números</option>
+                <option value="cagadas">Ranking de cagadas</option>
               </optgroup>
               <optgroup label="Especiais">
                 <option value="placar2">Placar de transmissão</option>
@@ -878,6 +921,9 @@ function forma(p, nota){
 let semVerde = false;
 /* O pacote de mídias troca por "GOL" quando o jogo não conta para a copa. */
 let TITULO_GOL = 'GOL NA COPA REVOADA';
+/* Barra de lance com cara própria: cagada e defesaça não podem parecer gol.
+   {cor, linha, assist}; null = barra de gol normal. */
+let BARRA = null;
 /* Idem para o cartão de abertura, e para o artilheiro: no pacote o número é o
    de gols naquele jogo, não o da carreira. */
 let TITULO_PLACAR = 'COPA REVOADA';
@@ -3273,7 +3319,8 @@ const TIPOS = {
   escant: {rot:'Escanteio',        xg:0},
   cartao: {rot:'Cartão',           xg:0},
   defesa: {rot:'🧤 Defesaça',       xg:0},
-  cagada: {rot:'💥 Cagada',         xg:0}
+  cagada: {rot:'💥 Cagada',         xg:0},
+  sub:    {rot:'🔁 Substituição',   xg:0}
 };
 
 const analise = {
@@ -3324,8 +3371,9 @@ function curvaXG(t){
 
 function desenhaAnalise(c,u){
   const A=timeById(analise.A), B=timeById(analise.B), s=estatisticas();
-  moldura(c,{titulo:analise.titulo.toUpperCase(), sub:analise.sub,
-    tag: analise.autor ? 'POR '+analise.autor.toUpperCase() : 'FICHA DO JOGO'});
+  /* sem etiqueta no canto: o placar mora ali, e os dois se atropelavam */
+  moldura(c,{titulo:analise.titulo.toUpperCase(),
+    sub:analise.sub + (analise.autor ? ' · por '+analise.autor : '')});
 
   /* placar no topo direito */
   const py=112;
@@ -3835,11 +3883,351 @@ return {
 })();
 
 
+/* ================= PACOTE DE MÍDIAS: O PLANO DA EDIÇÃO =================
+   Que peça entra, quando, quanto dura e em que camada gráfica. O Registro
+   desenha este plano, e o gerador (scripts/pacote.py) abre esta mesma página
+   e pede o mesmo cálculo: o que se vê no Registro é o que sai no DaVinci.
+   As regras estão em dados/regras-pacote.json; a área que cada arte ocupa na
+   tela, em dados/areas-artes.json. */
+const PACOTE = (function(){
+  const FPS = 24;
+  const regras = () => DADOS.regrasPacote || {};
+  const semMeta = o => Object.fromEntries(Object.entries(o||{}).filter(([k])=>k[0]!=='_'));
+  const mmss = s => { s=Math.max(0,Math.round(+s||0)); const h=Math.floor(s/3600), m=Math.floor(s%3600/60), r=s%60;
+    return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(r).padStart(2,'0'); };
+
+  /* a arte do Estúdio que desenha cada peça */
+  const ARTE = {'placar-fixo':'placar2', placar:'placar2', golaco:'golaco', barra:'gol',
+    cartao:'cartao', sub:'sub', replay:'replay', abertura:'placar', fim:'fim',
+    intervalo:'intervalo', artilheiro:'artilheiro', historico:'historico',
+    estresumo:'estresumo', estcorrida:'estcorrida', estcraques:'estcraques',
+    estjogador:'estjogador', ficha:'ficha', stat:'stat', cagadas:'cagadas'};
+  const DA_SUMULA = new Set(['estresumo','estcorrida','estcraques','estjogador']);
+  const COM_JOGADOR = new Set(['barra','golaco','historico','cartao','sub','artilheiro','estjogador','stat']);
+
+  function camadas(){
+    const c = regras().camadas || {};
+    return {primeira: +c.primeira_trilha || 4, nomes: c.nomes || {}};
+  }
+  const nomeCamada = c => camadas().nomes[c] || '';
+
+  /* O placar fica no ar o jogo inteiro: é ele que as outras peças cobrem, então
+     não entra na conta de área — só disputa a própria camada. */
+  function areaDe(peca){
+    if(peca==='placar' || peca==='placar-fixo') return null;
+    return (DADOS.areasArtes||{})[ARTE[peca]] || null;
+  }
+  const cruza = (a,b) => !!(a && b && a[0]<b[2] && b[0]<a[2] && a[1]<b[3] && b[1]<a[3]);
+  const jogadorPor = ap => ap ? (jog.find(p=>p.apelido===ap) || null) : null;
+  const ordinal = n => n+'ª';
+  function sumulaDe(L){
+    const id = L.sumula || L.jogo;
+    return (DADOS.sumulas && DADOS.sumulas[id]) ? id : '';
+  }
+  const nomeArquivo = p => {
+    if(p.peca==='placar-fixo') return 'placar-'+p.gc+'x'+p.gf+'-fixo.png';
+    /* termina sempre em letra: nome terminado em número o DaVinci junta com o
+       vizinho numa "sequência de imagens" — foi o que sumiu com o placar fixo */
+    const base = String(p.id).replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'').toLowerCase();
+    return base + (base.endsWith(p.peca) ? '' : '-'+p.peca) + '.mov';
+  };
+
+  /* ---------- o plano ----------
+     L é o arquivo de lances (o mesmo que o Registro baixa). Devolve todas as
+     peças, inclusive as que ficam de fora, cada uma com status ('ok',
+     'espera', 'fora') e motivo. */
+  function planeja(L, op){
+    op = op || {};
+    const R = regras();
+    const perfil = semMeta((R.perfis||{})[L.perfil]);
+    const ligadas = new Set(perfil.ligar || []);
+    const plano = L.plano || {};
+    const ajustes = plano.ajustes || {};
+    const manuais = plano.manuais || [];
+    const inicio = +op.inicio || 0;
+    const avisos = [];
+
+    const evs = (L.eventos||[]).map((e,i)=>({...e, _i:i})).filter(e=>e.t!=='M');
+    const comTempo = evs.filter(e=>e.seg!=null && e.seg!=='').map(e=>({...e, seg:+e.seg}))
+      .sort((a,b)=>a.seg-b.seg);
+    const ultimo = comTempo.length ? comTempo[comTempo.length-1].seg : 0;
+    let fim = op.fim!=null ? +op.fim : (L.duracao_video ? +L.duracao_video : ultimo+30);
+    if(op.fim==null && !L.duracao_video)
+      avisos.push('sem a duração do vídeo: o jogo vai até '+mmss(fim)+' (30 s depois do último lance)');
+    const semTempo = evs.filter(e=>(e.seg==null || e.seg==='') && (R.lances||{})[e.tipo]);
+    if(semTempo.some(e=>e.tipo==='gol'))
+      avisos.push('há gol sem o tempo do vídeo: o placar sai errado. Marque de novo com o vídeo carregado.');
+
+    const pecas = [];
+    const nova = o => {
+      const p = Object.assign({status:'ok', motivo:'', esperou:0}, o);
+      p.camada = +p.camada;
+      p.trilha = camadas().primeira + p.camada - 1;
+      p.nomeCamada = nomeCamada(p.camada);
+      const aj = ajustes[p.id];
+      if(aj){
+        p.ajustada = true;
+        if(aj.dura!=null) p.dura = +aj.dura;
+        if(aj.seg!=null){ p.seg = +aj.seg; p.segFixo = true; }
+        if(aj.off){ p.status='fora'; p.motivo='desligada no plano'; p.desligada = true; }
+      }
+      pecas.push(p); return p;
+    };
+    const fora = (p, motivo) => { if(p.status!=='fora'){ p.status='fora'; p.motivo=motivo; } };
+    const sumula = sumulaDe(L);
+    const copa = L.conta_na_copa !== false;
+    semTempo.forEach(e=>{
+      (R.lances[e.tipo]||[]).forEach(r=>{
+        const p = nova({id:'sem-tempo-'+e._i+'/'+r.peca, origem:'lance', lance:e.tipo, peca:r.peca,
+          nome:r.nome||r.peca, camada:r.camada, seg:inicio, dura:+r.dura||5, evIdx:e._i});
+        fora(p, 'sem o tempo do vídeo');
+      });
+    });
+
+    /* ---- lances ---- */
+    let gc=0, gf=0, cursor=inicio;
+    const gols = [], trechos = [], cont = {}, porJog = {};
+    const placarFixo = (R.jogo||[]).find(r=>r.peca==='placar-fixo');
+    comTempo.forEach(e=>{
+      const lista = (R.lances||{})[e.tipo];
+      if(!lista) return;
+      cont[e.tipo] = (cont[e.tipo]||0)+1;
+      const lance = e.tipo.toLowerCase()+'-'+String(cont[e.tipo]).padStart(2,'0');
+      if(e.tipo==='gol'){ if(e.t==='A') gc++; else gf++; gols.push(e); }
+      const chaveJ = e.tipo+'|'+(e.j||'');
+      if(e.j) porJog[chaveJ] = (porJog[chaveJ]||0)+1;
+      lista.forEach(r=>{
+        const dura = r.dura==='do_lance' ? Math.max(1, (+e.fim||0)-e.seg) : +r.dura;
+        const p = nova({id:lance+'/'+r.peca, origem:'lance', lance, peca:r.peca, nome:r.nome||r.peca,
+          camada:r.camada, seg:e.seg+(+r.entra||0), dura, evIdx:e._i, lado:e.t==='B'?'B':'A',
+          jogador:e.j||'', minuto:e.min});
+        if(r.peca==='placar'){
+          p.fixa = true; p.gc = gc; p.gf = gf; p.evento = e.t==='A' ? 'golCasa' : 'golFora';
+          if(!p.segFixo && p.seg < cursor){
+            avisos.push(lance+' aos '+mmss(e.seg)+' veio colado no gol anterior: a animação do placar começa '
+              +(cursor-p.seg).toFixed(1)+' s depois');
+            p.seg = cursor;
+          }
+          if(p.status!=='fora'){
+            trechos.push({de:cursor, ate:p.seg, gc:gc-(e.t==='A'?1:0), gf:gf-(e.t==='A'?0:1)});
+            cursor = p.seg + p.dura;
+          }
+          return;
+        }
+        if(r.desligada && !ligadas.has(e.tipo)) fora(p, 'desligada nas regras (entra só na bateria de teste)');
+        if(r.so_copa && !copa) fora(p, 'só em jogo da copa');
+        if(COM_JOGADOR.has(r.peca)){
+          if(!e.j) fora(p, 'o lance foi marcado sem jogador');
+          else if(!jogadorPor(e.j)) fora(p, 'o jogador '+e.j+' não está no site');
+        }
+        if(r.peca==='sub'){ p.sai = e.sai||''; if(!e.sai) fora(p, 'substituição sem quem saiu'); }
+        if(r.peca==='cartao'){ p.cor = e.cor||''; if(!e.cor) fora(p, 'cartão sem a cor (amarelo ou vermelho)'); }
+        if(r.peca==='replay' && !(+e.fim > e.seg)) fora(p, 'replay sem o fim marcado');
+        if(r.peca==='barra'){
+          p.titulo = (copa && r.titulo_copa) ? r.titulo_copa : (r.titulo||'');
+          p.cor = r.cor || '';
+          if(r.contador && e.j)
+            p.linha = ordinal(cont[e.tipo])+' '+(r.titulo||e.tipo).toUpperCase()+' DO JOGO   ·   '
+              + ordinal(porJog[chaveJ])+' DE '+e.j.toUpperCase();
+          if(r.assistencia && e.a) p.assist = e.a;
+        }
+      });
+    });
+    if(placarFixo){
+      trechos.push({de:cursor, ate:fim, gc, gf});
+      trechos.filter(t=>t.ate - t.de > 1/FPS).forEach(t=>{
+        nova({id:'placar-'+t.gc+'x'+t.gf, origem:'jogo', peca:'placar-fixo', nome:placarFixo.nome||'placar fixo',
+          camada:placarFixo.camada, seg:t.de, dura:t.ate-t.de, gc:t.gc, gf:t.gf, fixa:true});
+      });
+    }
+
+    /* ---- momentos do jogo: abertura, intervalo, fim ---- */
+    const intervalo = comTempo.filter(e=>e.tipo==='intervalo').pop();
+    const art = (()=>{
+      if(!gols.length) return {motivo:'nenhum gol marcado'};
+      if(gols.some(g=>!g.j)) return {motivo:'há gol marcado sem jogador'};
+      const s = {};
+      gols.forEach(g=>{ const k=g.j+'|'+g.t; s[k]=(s[k]||0)+1; });
+      const topo = Math.max(...Object.values(s));
+      const lid = Object.keys(s).filter(k=>s[k]===topo);
+      if(lid.length>1) return {motivo:'empate entre '+lid.map(k=>k.split('|')[0]).join(', ')+' ('+topo+(topo===1?' gol':' gols')+' cada)'};
+      const [j,t] = lid[0].split('|');
+      return {j, t, gols:topo};
+    })();
+    const cagadas = comTempo.filter(e=>e.tipo==='cagada' && e.j).length;
+    const placarAte = s => { let a=0, b=0; gols.forEach(g=>{ if(g.seg<=s){ if(g.t==='A') a++; else b++; } }); return [a,b]; };
+    const exigeDados = (p, peca) => {
+      if(DA_SUMULA.has(peca) && !sumula) fora(p, 'este jogo não tem súmula minuto a minuto');
+      if(peca==='cagadas' && !cagadas) fora(p, 'nenhuma cagada marcada com jogador');
+      if(peca==='historico' && !copa) fora(p, 'só em jogo da copa');
+    };
+    (R.momentos||[]).forEach(m=>{
+      const ancora = m.ancora==='inicio' ? inicio : m.ancora==='fim' ? fim
+        : m.ancora==='intervalo' ? (intervalo ? intervalo.seg : null) : null;
+      const lista = (m.pecas||[]).map(r=>{
+        const p = nova({id:m.nome+'/'+r.peca+(r.recorte?'-'+r.recorte:''), origem:'jogo', momento:m.nome,
+          peca:r.peca, nome:r.nome||r.peca, camada:r.camada, seg:ancora==null?inicio:ancora, dura:+r.dura,
+          recorte:r.recorte || (m.nome==='intervalo' ? '1t' : 'todo'), fixa:true, lado:'A'});
+        if(ancora==null) fora(p, m.ancora==='intervalo' ? 'o fim do 1º tempo não foi marcado no Registro' : 'sem âncora');
+        exigeDados(p, r.peca);
+        if(r.peca==='artilheiro' || r.peca==='estjogador'){
+          if(art.motivo) fora(p, 'sem artilheiro do dia: '+art.motivo);
+          else { p.jogador = art.j; p.lado = art.t; p.gols = art.gols; }
+        }
+        const ate = m.nome==='intervalo' && intervalo ? intervalo.seg : fim;
+        [p.gc, p.gf] = placarAte(ate);
+        return p;
+      });
+      if(ancora==null) return;
+      /* em sequência, uma depois da outra: quem fica de fora não ocupa tempo */
+      const vivas = lista.filter(p=>p.status!=='fora' && !p.segFixo);
+      if(m.alinha==='termina'){
+        let t = ancora;
+        vivas.slice().reverse().forEach(p=>{ p.seg = t - p.dura; t = p.seg; });
+      } else {
+        let t = ancora + (+m.entra||0);
+        vivas.forEach(p=>{ p.seg = t; t += p.dura; });
+      }
+    });
+
+    /* ---- peças postas à mão ---- */
+    const MAN = semMeta(R.manuais);
+    manuais.forEach((m,i)=>{
+      const r = MAN[m.peca] || {};
+      const lado = m.lado || (comTempo.find(e=>e.j && e.j===m.jogador) || {}).t || 'A';
+      const p = nova({id:m.id || ('manual-'+(i+1)), origem:'manual', peca:m.peca, nome:r.nome||m.peca,
+        camada:m.camada||r.camada||9, seg:+m.seg||0, dura:+(m.dura||r.dura||6),
+        jogador:m.jogador||'', lado:lado==='B'?'B':'A', recorte:'ate', manual:m});
+      if(!MAN[m.peca]) fora(p, 'arte sem regra de peça manual');
+      if(r.jogador && !jogadorPor(m.jogador)) fora(p, m.jogador ? 'o jogador '+m.jogador+' não está no site' : 'escolha o jogador');
+      exigeDados(p, m.peca);
+      [p.gc, p.gf] = placarAte(p.seg);
+    });
+
+    /* ---- a fila ----
+       Duas peças não aparecem juntas se estão na mesma camada ou se as áreas
+       que ocupam na tela se cruzam. O placar e os momentos do jogo têm hora
+       marcada e entram primeiro; lances e peças manuais esperam por eles. */
+    pecas.forEach(p=>{
+      p.pedido = p.seg;
+      if(p.status!=='fora' && (p.seg < inicio-1e-6 || p.seg+p.dura > fim+1e-6)) fora(p, 'não cabe no vídeo');
+    });
+    const ESP = +R.espera_maxima || 8;
+    const postas = [];
+    const bate = (p,t,q) => (p.camada===q.camada || cruza(areaDe(p.peca), areaDe(q.peca)))
+      && t < q.seg+q.dura - 1e-6 && q.seg < t+p.dura - 1e-6;
+    pecas.filter(p=>p.fixa && p.status!=='fora').forEach(p=>{
+      const q = postas.find(q=>bate(p,p.seg,q));
+      if(q) avisos.push(p.nome+' ('+mmss(p.seg)+') fica por cima de '+q.nome+': as duas têm hora marcada');
+      postas.push(p);
+    });
+    pecas.filter(p=>!p.fixa && p.status!=='fora').sort((a,b)=>a.seg-b.seg || a.camada-b.camada).forEach(p=>{
+      let t = p.seg, quem = null, mexeu = true;
+      while(mexeu){
+        mexeu = false;
+        for(const q of postas){ if(bate(p,t,q)){ t = q.seg+q.dura; quem = q; mexeu = true; } }
+      }
+      if(t - p.seg > ESP + 1e-6){ fora(p, 'a tela ainda estava ocupada por '+quem.nome+' '+ESP+' s depois'); return; }
+      if(t + p.dura > fim + 1e-6){ fora(p, 'não cabe antes do fim do vídeo'); return; }
+      if(t > p.seg + 1e-6){ p.esperou = t - p.seg; p.status = 'espera'; p.motivo = 'esperou '+p.esperou.toFixed(1)+' s por '+quem.nome; }
+      p.seg = t; postas.push(p);
+    });
+
+    pecas.forEach(p=>{
+      p.quadro = Math.round(p.seg*FPS);
+      p.duracao = Math.round(p.dura*FPS);
+      p.arquivo = nomeArquivo(p);
+      delete p.manual;
+    });
+    return {pecas, gols:gols.map(g=>({seg:g.seg, t:g.t, j:g.j||'', a:g.a||''})), avisos, inicio, fim,
+            artilheiro:art, sumula, camadas:camadas()};
+  }
+
+  /* ---------- preparar o Estúdio para desenhar uma peça ----------
+     Deixa os campos e o estado como a peça pede. Devolve '' ou o motivo de
+     não dar para desenhar. */
+  function competicao(L){
+    if(L.competicao) return String(L.competicao).toUpperCase();     // a bateria diz que é teste
+    return L.conta_na_copa===false ? String(L.nome||L.jogo).toUpperCase() : 'COPA REVOADA';
+  }
+  function prepara(p, L){
+    TITULO_GOL = 'GOL NA COPA REVOADA'; TITULO_PLACAR = 'COPA REVOADA'; GOLS_DO_DIA = null; BARRA = null;
+    const casa = L.casa.id, fora = L.fora.id;
+    if(!tById[casa] || !tById[fora]) return 'time desconhecido no site: '+casa+' ou '+fora;
+    const arte = ARTE[p.peca];
+    if(!arte) return 'peça sem arte no Estúdio: '+p.peca;
+    const quem = jogadorPor(p.jogador);
+    if(COM_JOGADOR.has(p.peca) && !quem) return 'o jogador '+(p.jogador||'?')+' não está no site';
+    const time = p.lado==='B' ? fora : casa;
+
+    /* a Análise, o ranking de cagadas e as estatísticas leem os lances do jogo */
+    const evs = (L.eventos||[]).filter(e=>e.t!=='M');
+    const marco = evs.filter(e=>e.tipo==='intervalo').pop();
+    const lim = p.recorte==='1t' ? (marco ? +marco.seg : null) : p.recorte==='ate' ? p.seg+p.dura : null;
+    const A = LANCES.estado.analise;
+    A.eventos = evs.filter(e=>lim==null || e.seg==null || +e.seg<=lim).map(e=>({...e}));
+    A.A = casa; A.B = fora; A.autor = ''; A.vista = 'estatisticas';
+    A.titulo = L.casa.nome+' × '+L.fora.nome;
+    A.sub = competicao(L)+(p.recorte==='1t' ? ' · 1º tempo' : '');
+    A.duracao = Math.max(1, Math.ceil(((lim!=null ? lim : +L.duracao_video || 3600))/60));
+
+    F.tipo.value = arte;
+    preencheJogosDaSumula();
+    if(quem) F.p1.value = quem.id;
+    F.time.value = time;
+    F.time2.value = time===casa ? fora : casa;
+    F.min.value = p.minuto!=null && p.minuto!=='' ? p.minuto+"'" : '';
+    F.hyper.value = 'limpo';
+    F.comp.value = '';
+    switch(p.peca){
+      case 'placar': case 'placar-fixo':
+        Object.assign(LANCES.estado.placar, {modo:'jogo', casa, fora, gc:p.gc, gf:p.gf, relogio:'', acrescimo:0,
+          competicao:competicao(L), fase:'', pos:'topo-esq', escala:1,
+          evento:p.peca==='placar' ? p.evento : 'nenhum', dur:p.dura});
+        break;
+      case 'barra':
+        TITULO_GOL = p.titulo || 'GOL';
+        BARRA = {cor:p.cor||'', linha:p.linha||'', assist:p.assist||''};
+        break;
+      case 'cartao': F.cor.value = p.cor; break;
+      case 'sub': {
+        const sai = jogadorPor(p.sai);
+        if(!sai) return 'o jogador '+(p.sai||'?')+' (quem saiu) não está no site';
+        F.p2.value = sai.id;
+        break;
+      }
+      case 'abertura': case 'fim': case 'intervalo':
+        F.time.value = casa; F.time2.value = fora;
+        F.ga.value = p.gc||0; F.gb.value = p.gf||0;
+        F.min.value = ''; F.txt.value = '';
+        TITULO_PLACAR = competicao(L);
+        break;
+      case 'artilheiro': GOLS_DO_DIA = p.gols; break;
+      /* a frase da ficha é texto livre do Estúdio: no pacote, ninguém a
+         escreveu para este jogo, então não vai */
+      case 'stat': F.piada.value = ''; break;
+      case 'estresumo': case 'estcorrida': case 'estcraques': case 'estjogador':
+        if(!sumulaDe(L)) return 'este jogo não tem súmula minuto a minuto';
+        F.estjogo.value = sumulaDe(L);
+        F.estmom.value = p.recorte==='1t' ? '1t' : p.recorte==='ate' ? 'ate' : 'todo';
+        F.estmin.value = Math.max(1, Math.round((p.seg+p.dura)/60));
+        break;
+    }
+    return '';
+  }
+
+  return {planeja, prepara, ARTE, nomeCamada, camadas, mmss,
+          manuais: () => semMeta(regras().manuais)};
+})();
+
 /* ================= REGISTRO DO JOGO =================
    Marcação ao vivo. A ideia é uma coisa só: arma o tipo do lance e clica em
    quem fez. Nada de formulário com seis campos no meio do jogo.
    Escreve na mesma lista que a Análise do jogo lê, então os dois andam juntos. */
-const REG = {jogo:'', timeA:'', timeB:'', minuto:1, armado:{A:'noGol', B:'noGol'}};
+const REG = {jogo:'', timeA:'', timeB:'', minuto:1, armado:{A:'noGol', B:'noGol'},
+  /* cartão: a cor vai junto; substituição: dois cliques (quem sai, quem entra);
+     gol: o clique seguinte no mesmo time pode ser a assistência */
+  corCartao:'amarelo', subSai:{A:'', B:''}, assist:null, plSel:'', plZoom:1};
 /* A Análise Tática nasce com lances de exemplo para a tela não abrir vazia.
    O Registro não pode herdar esse exemplo: num navegador sem nada salvo, ele
    aparecia como se fossem lances do jogo, e um Gravar mandava tudo para a
@@ -3858,6 +4246,31 @@ function jogadoresDoTime(tid){
   const ids = [...new Set(DADOS.escalacoes.filter(e=>e.time===tid && !e.oculto).map(e=>e.jogador))];
   return ids.map(id=>pById[id]).filter(Boolean)
     .sort((a,b)=>a.apelido.localeCompare(b.apelido));
+}
+
+/* O que a coluna pede agora: assistência do gol que acabou de entrar, quem
+   sai e quem entra na substituição, a cor do cartão — ou só "quem fez". */
+function regAvisoColuna(lado, armado){
+  const tit = t => '<p class="eyebrow" style="margin:.2rem 0 .35rem">'+t+'</p>';
+  if(REG.assist && REG.assist.lado===lado){
+    return '<div class="reg-pend">Gol de <b>'+REG.assist.ev.j+'</b>. Quem deu o passe? Clique abaixo, ou '
+      + '<button class="btn ghost" data-reg-sem-assist style="padding:.05rem .4rem;font-size:.72rem">'
+      + 'sem assistência</button></div>' + tit('Assistência');
+  }
+  if(armado==='sub'){
+    return REG.subSai[lado]
+      ? '<div class="reg-pend">Saiu <b>'+REG.subSai[lado]+'</b>. Agora clique em quem <b>entra</b>. '
+        + '<button class="btn ghost" data-reg-sub-cancela="'+lado+'" style="padding:.05rem .4rem;font-size:.72rem">'
+        + 'cancelar</button></div>' + tit('Quem entra')
+      : tit('Quem sai');
+  }
+  if(armado==='cartao'){
+    const bt = (cor, rot, fundo) => '<button data-reg-cor="'+cor+'" aria-pressed="'+(REG.corCartao===cor)
+      + '" style="background:'+fundo+';color:#0B0B0B">'+rot+'</button>';
+    return '<div class="reg-cor">'+bt('amarelo','Amarelo','#F2B01E')+bt('vermelho','Vermelho','#E03A2F')+'</div>'
+      + tit('Quem levou');
+  }
+  return tit('Quem fez');
 }
 
 function regBotoesTipo(lado){
@@ -3890,7 +4303,7 @@ function regColunaTime(lado){
       + (doTime
         ? '<button class="btn primary" data-reg-time-ev="'+lado+'" style="width:100%">Registrar '
           + LANCES.TIPOS[armado].rot + ' aos ' + regQuando() + '</button>'
-        : '<p class="eyebrow" style="margin:.2rem 0 .35rem">Quem fez</p>'
+        : regAvisoColuna(lado, armado)
           + '<div class="reg-grade">'+grade+'</div>');
   return '<div class="reg-col">'
     + '<div class="reg-cab">' + (t?escudoHTML(t,28):'') + '<h3>' + (t?t.nome:'Time '+lado) + '</h3></div>'
@@ -3918,56 +4331,54 @@ function regResumo(){
     + '</div>';
 }
 
-/* O que cada lance vira no vídeo, pelas mesmas regras que o pacote de mídias
-   usa (dados/regras-pacote.json). Quem marca vê na hora o que vai aparecer na
-   tela — e o que NÃO vai, e por quê. */
-function pecasDoLance(e){
-  const regras = ((DADOS.regrasPacote||{}).lances||{})[e.tipo] || [];
-  return regras.map(r=>{
-    let falta = '';
-    if(e.seg == null) falta = 'sem o tempo do vídeo';
-    else if(r.peca !== 'placar' && !e.j) falta = 'sem jogador';
-    return {nome:r.nome || r.peca, dura:r.dura, camada:r.camada, falta};
-  });
-}
-/* Camada gráfica = trilha de gráfico no DaVinci, da V4 para cima (as de baixo
-   são das câmeras). Quem marca pensa em camada; a conta da trilha fica no
-   regras-pacote.json. */
-function nomeCamada(c){
-  return (((DADOS.regrasPacote||{}).camadas||{}).nomes||{})[c] || '';
-}
+/* O que cada lance vira no vídeo, pelo mesmo plano que o gerador executa
+   (PACOTE.planeja). Quem marca vê na hora o que vai aparecer na tela, o que
+   vai esperar na fila — e o que NÃO vai, e por quê. */
+function nomeCamada(c){ return PACOTE.nomeCamada(c); }
 function regLegendaCamadas(){
-  const cam = (DADOS.regrasPacote||{}).camadas || {};
-  const nomes = cam.nomes || {};
-  const ks = Object.keys(nomes).sort((a,b)=>a-b);
+  const cam = PACOTE.camadas();
+  const ks = Object.keys(cam.nomes).sort((a,b)=>a-b);
   if(!ks.length) return '';
-  const v1 = +cam.primeira_trilha || 4;
-  return '<p class="reg-pacote" title="camada gráfica 1 = V'+v1+'; V1 a V'+(v1-1)+' ficam para as câmeras">Camadas: '
-    + ks.map(k=>'<b>'+k+'</b> '+nomes[k]).join(' · ') + '</p>';
+  return '<p class="reg-pacote" title="camada gráfica 1 = V'+cam.primeira+'; V1 a V'+(cam.primeira-1)
+    + ' ficam para as câmeras">Camadas: ' + ks.map(k=>'<b>'+k+'</b> '+cam.nomes[k]).join(' · ') + '</p>';
 }
-function regChipsPecas(e){
-  const P = pecasDoLance(e);
+function regChipsPecas(e, i){
+  const P = ((REG.planoAtual||{}).pecas||[]).filter(p=>p.evIdx===i);
   if(!P.length) return '';
-  return '<span class="pcs">' + P.map(p=>
-    '<span class="pc'+(p.falta?' nao':'')+'" title="'
-      + (p.falta ? 'não entra no pacote: '+p.falta
-                 : 'camada gráfica '+p.camada+' ('+nomeCamada(p.camada)+') · '+p.dura+' s na tela')
-      + '">'+p.nome+(p.falta?'':' · camada '+p.camada+' · '+p.dura+'s')+'</span>').join('') + '</span>';
+  return '<span class="pcs">' + P.map(p=>{
+    const cls = p.status==='fora' ? ' nao' : p.status==='espera' ? ' espera' : '';
+    const dica = p.status==='fora' ? 'não entra no pacote: '+p.motivo
+      : 'camada gráfica '+p.camada+' ('+p.nomeCamada+') · '+PACOTE.mmss(p.seg)+' · '+(+p.dura).toFixed(1)+' s na tela'
+        + (p.status==='espera' ? ' · '+p.motivo : '');
+    const rot = p.status==='fora' ? p.nome
+      : p.nome+' · camada '+p.camada+' · '+Math.round(p.dura)+'s'+(p.status==='espera' ? ' · espera '+p.esperou.toFixed(0)+'s' : '');
+    return '<span class="pc'+cls+'" title="'+dica.replace(/"/g,'&quot;')+'">'+rot+'</span>';
+  }).join('') + '</span>';
 }
-function regResumoPacote(E){
-  let sim = 0, nao = 0;
-  E.forEach(e=>pecasDoLance(e).forEach(p=>{ if(p.falta) nao++; else sim++; }));
-  if(!sim && !nao) return '';
-  return regLegendaCamadas() + '<p class="reg-pacote">No vídeo: <b>'+sim+'</b> '+(sim===1?'peça':'peças')+' destes lances'
-    + (nao ? ', e <b>'+nao+'</b> de fora (riscadas: passe o mouse para ver o motivo)' : '')
-    + ', mais placar fixo, abertura e fim de jogo.</p>';
+function regResumoPacote(){
+  const P = (REG.planoAtual||{}).pecas || [];
+  if(!P.length) return '';
+  const ok = P.filter(p=>p.status==='ok').length, esp = P.filter(p=>p.status==='espera').length,
+        fora = P.filter(p=>p.status==='fora').length;
+  return regLegendaCamadas() + '<p class="reg-pacote">No vídeo: <b>'+(ok+esp)+'</b> peças'
+    + (esp ? ', <b>'+esp+'</b> esperando na fila' : '')
+    + (fora ? ', <b>'+fora+'</b> de fora (riscadas: passe o mouse para ver o motivo)' : '')
+    + '. O plano completo está abaixo, em "Plano da edição".</p>';
+}
+const ROTULO_JOGO = {replay:'▶ Replay', intervalo:'⏸ Fim do 1º tempo'};
+function regTextoLance(e){
+  const T = LANCES.TIPOS[e.tipo] || {rot: ROTULO_JOGO[e.tipo] || e.tipo};
+  if(e.tipo==='sub') return T.rot+(e.sai?' · sai '+e.sai:'')+(e.j?', entra '+e.j:'');
+  if(e.tipo==='replay') return T.rot+(e.fim!=null ? ' até '+REGVIDEO.mmss(e.fim) : ' · <b>marque o fim</b>');
+  if(e.tipo==='cartao') return (e.cor==='vermelho'?'🟥 ':e.cor==='amarelo'?'🟨 ':'')+T.rot+(e.j?' · '+e.j:'');
+  return T.rot+(e.j?' · '+e.j:'')+(e.a?' (assist. '+e.a+')':'');
 }
 
 function regListaEventos(){
   const E = regOrdenados();
   if(!E.length) return '<div class="empty" style="padding:1.6rem">Nenhum lance marcado ainda.</div>';
-  const corDe = t => (tById[t==='A'?REG.timeA:REG.timeB]||{}).c1 || '#8A9A8C';
-  return regResumoPacote(E) + '<div class="reg-lista">' + E.map((e,i)=>{
+  const corDe = t => t==='J' ? '#8A9A8C' : ((tById[t==='A'?REG.timeA:REG.timeB]||{}).c1 || '#8A9A8C');
+  return regResumoPacote() + '<div class="reg-lista">' + E.map((e,i)=>{
     const T = LANCES.TIPOS[e.tipo] || {rot:e.tipo};
     return '<div class="reg-ev '+(e.tipo==='gol'?'gol':'')+'">'
       + '<span class="lado" style="background:'+corSegura(corDe(e.t))+'"></span>'
@@ -3977,17 +4388,180 @@ function regListaEventos(){
               + REGVIDEO.mmss(e.seg) + '</button>'
             : REGVIDEO.mmss(e.seg))
           : e.min+"'") + '</b>'
-      + '<span class="txt">'+T.rot+(e.j?' · '+e.j:'')+'</span>'
+      + '<span class="txt">'+regTextoLance(e)+'</span>'
       + (e.xg?'<span class="xg">'+(e.xg*100).toFixed(0)+'%</span>':'')
       + (REGVIDEO.ativo()
         ? '<button class="btn ghost" data-reg-agora="'+i+'" title="trocar pelo tempo atual do vídeo"'
           + ' style="padding:.05rem .35rem;font-size:.7rem">⟲</button>'
         : '')
       + '<button class="btn ghost" data-reg-del="'+i+'" style="padding:.05rem .35rem;font-size:.7rem">×</button>'
-      + regChipsPecas(e)
+      + regChipsPecas(e, i)
       + '</div>';
   }).join('') + '</div>';
 }
+
+/* ========= Plano da edição =========
+   Uma faixa por camada gráfica, cada peça um bloco no tempo do vídeo. É o
+   mesmo plano que o gerador executa: mexer aqui (mover, mudar a duração,
+   desligar, pôr peça à mão) muda o que sai no DaVinci. */
+const escPl = v => String(v==null?'':v).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function lerTempo(v){
+  const p = String(v||'').trim().split(':').map(Number);
+  if(!p.length || p.some(n=>isNaN(n))) return null;
+  return p.reduce((a,b)=>a*60+b, 0);
+}
+function planoEditor(P){
+  const p = P.pecas.find(x=>x.id===REG.plSel);
+  if(!p) return '<h4>Peça</h4><p class="reg-pacote">Clique num bloco para ver e ajustar a peça. '
+    + 'Com o vídeo carregado, o clique leva o vídeo até ela.</p>';
+  const origem = {lance:'regra do lance', jogo:'momento do jogo ('+(p.momento||'')+')', manual:'posta à mão'}[p.origem] || p.origem;
+  const estado = p.status==='fora' ? '<b>de fora</b>: '+escPl(p.motivo)
+    : p.status==='espera' ? escPl(p.motivo)+'; entra em '+PACOTE.mmss(p.seg)
+    : 'entra em '+PACOTE.mmss(p.seg);
+  let h = '<h4>'+escPl(p.nome)+'</h4><p class="reg-pacote">'+escPl(origem)+' · camada '+p.camada
+    + ' ('+escPl(p.nomeCamada)+') = V'+p.trilha+' · '+estado+'</p>';
+  if(p.peca==='placar-fixo') return h + '<p class="reg-pacote">O placar fixo acompanha os gols e muda sozinho.</p>';
+  h += '<div class="linha">início <input data-pl-seg value="'+PACOTE.mmss(p.pedido)+'" size="8">'
+    + ' dura <input data-pl-dura type="number" min="1" max="120" step="0.5" value="'+(+p.dura)+'" style="width:5rem"> s'
+    + ' <button class="btn" data-pl-aplica>Aplicar</button></div><div class="linha">'
+    + '<button class="btn" data-pl-agora>Tempo atual do vídeo</button>';
+  if(p.origem==='manual') h += '<button class="btn" data-pl-remove>Remover</button>';
+  else {
+    h += '<button class="btn" data-pl-liga>'+(p.desligada ? 'Ligar' : 'Desligar')+'</button>';
+    if(p.ajustada) h += '<button class="btn ghost" data-pl-auto>Voltar ao automático</button>';
+  }
+  return h + '</div>';
+}
+function planoNova(){
+  const M = PACOTE.manuais(), ks = Object.keys(M);
+  if(!REG.plNova || !M[REG.plNova]) REG.plNova = ks[0];
+  const r = M[REG.plNova] || {};
+  const t = REGVIDEO.agora();
+  const nomes = jog.map(x=>x.apelido).sort((a,b)=>a.localeCompare(b));
+  return '<h4>＋ Peça</h4><div class="linha"><select data-pl-nova>'
+    + ks.map(k=>'<option value="'+k+'"'+(k===REG.plNova?' selected':'')+'>'+escPl(M[k].nome||k)+'</option>').join('')
+    + '</select>' + (r.jogador ? '<select data-pl-jog><option value="">— jogador —</option>'
+      + nomes.map(n=>'<option'+(n===REG.plJog?' selected':'')+'>'+escPl(n)+'</option>').join('')+'</select>' : '')
+    + '</div><div class="linha">em <input data-pl-em size="8" placeholder="mm:ss" value="'
+    + (t!=null ? PACOTE.mmss(t) : '')+'"> <button class="btn primary" data-pl-poe>Pôr no plano</button></div>'
+    + '<p class="reg-pacote">Camada '+(r.camada||'?')+' · '+(r.dura||'?')+' s. Com o vídeo carregado, o tempo já vem o do vídeo.</p>';
+}
+function renderPlano(){
+  const raiz = document.getElementById('reg-plano');
+  if(!raiz) return;
+  const P = REG.planoAtual;
+  if(!P || !REG.jogo){ raiz.innerHTML = ''; return; }
+  const cam = PACOTE.camadas();
+  const usadas = [...new Set(Object.keys(cam.nomes).map(Number).concat(P.pecas.map(p=>p.camada)))].sort((a,b)=>a-b);
+  const px = +REG.plZoom || 1, dur = Math.max(P.fim, 60), W = Math.ceil(dur*px)+60;
+  const velho = raiz.querySelector('.plano-trilhas');
+  const rolagem = velho ? velho.scrollLeft : null;
+  const passo = px>=2 ? 60 : 300;
+  let regua = '';
+  for(let t=0; t<=dur; t+=passo) regua += '<i style="left:'+(t*px)+'px"></i><span style="left:'+(t*px)+'px">'+PACOTE.mmss(t)+'</span>';
+  const faixas = usadas.map(c=>'<div class="plano-faixa">' + P.pecas.filter(p=>p.camada===c).map(p=>{
+    const t0 = p.status==='fora' ? p.pedido : p.seg;
+    const cls = 'pl-b '+p.origem+(p.status!=='ok' ? ' '+p.status : '')+(REG.plSel===p.id ? ' sel' : '');
+    const dica = p.nome+' · camada '+c+' · '+PACOTE.mmss(t0)+' · '+(+p.dura).toFixed(1)+' s'+(p.motivo ? ' · '+p.motivo : '');
+    return '<div class="'+cls+'" data-pl-id="'+escPl(p.id)+'" style="left:'+(t0*px)+'px;width:'
+      + Math.max(4, p.dura*px)+'px" title="'+escPl(dica)+'">'+escPl(p.nome)+'</div>';
+  }).join('') + '</div>').join('');
+  const nomes = '<div class="regua-nome"></div>' + usadas.map(c=>'<div title="'+escPl(cam.nomes[c]||'')+'"><b>'+c+'</b> '
+    + escPl(cam.nomes[c]||'')+' · V'+(cam.primeira+c-1)+'</div>').join('');
+  const ok = P.pecas.filter(p=>p.status==='ok').length, esp = P.pecas.filter(p=>p.status==='espera').length,
+        fora = P.pecas.filter(p=>p.status==='fora');
+  const listaFora = fora.length ? '<details class="plano-fora"'+(REG.plForaAberto?' open':'')+'><summary style="cursor:pointer;'
+    + 'font-size:.8rem;text-transform:uppercase;letter-spacing:.06em">De fora: '+fora.length+' peças, com o motivo</summary>'
+    + '<ul style="margin:.4rem 0 0;padding-left:1.1rem">'
+    + fora.map(p=>'<li><b>'+escPl(p.nome)+'</b> ('+PACOTE.mmss(p.pedido)+'): '+escPl(p.motivo)+'</li>').join('')
+    + '</ul></details>' : '';
+  const avisos = P.avisos.length ? '<div class="plano-fora"><ul style="margin:0;padding-left:1.1rem">'
+    + P.avisos.map(a=>'<li>'+escPl(a)+'</li>').join('')+'</ul></div>' : '';
+  raiz.innerHTML = '<div class="plano"><div class="plano-cab"><h3>Plano da edição</h3>'
+    + '<span class="resumo"><b>'+(ok+esp)+'</b> peças no vídeo'+(esp ? ', <b>'+esp+'</b> esperando na fila' : '')
+    + (fora.length ? ', <b>'+fora.length+'</b> de fora' : '')+' · até '+PACOTE.mmss(P.fim)
+    + ' · amarelo = lance, azul = jogo, rosa = à mão, tracejado = esperou, riscado = de fora</span>'
+    + '<label style="font-size:.78rem;color:var(--dim)">zoom <select data-pl-zoom>'
+    + [.5,1,2,4].map(z=>'<option value="'+z+'"'+(z===px ? ' selected' : '')+'>'+z+' px/s</option>').join('')
+    + '</select></label></div><div class="plano-corpo"><div class="plano-nomes">'+nomes+'</div>'
+    + '<div class="plano-trilhas"><div class="plano-tela" style="width:'+W+'px"><div class="plano-regua">'+regua+'</div>'
+    + faixas+'<div class="plano-cursor" style="display:none"></div></div></div></div>'
+    + '<div class="plano-pe"><div>'+planoEditor(P)+'</div><div>'+planoNova()+'</div></div>'
+    + listaFora + avisos + '</div>';
+  const novo = raiz.querySelector('.plano-trilhas');
+  if(rolagem != null) novo.scrollLeft = rolagem;
+  planoCursor();
+}
+function planoCursor(){
+  const c = document.querySelector('#reg-plano .plano-cursor');
+  if(!c) return;
+  const t = REGVIDEO.ativo() ? REGVIDEO.agora() : null;
+  if(t == null){ c.style.display = 'none'; return; }
+  c.style.display = ''; c.style.left = (t*(+REG.plZoom||1))+'px';
+}
+setInterval(planoCursor, 500);
+
+function planoMuda(fn){
+  const pl = regPlanoLocal();
+  fn(pl);
+  regGuardaPlano(pl);
+  renderRegistro();
+}
+document.addEventListener('click', e=>{
+  if(!e.target.closest || !e.target.closest('#reg-plano')) return;
+  const bloco = e.target.closest('[data-pl-id]');
+  const P = REG.planoAtual; if(!P) return;
+  if(bloco){
+    REG.plSel = bloco.dataset.plId;
+    const p = P.pecas.find(x=>x.id===REG.plSel);
+    if(p && REGVIDEO.ativo()) REGVIDEO.vai(p.status==='fora' ? p.pedido : p.seg);
+    renderPlano(); return;
+  }
+  const b = e.target.closest('button'); if(!b) return;
+  const p = P.pecas.find(x=>x.id===REG.plSel);
+  const raiz = document.getElementById('reg-plano');
+  const val = k => { const el = raiz.querySelector('[data-pl-'+k+']'); return el ? el.value : ''; };
+  const ajusta = (o) => planoMuda(pl=>{
+    if(p.origem==='manual'){
+      const m = pl.manuais.find(x=>x.id===p.id); if(m) Object.assign(m, o);
+    } else pl.ajustes[p.id] = Object.assign({}, pl.ajustes[p.id], o);
+  });
+  if(b.hasAttribute('data-pl-aplica') && p){
+    const seg = lerTempo(val('seg')), dura = +val('dura');
+    if(seg==null || !(dura>0)){ alert('Início como mm:ss e duração em segundos.'); return; }
+    ajusta({seg, dura}); return;
+  }
+  if(b.hasAttribute('data-pl-agora') && p){
+    const t = REGVIDEO.agora();
+    if(t==null){ alert('Carregue o vídeo do jogo para usar o tempo atual.'); return; }
+    ajusta({seg:Math.round(t*10)/10}); return;
+  }
+  if(b.hasAttribute('data-pl-liga') && p){ ajusta({off:!p.desligada}); return; }
+  if(b.hasAttribute('data-pl-auto') && p){ planoMuda(pl=>{ delete pl.ajustes[p.id]; }); return; }
+  if(b.hasAttribute('data-pl-remove') && p){
+    planoMuda(pl=>{ pl.manuais = pl.manuais.filter(x=>x.id!==p.id); }); REG.plSel = ''; return;
+  }
+  if(b.hasAttribute('data-pl-poe')){
+    const M = PACOTE.manuais(), r = M[REG.plNova] || {};
+    const seg = lerTempo(val('em'));
+    if(seg==null){ alert('Diga em que tempo do vídeo a peça entra (mm:ss), ou carregue o vídeo.'); return; }
+    if(r.jogador && !val('jog')){ alert('Escolha o jogador.'); return; }
+    const id = 'manual-'+Date.now().toString(36);
+    planoMuda(pl=>{ pl.manuais.push({id, peca:REG.plNova, seg, dura:r.dura, jogador:r.jogador ? val('jog') : ''}); });
+    REG.plSel = id; renderPlano(); return;
+  }
+});
+/* a lista "de fora" lembra se estava aberta: o plano é redesenhado a cada mudança */
+document.addEventListener('toggle', e=>{
+  if(e.target.matches && e.target.matches('#reg-plano details.plano-fora')) REG.plForaAberto = e.target.open;
+}, true);
+document.addEventListener('change', e=>{
+  const el = e.target;
+  if(!el.closest || !el.closest('#reg-plano')) return;
+  if(el.matches('[data-pl-zoom]')){ REG.plZoom = +el.value; renderPlano(); }
+  if(el.matches('[data-pl-nova]')){ REG.plNova = el.value; renderPlano(); }
+  if(el.matches('[data-pl-jog]')){ REG.plJog = el.value; }
+});
 
 /* ========= vídeo no Registro =========
    A marcação pode ser feita assistindo o vídeo do jogo: o lance grava o tempo
@@ -4280,6 +4854,7 @@ function renderRegistro(){
     else if(salvo && !LANCES.estado.analise.eventos.length) LANCES.estado.analise.eventos = salvo;
   }
   REGVIDEO.monta();
+  REG.planoAtual = PACOTE.planeja(regExporta());
   const opsJogo = lista.map(g=>{
     const a=tById[g.casa], b=tById[g.fora];
     return '<option value="'+g.id+'"'+(g.id===REG.jogo?' selected':'')+'>'
@@ -4330,33 +4905,74 @@ function renderRegistro(){
         + '<input type="number" min="0" max="200" data-reg-minuto value="'+REG.minuto+'">'
         + '<button class="btn" data-reg-min="1">+</button></div>'
         + '<p class="eyebrow" style="margin:0 0 .5rem">minuto do lance</p>')
-    + gravacao + arquivo + '</div>'
+    + regBotoesJogo() + gravacao + arquivo + '</div>'
     + regResumo() + regListaEventos() + '</div>'
     + regColunaTime('A') + regColunaTime('B');
+  renderPlano();
 }
 
 /* O arquivo que o pacote de mídias lê. Leva os times inteiros (nome, sigla e
    cores) porque o jogo avulso não existe na planilha, e o tempo de cada lance
    em segundos do vídeo — é ele que posiciona as peças na timeline. */
-function baixaLances(){
+/* O plano guardado deste jogo: ajustes nas peças automáticas (mover, mudar a
+   duração, desligar) e as peças postas à mão. Fica no navegador, por jogo, e
+   vai junto no arquivo baixado. */
+function regPlanoLocal(jogo){
+  try{
+    const v = JSON.parse(localStorage.getItem('rvd-plano-'+(jogo||REG.jogo)) || 'null');
+    if(v && typeof v==='object') return {ajustes:v.ajustes||{}, manuais:Array.isArray(v.manuais)?v.manuais:[]};
+  }catch(_){}
+  return {ajustes:{}, manuais:[]};
+}
+function regGuardaPlano(pl){
+  try{ localStorage.setItem('rvd-plano-'+REG.jogo, JSON.stringify(pl)); }catch(_){}
+}
+/* A duração do vídeo só se lê com o player aberto: guarda a última vista. */
+function regDuracaoVideo(){
+  const d = REGVIDEO.duracao();
+  if(d){ try{ localStorage.setItem('rvd-dur-'+REG.jogo, String(d)); }catch(_){} return d; }
+  const v = +(localStorage.getItem('rvd-dur-'+REG.jogo) || 0);
+  return v > 0 ? v : null;
+}
+/* O arquivo que o pacote de mídias lê, e o que o plano do Registro usa. Leva
+   os times inteiros (nome, sigla e cores) porque o jogo avulso não existe na
+   planilha, o tempo de cada lance em segundos do vídeo e o plano. */
+function regExporta(){
   const g = jogosDoRegistro().find(x=>x.id===REG.jogo) || {id:REG.jogo};
   const time = id => { const t = tById[id] || {};
     return {id, nome:t.nome||id, sigla:t.sigla||'', c1:t.c1||'', c2:t.c2||''}; };
-  const pacote = {
-    formato:'copa-revoada-lances/1',
+  return {
+    formato:'copa-revoada-lances/2',
     jogo:REG.jogo, nome:g.nome || REG.jogo,
     conta_na_copa: !(g.avulso || amistosos.includes(g)),
     casa:time(REG.timeA), fora:time(REG.timeB),
     video: REGVIDEO.local('rvd-video-'+REG.jogo) || (g.video ? 'https://youtu.be/'+g.video : ''),
-    duracao_video: REGVIDEO.duracao(),
+    duracao_video: regDuracaoVideo(),
+    sumula: (DADOS.sumulas && DADOS.sumulas[REG.jogo]) ? REG.jogo : '',
     exportado_em: new Date().toISOString(),
-    eventos: regOrdenados().map(e=>({seg:e.seg != null ? e.seg : null, min:e.min, t:e.t,
-      tipo:e.tipo, j:e.j||'', xg:e.xg||0}))
+    eventos: regOrdenados().map(e=>{
+      const o = {seg:e.seg != null ? e.seg : null, min:e.min, t:e.t, tipo:e.tipo, j:e.j||'', xg:e.xg||0};
+      ['a','sai','cor','fim'].forEach(k=>{ if(e[k]!=null && e[k]!=='') o[k]=e[k]; });
+      return o;
+    }),
+    plano: regPlanoLocal()
   };
+}
+function baixaLances(){
+  const pacote = regExporta();
   const blob = new Blob([JSON.stringify(pacote, null, 1)], {type:'application/json'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = 'lances-'+REG.jogo+'.json'; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+}
+
+/* Replay e fim do 1º tempo são do jogo, não de um time: botões na coluna do
+   jogo, no tempo atual do vídeo. */
+function regBotoesJogo(){
+  const aberto = LANCES.estado.analise.eventos.find(e=>e.tipo==='replay' && e.fim==null);
+  return '<div class="reg-jogo-bts">'
+    + '<button class="btn" data-reg-replay>'+(aberto ? '■ Fim do replay' : '▶ Início do replay')+'</button>'
+    + '<button class="btn" data-reg-intervalo>⏸ Fim do 1º tempo</button></div>';
 }
 
 function registraLance(lado, apelido){
@@ -4366,7 +4982,11 @@ function registraLance(lado, apelido){
   const ev = {min: seg != null ? Math.floor(seg/60) : (+REG.minuto||0),
               t:lado, tipo, j:apelido||'', xg:T.xg||0};
   if(seg != null) ev.seg = seg;
+  if(tipo==='cartao') ev.cor = REG.corCartao || 'amarelo';
+  if(tipo==='sub'){ ev.sai = REG.subSai[lado] || ''; REG.subSai[lado] = ''; }
   LANCES.estado.analise.eventos.push(ev);
+  /* o clique seguinte neste time pode ser o passe; qualquer outro lance cancela */
+  REG.assist = (tipo==='gol' && apelido) ? {lado, ev} : null;
   regSalvaLocal();
   /* a Análise do jogo lê esta mesma lista, então já reflete */
   LANCES.estado.analise.A = REG.timeA;
@@ -4380,6 +5000,7 @@ document.addEventListener('click', async e=>{
   const b = e.target.closest('button'); if(!b) return;
   if(b.dataset.regTipo){
     REG.armado[b.dataset.lado]=b.dataset.regTipo;
+    REG.assist = null; REG.subSai[b.dataset.lado] = '';
     REGVIDEO.marcaInstante();
     renderRegistro(); return;
   }
@@ -4395,7 +5016,33 @@ document.addEventListener('click', async e=>{
     if(ev && t != null){ ev.seg = Math.round(t*10)/10; ev.min = Math.floor(ev.seg/60); regSalvaLocal(); renderRegistro(); }
     return;
   }
-  if(b.dataset.regJ){ const p=pById[b.dataset.regJ]; registraLance(b.dataset.lado, p?p.apelido:''); return; }
+  if(b.dataset.regJ){
+    const p=pById[b.dataset.regJ], ap=p?p.apelido:'', lado=b.dataset.lado;
+    if(REG.assist && REG.assist.lado===lado){
+      if(ap && ap!==REG.assist.ev.j) REG.assist.ev.a = ap;
+      REG.assist = null; regSalvaLocal(); renderRegistro(); return;
+    }
+    if(REG.armado[lado]==='sub' && !REG.subSai[lado]){ REG.subSai[lado] = ap; renderRegistro(); return; }
+    registraLance(lado, ap); return;
+  }
+  if(b.hasAttribute('data-reg-sem-assist')){ REG.assist = null; renderRegistro(); return; }
+  if(b.dataset.regSubCancela){ REG.subSai[b.dataset.regSubCancela] = ''; renderRegistro(); return; }
+  if(b.dataset.regCor){ REG.corCartao = b.dataset.regCor; renderRegistro(); return; }
+  if(b.hasAttribute('data-reg-replay') || b.hasAttribute('data-reg-intervalo')){
+    const t = REGVIDEO.agora();
+    if(t == null){ alert('Carregue o vídeo do jogo: replay e fim do 1º tempo vão no tempo do vídeo.'); return; }
+    const seg = Math.round(t*10)/10, E = LANCES.estado.analise.eventos;
+    if(b.hasAttribute('data-reg-intervalo')){
+      /* um fim de 1º tempo só: marcar de novo corrige */
+      LANCES.estado.analise.eventos = E.filter(x=>x.tipo!=='intervalo');
+      LANCES.estado.analise.eventos.push({min:Math.floor(seg/60), t:'J', tipo:'intervalo', j:'', xg:0, seg});
+    } else {
+      const aberto = E.find(x=>x.tipo==='replay' && x.fim==null);
+      if(aberto){ if(seg > aberto.seg) aberto.fim = seg; else return; }
+      else E.push({min:Math.floor(seg/60), t:'J', tipo:'replay', j:'', xg:0, seg});
+    }
+    REG.assist = null; regSalvaLocal(); renderRegistro(); return;
+  }
   if(b.dataset.regTimeEv){ registraLance(b.dataset.regTimeEv, ''); return; }
   if(b.dataset.regMin){
     REG.minuto = Math.max(0,(+REG.minuto||0)+(+b.dataset.regMin));
@@ -4482,15 +5129,19 @@ document.addEventListener('change', async e=>{
   const msg = m => { const p=document.querySelector('[data-reg-msg-arq]'); if(p) p.textContent=m; };
   try{
     const d = JSON.parse(await el.files[0].text());
-    if(d.formato !== 'copa-revoada-lances/1' || !Array.isArray(d.eventos))
+    if(!/^copa-revoada-lances\/[12]$/.test(d.formato||'') || !Array.isArray(d.eventos))
       throw new Error('não é um arquivo de lances da Copa Revoada');
     if(d.jogo !== REG.jogo && !confirm('O arquivo é do jogo "'+d.jogo+'", e o aberto é "'+REG.jogo
         +'". Trocar os lances deste jogo pelos do arquivo mesmo assim?')){ el.value=''; return; }
     LANCES.estado.analise.eventos = d.eventos.map(x=>{
       const ev = {min:x.min, t:x.t, tipo:x.tipo, j:x.j||'', xg:x.xg||0};
       if(x.seg != null) ev.seg = +x.seg;
+      ['a','sai','cor'].forEach(k=>{ if(x[k]) ev[k]=x[k]; });
+      if(x.fim != null) ev.fim = +x.fim;
       return ev;
     });
+    if(d.plano) regGuardaPlano({ajustes:d.plano.ajustes||{}, manuais:d.plano.manuais||[]});
+    if(d.duracao_video){ try{ localStorage.setItem('rvd-dur-'+REG.jogo, String(d.duracao_video)); }catch(_){} }
     regSalvaLocal(); renderRegistro();
   }catch(err){ msg('não deu para abrir: '+err.message); }
   el.value='';
@@ -5365,6 +6016,7 @@ function draw(k){
   if(t==='proxima'){ drawProxima(k); return; }
   if(t==='marco'){ drawMarco(k); return; }
   if(t==='marcos'){ drawMarcos(k); return; }
+  if(t==='cagadas'){ drawCagadas(k); return; }
   ctx.save();
   ctx.globalAlpha = Math.min(1, k*1.6);
   ctx.translate((1-ease(k))*-260, 0);
@@ -5372,11 +6024,14 @@ function draw(k){
   if(t==='gol'){
     const x=110,y=790,w=1000,h=180;
     sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.94)'; rr(x,y,w,h,16); ctx.fill(); });
-    ctx.fillStyle=corFaixa(T); rr(x,y,16,h,8); ctx.fill();
+    const corB = (BARRA && BARRA.cor) || '';
+    ctx.fillStyle=corB||corFaixa(T); rr(x,y,16,h,8); ctx.fill();
     retrato(p1, x+46, y+22, 136, 136, 12);
-    txt(TITULO_GOL, x+218, y+62, 32, P().ac,'cond',7);
+    txt(TITULO_GOL, x+218, y+62, 32, corB||P().ac,'cond',7);
     txt(p1.apelido.toUpperCase(), x+218, y+134, 70, '#F4F1E6','blk');
-    txt(T.nome.toUpperCase()+'   ·   '+F.min.value, x+220, y+170, 28, '#8A9A8C','cond',5);
+    const linhaB = (BARRA && BARRA.linha) || (T.nome.toUpperCase()+'   ·   '+F.min.value
+      + (BARRA && BARRA.assist ? '   ·   ASSIST. '+BARRA.assist.toUpperCase() : ''));
+    txt(linhaB, x+220, y+170, 28, '#8A9A8C','cond',5);
     marca(x+w-120, y+34, 112);
   }
 
@@ -5457,6 +6112,42 @@ function draw(k){
         x+148, y+134, 27, '#8A9A8C','cond',5);
     marca(x+w-120, y+30, 110);
   }
+  ctx.restore();
+}
+
+/* ---- ranking de cagadas ----
+   Conta as cagadas marcadas no Registro (ou no arquivo de lances, no pacote).
+   "Rei da cagada" só aparece com um líder sozinho: empate não se decide. */
+function drawCagadas(k){
+  const evs = LANCES.estado.analise.eventos.filter(e=>e.tipo==='cagada' && e.j);
+  const soma = {};
+  evs.forEach(e=>{ if(!soma[e.j]) soma[e.j] = {n:0, t:e.t}; soma[e.j].n++; });
+  const lista = Object.entries(soma).map(([ap,v])=>({ap, n:v.n, p:jog.find(x=>x.apelido===ap)}))
+    .sort((a,b)=>b.n-a.n || a.ap.localeCompare(b.ap)).slice(0,6);
+  const COR = '#C8792B';
+  const w=1120, h=190+Math.max(1,lista.length)*92, x=(1920-w)/2, y=(1080-h)/2;
+  ctx.save(); ctx.globalAlpha=Math.min(1,k*2);
+  ctx.translate(0,(1-ease(clamp01(k*1.4)))*60);
+  sombra(()=>{ ctx.fillStyle='rgba(8,12,10,.95)'; rr(x,y,w,h,18); ctx.fill(); });
+  ctx.fillStyle=COR; rr(x,y,w,10,6); ctx.fill();
+  txt('RANKING DE CAGADAS', x+44, y+80, 44, COR,'cond',10);
+  const rei = lista.length && (lista.length===1 || lista[0].n > lista[1].n) ? lista[0].ap : '';
+  txt((evs.length+(evs.length===1?' CAGADA':' CAGADAS')+' NO JOGO')+(rei ? '   ·   REI DA CAGADA: '+rei.toUpperCase() : ''),
+      x+46, y+122, 26, '#8A9A8C','cond',5);
+  marca(x+w-140, y+26, 104);
+  if(!lista.length) txt('Nenhuma cagada marcada com jogador.', x+46, y+200, 34, '#8A9A8C','cond',2);
+  const max = lista.length ? lista[0].n : 1;
+  lista.forEach((it,i)=>{
+    const ly = y+160+i*92, vis = clamp01((k-.15-i*.08)/.25);
+    ctx.save(); ctx.globalAlpha=vis;
+    txt(String(i+1), x+46, ly+56, 44, i===0 && rei ? COR : '#8A9A8C','blk');
+    if(it.p) retrato(it.p, x+110, ly+6, 70, 70, 10);
+    txt(it.ap.toUpperCase(), x+206, ly+56, 44, '#F4F1E6','blk');
+    const bx=x+600, bw=(w-600-140)*it.n/max;
+    ctx.fillStyle='rgba(200,121,43,.85)'; rr(bx, ly+22, Math.max(8,bw*ease(vis)), 36, 8); ctx.fill();
+    ctx.textAlign='right'; txt(String(it.n), x+w-46, ly+56, 46, '#F4F1E6','blk'); ctx.textAlign='left';
+    ctx.restore();
+  });
   ctx.restore();
 }
 
@@ -7041,7 +7732,9 @@ function drawBatedor(p,T,k){
 function drawIntervalo(A,B,k){
   const m = +F.fonte.value || 1;            // botão de fonte maior
   const linhas = quebra(F.txt.value, Math.round(62/m), 4);
-  const h = 300 + linhas.length*46*m;
+  /* sem texto (o pacote não escreve frase que ninguém escreveu), a caixa
+     fica só com o placar, sem o vazio de três linhas */
+  const h = linhas.length ? 300 + linhas.length*46*m : 150;
   const w=1500, x=(1920-w)/2, y=1040-h;
   ctx.save(); ctx.globalAlpha=Math.min(1,k*2);
   ctx.translate(0,(1-ease(clamp01(k*1.3)))*(h+40));
@@ -7062,7 +7755,8 @@ function drawIntervalo(A,B,k){
     txt(l, x+44, y+180+i*46*m, Math.round(38*m), '#D8E4DA','cond',1);
     ctx.restore();
   });
-  marca(x+w-136, y+h-124, 104);
+  /* na caixa baixa (sem texto) o logo cairia em cima do placar */
+  if(linhas.length) marca(x+w-136, y+h-124, 104);
   ctx.restore();
 }
 

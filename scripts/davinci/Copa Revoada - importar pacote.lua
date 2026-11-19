@@ -74,6 +74,24 @@ end
 -- é isso que aparece no Console, em vez de um erro de Lua.
 local etapa = "começo"
 local postas = 0
+local comeco = os.time()
+
+-- Nome do arquivo de um clipe do Media Pool, pelo caminho em disco. O nome do
+-- clipe nem sempre é o do arquivo: o DaVinci junta imagens terminadas em
+-- número numa "sequência" com outro nome — foi o que sumiu com o placar fixo.
+local function arquivoDo(item)
+  local ok, caminho = pcall(function() return item:GetClipProperty("File Path") end)
+  if ok and type(caminho) == "string" and caminho ~= "" then
+    return caminho:match("([^\\/]+)$")
+  end
+  return nil
+end
+local function guarda(itens, item)
+  local nome = item:GetName()
+  if nome then itens[nome] = item end
+  local arq = arquivoDo(item)
+  if arq then itens[arq] = item end
+end
 
 local ok, erro = pcall(function()
   local resolve = resolve or Resolve()
@@ -152,7 +170,7 @@ local ok, erro = pcall(function()
 
   etapa = "importar as peças para o Media Pool"
   local itens = {}
-  for _, it in ipairs(objetos(destino:GetClipList())) do itens[it:GetName()] = it end
+  for _, it in ipairs(objetos(destino:GetClipList())) do guarda(itens, it) end
   local faltam, vistos = {}, {}
   for _, l in ipairs(linhas) do
     if not itens[l.arquivo] and not vistos[l.arquivo] then
@@ -162,7 +180,7 @@ local ok, erro = pcall(function()
   end
   if #faltam > 0 then
     local vindos = objetos(mp:ImportMedia(faltam))
-    for _, it in ipairs(vindos) do itens[it:GetName()] = it end
+    for _, it in ipairs(vindos) do guarda(itens, it) end
     feito[#feito + 1] = "importou " .. #vindos .. " de " .. #faltam .. " arquivos para o Media Pool"
   end
 
@@ -213,7 +231,7 @@ local ok, erro = pcall(function()
     local item = itens[l.arquivo]
     local quadro = inicio + l.quadro
     if not item then
-      fala("! não consegui importar %s", l.arquivo)
+      fala("! não achei %s no Media Pool depois de importar. Confira se o arquivo existe na pasta do pacote.", l.arquivo)
     elseif ja[l.trilha .. ":" .. quadro] then
       puladas = puladas + 1
     else
@@ -247,7 +265,7 @@ local ok, erro = pcall(function()
     end
   end
 
-  fala("pronto: %d peças postas, %d já estavam no lugar.", postas, puladas)
+  fala("pronto: %d peças postas, %d já estavam no lugar. Levou %d s.", postas, puladas, os.time() - comeco)
   if curtas > 0 then
     fala("%d imagens paradas foram emendadas em pedaços porque o Resolve limitou a duração delas.", curtas)
   end

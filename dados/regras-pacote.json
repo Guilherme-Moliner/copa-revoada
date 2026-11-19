@@ -1,44 +1,97 @@
 {
  "_leia": [
-  "Regras do pacote de mídias: o que cada lance marcado no Registro vira no vídeo.",
-  "O Registro mostra estas regras ao lado de cada lance, e scripts/pacote.py gera as peças por elas.",
+  "Regras do pacote de mídias: o plano da edição de um jogo sai daqui.",
+  "O Registro desenha o plano com estas regras, e scripts/pacote.py gera exatamente esse plano (os dois usam o mesmo cálculo, o PACOTE do site).",
   "camada = camada gráfica. A camada 1 é a primeira trilha de gráficos no DaVinci; as trilhas abaixo dela são das câmeras e nunca são tocadas.",
-  "entra  = segundos depois do instante marcado.   dura = segundos na tela, com entrada e saída.",
+  "Cada tipo de peça tem a sua camada. A camada mais alta fica por cima no DaVinci: as inserções que cobrem a tela inteira vão no topo.",
+  "Sobreposição é resolvida pela fila: duas peças que ocupam a mesma área da tela ao mesmo tempo (dados/areas-artes.json), ou a mesma camada, não aparecem juntas. A segunda espera; se a espera passar de espera_maxima, fica de fora com aviso.",
+  "entra = segundos depois do instante marcado.   dura = segundos na tela, com entrada e saída.",
   "Guia de duração: 1 s a mais do que parece bastar. Peça densa precisa de tempo para ler.",
-  "Para desligar uma peça, apague a linha dela. Tipo de lance sem linha não gera nada.",
-  "Peças da mesma camada entram em fila. Camadas diferentes podem aparecer juntas: por isso cada camada ocupa uma região da tela."
+  "desligada = não entra num jogo normal; um perfil (perfis) pode ligar, como a bateria de teste.",
+  "Dado que não existe não é inventado: a peça fica de fora e o plano diz o motivo."
  ],
+ "espera_maxima": 8,
  "camadas": {
   "primeira_trilha": 4,
   "_primeira_trilha": "V1, V2 e V3 são das câmeras dos replays. A camada 1 é a V4.",
   "nomes": {
    "1": "placar",
-   "2": "GOL tela cheia",
-   "3": "barras",
-   "4": "cartões do jogo"
+   "2": "barras de lance",
+   "3": "cartão",
+   "4": "substituição",
+   "5": "replay",
+   "6": "GOL tela cheia",
+   "7": "histórico de gols",
+   "8": "cartões do jogo",
+   "9": "estatísticas",
+   "10": "tela cheia"
   }
  },
  "lances": {
   "gol": [
    {"peca": "placar", "nome": "placar anima", "camada": 1, "entra": 0, "dura": 5},
-   {"peca": "golaco", "nome": "GOL tela cheia", "camada": 2, "entra": 0, "dura": 4},
-   {"peca": "barra", "nome": "barra do jogador", "camada": 3, "entra": 4, "dura": 6,
-    "titulo": "GOL", "titulo_copa": "GOL NA COPA REVOADA"}
+   {"peca": "golaco", "nome": "GOL tela cheia", "camada": 6, "entra": 0, "dura": 4},
+   {"peca": "barra", "nome": "barra do gol", "camada": 2, "entra": 4, "dura": 6,
+    "titulo": "GOL", "titulo_copa": "GOL NA COPA REVOADA", "assistencia": true},
+   {"peca": "historico", "nome": "histórico de gols", "camada": 7, "entra": 10, "dura": 7, "so_copa": true}
   ],
   "defesa": [
-   {"peca": "barra", "nome": "barra do jogador", "camada": 3, "entra": 1, "dura": 5, "titulo": "DEFESAÇA"}
+   {"peca": "barra", "nome": "barra de defesaça", "camada": 2, "entra": 1, "dura": 5,
+    "titulo": "DEFESAÇA", "cor": "#3EA6FF", "contador": true}
   ],
   "cagada": [
-   {"peca": "barra", "nome": "barra do jogador", "camada": 3, "entra": 1, "dura": 5, "titulo": "CAGADA"}
+   {"peca": "barra", "nome": "barra de cagada", "camada": 2, "entra": 1, "dura": 5,
+    "titulo": "CAGADA", "cor": "#C8792B", "contador": true}
+  ],
+  "falta": [
+   {"peca": "barra", "nome": "barra de falta", "camada": 2, "entra": 1, "dura": 5,
+    "titulo": "FALTA", "cor": "#F2B01E", "desligada": true}
   ],
   "cartao": [
-   {"peca": "barra", "nome": "barra do jogador", "camada": 3, "entra": 1, "dura": 5, "titulo": "CARTÃO"}
+   {"peca": "cartao", "nome": "cartão", "camada": 3, "entra": 1, "dura": 5}
+  ],
+  "sub": [
+   {"peca": "sub", "nome": "substituição", "camada": 4, "entra": 0, "dura": 6}
+  ],
+  "replay": [
+   {"peca": "replay", "nome": "selo de replay", "camada": 5, "entra": 0, "dura": "do_lance"}
   ]
  },
+ "momentos": [
+  {"nome": "abertura", "ancora": "inicio", "entra": 1, "pecas": [
+   {"peca": "abertura", "nome": "placar de abertura", "camada": 8, "dura": 7}
+  ]},
+  {"nome": "intervalo", "ancora": "intervalo", "alinha": "termina", "pecas": [
+   {"peca": "intervalo", "nome": "fim do 1º tempo", "camada": 8, "dura": 7},
+   {"peca": "estresumo", "nome": "comparativo do 1º tempo", "camada": 9, "dura": 9, "recorte": "1t"},
+   {"peca": "ficha", "nome": "análise do 1º tempo", "camada": 10, "dura": 8, "recorte": "1t"}
+  ]},
+  {"nome": "fim", "ancora": "fim", "alinha": "termina", "pecas": [
+   {"peca": "estresumo", "nome": "comparativo do jogo", "camada": 9, "dura": 9, "recorte": "todo"},
+   {"peca": "estcorrida", "nome": "corrida de chutes", "camada": 9, "dura": 9},
+   {"peca": "estcraques", "nome": "quem mais apareceu", "camada": 9, "dura": 9},
+   {"peca": "cagadas", "nome": "ranking de cagadas", "camada": 9, "dura": 8},
+   {"peca": "artilheiro", "nome": "artilheiro do dia", "camada": 8, "dura": 7},
+   {"peca": "estjogador", "nome": "desempenho do artilheiro", "camada": 9, "dura": 9},
+   {"peca": "fim", "nome": "fim de jogo", "camada": 8, "dura": 8}
+  ]}
+ ],
  "jogo": [
-  {"peca": "placar-fixo", "nome": "placar fixo o jogo inteiro", "camada": 1},
-  {"peca": "abertura", "nome": "placar de abertura", "camada": 4, "entra": 1, "dura": 7},
-  {"peca": "artilheiro", "nome": "artilheiro do dia", "camada": 4, "antes_do_fim": 17, "dura": 7},
-  {"peca": "fim", "nome": "fim de jogo", "camada": 4, "antes_do_fim": 9, "dura": 8}
- ]
+  {"peca": "placar-fixo", "nome": "placar fixo o jogo inteiro", "camada": 1}
+ ],
+ "manuais": {
+  "_leia": "Artes que dá para pôr à mão pelo ＋ Peça do Registro.",
+  "stat": {"nome": "ficha do jogador", "camada": 9, "dura": 8, "jogador": true},
+  "estjogador": {"nome": "desempenho de um jogador", "camada": 9, "dura": 9, "jogador": true},
+  "historico": {"nome": "histórico de gols", "camada": 7, "dura": 7, "jogador": true},
+  "estresumo": {"nome": "comparativo do jogo", "camada": 9, "dura": 9},
+  "estcorrida": {"nome": "corrida de chutes", "camada": 9, "dura": 9},
+  "estcraques": {"nome": "quem mais apareceu", "camada": 9, "dura": 9},
+  "cagadas": {"nome": "ranking de cagadas", "camada": 9, "dura": 8},
+  "ficha": {"nome": "análise do jogo", "camada": 10, "dura": 8},
+  "replay": {"nome": "selo de replay", "camada": 5, "dura": 6}
+ },
+ "perfis": {
+  "bateria": {"_leia": "Bateria de teste: liga as peças desligadas num jogo normal.", "ligar": ["falta"]}
+ }
 }

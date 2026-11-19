@@ -1,84 +1,212 @@
-# Pacote de mídias — o plano
+# Pacote de mídias
 
-Em vez de montar peça por peça no Estúdio, o jogo é marcado uma vez no
-Registro e o app gera **o conjunto inteiro de mídias** a partir dessas
-marcações. Num passo seguinte, um script dentro do DaVinci importa tudo e
-posiciona na timeline.
+O jogo é marcado uma vez no Registro, e o app planeja e gera **a edição
+gráfica inteira**: cada peça, quando entra, quanto dura e em que camada. Um
+script dentro do DaVinci importa tudo e posiciona na timeline.
 
-Estado em 15/11/2026: **a cadeia inteira existe**, com gols, defesaça,
-cagada, cartão, abertura, artilheiro e fim de jogo. Falta validar o
-posicionamento no DaVinci com o pacote do gabarito: o script do Resolve ainda
-não foi rodado nenhuma vez.
+Estado em 19/11/2026: **Fase 1 do briefing "planejamento das peças no portal"
+implementada**. O plano é desenhado no Registro e o gerador executa exatamente
+esse plano. Falta a importação real no DaVinci da bateria completa. A Fase 2
+(código da arte, ficha do jogo com IA) é só proposta:
+`docs/proposta-fase-2-codigo-da-arte.md`.
 
-**O DaVinci não lê o `.json`.** O arquivo de lances é do gerador. O que o
-DaVinci recebe são os `.mov` e `.png` prontos e o `manifesto.tsv`, que o
-script lê para pôr cada peça no lugar.
+**O DaVinci não lê o `.json`.** O arquivo de lances é do gerador. O DaVinci
+recebe os `.mov` e `.png` prontos e o `manifesto.tsv`, que o script lê para
+pôr cada peça no lugar.
 
-## Etapas
+## Como funciona
 
-| # | Etapa | Situação |
-|---|---|---|
-| 1 | Marcar o jogo no Registro com o tempo do vídeo do YouTube | pronta |
-| 2 | Regras: cada tipo de lance vira quais peças | gols prontos; os outros tipos, a fazer |
-| 3 | Render em lote, fora do navegador, com transparência | pronta (`scripts/pacote.py`) |
-| 4 | Script do DaVinci: importar, posicionar | pronto, falta validar no Resolve |
+```
+Registro (lances + plano) ──Baixar lances──▶ lances-<jogo>.json (formato 2)
+                                                   │  Gerar pacote de midias.bat
+                                                   ▼
+             o gerador abre o próprio site, pede PACOTE.planeja(...) e desenha
+             cada peça com o código do Estúdio, quadro a quadro
+                                                   ▼
+                         midias/<jogo>/  (.mov, .png, manifesto.tsv)
+                                                   │  DaVinci: Workspace › Scripts ›
+                                                   ▼  Copa Revoada - importar pacote
+                         peças nas trilhas, da V4 para cima
+```
+
+**Um cálculo só.** O plano é a função `PACOTE.planeja`, dentro do site
+(`src/app.template.html`). O Registro a chama para desenhar o plano; o
+gerador (`scripts/pacote.py`) abre o site num Chromium sem janela e chama a
+mesma função. Não há uma segunda versão do plano em Python que possa
+divergir.
 
 ## Como usar, do jogo à timeline
 
 1. **Registro**: escolha o jogo, ou **＋ Novo jogo avulso** para um fut que não
    entra na planilha. Cole o link da prévia, **Carregar vídeo**, e marque.
-2. **Baixar lances**: sai o arquivo `lances-<jogo>.json`. Quem marcou em
-   outro computador manda esse arquivo, e **Abrir arquivo** carrega ele no
-   Registro.
-3. **Gerar o pacote**: dois cliques em **`Gerar pacote de midias.bat`**, na
-   pasta do projeto. Ele pega o `lances-*.json` mais novo da pasta Downloads
-   (ou arraste um arquivo para cima do `.bat`). Se o site local estiver
-   desatualizado, ele refaz antes, lendo a planilha.
+2. Embaixo do Registro fica o **Plano da edição**: uma faixa por camada, cada
+   peça um bloco. Clicar num bloco leva o vídeo até ela e abre o editor
+   (início, duração, desligar, voltar ao automático). **＋ Peça** põe uma arte
+   à mão no tempo atual do vídeo.
+3. **Baixar lances**: sai `lances-<jogo>.json` com os lances **e o plano**
+   (ajustes e peças à mão). **Abrir arquivo** carrega o que outra pessoa
+   marcou.
+4. **Gerar o pacote**: dois cliques em **`Gerar pacote de midias.bat`**. Ele
+   pega o `lances-*.json` mais novo da pasta Downloads (ou arraste um arquivo
+   para cima do `.bat`). No fim ele lista as peças geradas, as que esperaram
+   na fila, as de fora e o motivo, e quanto tempo levou.
+5. **No DaVinci**, com o projeto e a timeline abertos: *Workspace › Scripts ›
+   Copa Revoada - importar pacote*. O resumo, com o tempo da importação,
+   aparece em *Workspace › Console*.
 
-   As peças saem em `midias/<jogo>/`, com o `manifesto.tsv`. O gerador
-   imprime cada gol com o placar calculado: confira antes de seguir.
-4. **No DaVinci**, com o projeto e a timeline abertos: *Workspace › Scripts ›
-   Copa Revoada - importar pacote*. As peças vão para *IA › Pacote <jogo>* no
-   Media Pool e para a timeline, da V2 para cima. O resumo aparece em
-   *Workspace › Console*.
-
-O script do DaVinci entra no menu uma vez por computador:
+O script do DaVinci entra no menu uma vez por computador, e de novo sempre
+que o `.lua` mudar:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\davinci\instala.ps1
 ```
 
-Rode de novo sempre que `scripts/davinci/*.lua` mudar.
+## Marcação no Registro
 
-### O que cada lance vira: `dados/regras-pacote.json`
+| Lance | Como marca | Vai junto |
+|---|---|---|
+| Gol | tipo **Gol**, depois quem fez | o clique seguinte no mesmo time é a **assistência** (ou "sem assistência") |
+| Chute ao gol, chute pra fora, defesaça, cagada | tipo, depois quem fez | — |
+| Cartão | tipo **Cartão**, escolhe **Amarelo / Vermelho**, depois quem levou | a cor |
+| Substituição | tipo **Substituição**, clica em quem **sai**, depois em quem **entra** | quem saiu |
+| Falta, escanteio | tipo, depois **Registrar** (vale para o time) | — |
+| Replay | botão **▶ Início do replay** na coluna do jogo; o mesmo botão vira **■ Fim do replay** | o fim do replay |
+| Fim do 1º tempo | botão **⏸ Fim do 1º tempo** na coluna do jogo | — (marcar de novo corrige) |
 
-Um arquivo só manda nisso. O **Registro mostra essas regras ao lado de cada
-lance** (as etiquetas douradas; riscada = não entra, com o motivo ao passar o
-mouse), e o gerador segue as mesmas. Mudou o arquivo, mudou nos dois.
+Replay e fim do 1º tempo usam o tempo atual do vídeo: precisam do vídeo
+carregado.
 
-| Lance | Peça | Camada (trilha) | Entra | Dura |
+**Limite conhecido:** a aba `LANCES` da planilha (Apps Script v2) guarda 8
+colunas e **perde assistência, cor do cartão, quem saiu e o fim do replay**.
+Jogo avulso não usa a planilha. Num jogo da copa, esses campos ficam no
+navegador e no arquivo baixado; o Apps Script v3 da Fase 2 resolve.
+
+## Camadas gráficas
+
+**V1, V2 e V3 são das câmeras.** Os gráficos começam na V4, que é a camada
+gráfica 1. **Cada tipo de peça tem a sua camada**; a mais alta fica por cima
+no DaVinci, e as inserções que cobrem a tela inteira vão no topo. A conta
+camada → trilha mora só em `dados/regras-pacote.json`
+(`camadas.primeira_trilha`).
+
+| Camada | Trilha | Peças |
+|---|---|---|
+| 1 · placar | V4 | placar fixo o jogo inteiro e placar com a animação do gol |
+| 2 · barras de lance | V5 | barra de gol, defesaça, cagada e falta |
+| 3 · cartão | V6 | cartão, com a cor |
+| 4 · substituição | V7 | substituição |
+| 5 · replay | V8 | selo de replay, do início ao fim do replay |
+| 6 · GOL tela cheia | V9 | GOL em tela cheia |
+| 7 · histórico de gols | V10 | histórico de gols na copa, depois da barra do gol |
+| 8 · cartões do jogo | V11 | abertura, fim do 1º tempo, artilheiro, fim de jogo |
+| 9 · estatísticas | V12 | comparativo, corrida de chutes, quem mais apareceu, desempenho, ranking de cagadas, ficha do jogador |
+| 10 · tela cheia | V13 | análise do jogo (cobre a tela) |
+
+Proteções nos dois lados: o gerador recusa `primeira_trilha` abaixo de 4, e o
+script do DaVinci recusa qualquer peça abaixo da V4, diga o manifesto o que
+disser.
+
+A proposta de 5 camadas por região da tela (de 18/11) foi **descartada**: as
+camadas são por tipo de peça, e a sobreposição é resolvida pela fila.
+
+## A fila: nada em cima de nada
+
+Duas peças **não aparecem juntas** se estão na mesma camada **ou se as áreas
+que ocupam na tela se cruzam** — mesmo em camadas diferentes. A área de cada
+arte foi **medida** desenhando a arte e lendo o canvas
+(`dados/areas-artes.json`; refazer com `pacote.py mede-artes`).
+
+- O placar não entra na conta de área: ele fica no ar o jogo inteiro, e as
+  outras peças passam por cima dele. Só disputa a própria camada.
+- **Os momentos do jogo têm hora marcada** e entram primeiro. Lances e peças
+  à mão esperam por eles.
+- A peça que chega com a área ocupada **espera** a outra sair. Se a espera
+  passar de `espera_maxima` (8 s), ela **fica de fora**, com o motivo.
+- No Registro: tracejado = esperou; riscado = de fora.
+
+## O que entra no vídeo: `dados/regras-pacote.json`
+
+**Por lance:**
+
+| Lance | Peça | Camada | Entra | Dura |
 |---|---|---|---|---|
-| Gol | placar com a animação do gol | camada 1 (V4) | no lance | 5 s |
-| Gol | GOL em tela cheia | camada 2 (V5) | no lance | 4 s |
-| Gol | barra do jogador | camada 3 (V6) | 4 s depois | 6 s |
-| Defesaça, Cagada, Cartão | barra do jogador, com o nome do lance | camada 3 (V6) | 1 s depois | 5 s |
-| *o jogo* | placar fixo | camada 1 (V4) | o jogo inteiro | até o gol seguinte |
-| *o jogo* | placar de abertura | camada 4 (V7) | 1 s do começo | 7 s |
-| *o jogo* | artilheiro do dia | camada 4 (V7) | 17 s antes do fim | 7 s |
-| *o jogo* | fim de jogo, com o placar final | camada 4 (V7) | 9 s antes do fim | 8 s |
+| Gol | placar com a animação do gol | 1 | no lance | 5 s |
+| Gol | GOL em tela cheia | 6 | no lance | 4 s |
+| Gol | barra do gol (com a assistência) | 2 | 4 s depois | 6 s |
+| Gol | histórico de gols na copa (só jogo da copa) | 7 | 10 s depois | 7 s |
+| Defesaça | barra azul, com o contador ("2ª defesaça do jogo · 1ª de Fulano") | 2 | 1 s depois | 5 s |
+| Cagada | barra marrom, com o contador | 2 | 1 s depois | 5 s |
+| Falta | barra (**desligada**; só a bateria liga) | 2 | 1 s depois | 5 s |
+| Cartão | cartão com a cor | 3 | 1 s depois | 5 s |
+| Substituição | sai / entra | 4 | no lance | 6 s |
+| Replay | selo de replay | 5 | no início | até o fim do replay |
 
-Chute, falta e escanteio não geram peça. Para ligar, desligar ou mudar tempo,
-edite o arquivo: cada linha é uma peça. Guia de duração: **1 s a mais do que
-parece bastar**, e mais ainda para peça densa.
+**Por momento do jogo**, em sequência, uma peça depois da outra (quem fica
+de fora não ocupa tempo):
 
-Regras que o gerador aplica sozinho, e avisa no fim:
+| Momento | Peças, na ordem | Âncora |
+|---|---|---|
+| Abertura | placar de abertura (7 s) | 1 s depois do começo |
+| Intervalo | fim do 1º tempo (7 s), comparativo do 1º tempo (9 s), análise do 1º tempo (8 s) | **terminam** no fim do 1º tempo marcado |
+| Fim | comparativo (9 s), corrida de chutes (9 s), quem mais apareceu (9 s), ranking de cagadas (8 s), artilheiro (7 s), desempenho do artilheiro (9 s), fim de jogo (8 s) | **terminam** no fim do vídeo |
 
-- **Peça com jogador precisa do jogador.** Gol marcado sem dono gera só o
-  placar.
-- **Duas peças no mesmo lugar da tela não se sobrepõem**: a segunda espera a
-  primeira sair. Se a espera passar de 8 s, ela fica de fora.
-- **Artilheiro do dia só sai quando é fato**: todo gol com jogador e um só na
-  frente. Empate não é decidido pelo gerador.
+**À mão (＋ Peça):** ficha do jogador, desempenho de um jogador, histórico de
+gols, comparativo, corrida de chutes, quem mais apareceu, ranking de cagadas,
+análise do jogo, selo de replay.
+
+**Quando a peça fica de fora (e o plano diz):**
+
+- gol, barra, cartão, substituição sem jogador; jogador que não está no site;
+- cartão sem cor; substituição sem quem saiu; replay sem o fim;
+- estatísticas (comparativo, corrida, quem mais apareceu, desempenho) em jogo
+  **sem súmula minuto a minuto** — hoje só Agosto/2026 tem;
+- artilheiro e desempenho do artilheiro com empate ou gol sem jogador;
+- histórico de gols em jogo que não conta para a copa;
+- ranking de cagadas sem cagada com jogador;
+- intervalo sem o fim do 1º tempo marcado;
+- falta fora da bateria; peça desligada no plano.
+
+**Guia de duração:** 1 s a mais do que parece bastar; mais ainda para peça
+densa. Para mudar tempo, camada ou desligar uma peça para todos os jogos,
+edite o `regras-pacote.json`. Para mudar só neste jogo, use o Plano no
+Registro.
+
+## O arquivo de lances, formato 2
+
+`copa-revoada-lances/2` acrescenta ao formato 1: `sumula` (de que súmula saem
+as estatísticas), `perfil` (ex.: `bateria`), `competicao` (texto do placar,
+ex.: "BATERIA DE TESTE"), os campos novos de cada lance (`a`, `cor`, `sai`,
+`fim`) e o `plano`:
+
+```json
+"plano": {
+  "ajustes": { "gol-02/barra": {"seg": 3835, "dura": 7}, "falta-01/barra": {"off": true} },
+  "manuais": [ {"id": "manual-lx3k", "peca": "stat", "seg": 150, "dura": 8, "jogador": "Zaga"} ]
+}
+```
+
+O formato 1 continua sendo lido: é um formato 2 sem plano.
+
+## Ferramentas de linha de comando
+
+```powershell
+.venv\Scripts\python.exe scripts\pacote.py gerar lances.json [--video jogo.mp4]
+.venv\Scripts\python.exe scripts\pacote.py da-sumula 2026-08
+.venv\Scripts\python.exe scripts\pacote.py bateria 2026-08 --video jogo.mp4
+.venv\Scripts\python.exe scripts\pacote.py mede-artes
+.venv\Scripts\python.exe scripts\pacote.py teste
+```
+
+- **`da-sumula`** converte a súmula em lances, sem inventar: gol (com a
+  assistência lida do texto), chute, falta, escanteio, cagada, e o **fim do 1º
+  tempo** (o marco 2T). Defesa comum de goleiro não vira defesaça.
+- **`bateria`** gera lances DE TESTE com todas as artes da Fase 1, em três
+  blocos (começo, meio, fim), com colisões de propósito: um gol durante a
+  abertura, um cartão colado numa cagada, dois gols colados, um bloco
+  encostado no intervalo e um gol no meio das estatísticas do fim. Perfil
+  `bateria` (liga a falta), placar "BATERIA DE TESTE", estatísticas da súmula
+  verdadeira do jogo.
+- **`mede-artes`** mede de novo a área de cada arte.
 
 ### Instalar as ferramentas num computador novo
 
@@ -95,7 +223,25 @@ estão no `.gitignore`):
   .venv\Scripts\python.exe -m playwright install chromium --only-shell
   ```
 
-## Camadas gráficas
+## O que o DaVinci já mostrou
+
+- **19/11, Resolve 19.0 beta:** o script parou na linha 104 porque essa versão
+  devolve listas com números misturados aos objetos. Corrigido: toda lista do
+  Resolve passa por um filtro que só deixa objetos.
+- **19/11, segunda rodada:** 16 de 18 peças no lugar certo. Os dois primeiros
+  placares fixos não entraram: `placar-fixo-0x0.png` e `placar-fixo-0x1.png`
+  terminam em número, e o DaVinci juntou os dois numa "sequência de imagens"
+  com outro nome. Corrigido: todo arquivo termina em letra
+  (`placar-0x1-fixo.png`) e o script acha o clipe também pelo caminho do
+  arquivo. Imagem parada longa é emendada em pedaços pelo script — esperado.
+- **Cagada parecia gol** na barra. Corrigido: barra de cagada marrom, de
+  defesaça azul, as duas com contador; e o ranking de cagadas no fim.
+
+---
+
+*Daqui para baixo, o histórico das decisões, na ordem em que foram tomadas.*
+
+## Camadas gráficas (18/11/2026, substituída)
 
 **V1, V2 e V3 são das câmeras** (os replays usam vários ângulos). Os gráficos
 começam na V4, que é a **camada gráfica 1**. Para quem edita, a conversa é

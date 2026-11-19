@@ -18,16 +18,23 @@ Lances que não vieram do Registro:
     .venv\\Scripts\\python.exe scripts\\pacote.py bateria 2026-08 --video jogo.mp4
         lances DE TESTE com todas as peças, no começo, meio e fim do vídeo
 
+Manutenção:
+
+    .venv\\Scripts\\python.exe scripts\\pacote.py mede-artes
+        mede a área que cada arte do Estúdio ocupa (dados/areas-artes.json)
+
 Opções do gerar:
     --video ARQ    lê a duração do vídeo do próprio arquivo (vale como --fim)
     --inicio SEG   onde o placar fixo começa, em segundos do vídeo (padrão 0)
     --fim SEG      onde termina (padrão: a duração do vídeo, se o arquivo
                    trouxer; senão, 30 s depois do último lance)
 
-O desenho é o mesmo do site: a página index.html é aberta de verdade num
-Chromium sem janela e quem pinta é o próprio código do Estúdio. Aqui só se
-escolhe o quadro e se recolhe a imagem — sem MediaRecorder, sem relógio,
-sem fundo verde.
+QUEM DECIDE O QUÊ: o plano da edição (que peça entra, quando, quanto dura, em
+que camada, quem espera na fila e quem fica de fora) é calculado pelo próprio
+site, em PACOTE.planeja — a mesma função que desenha o plano no Registro. Este
+script só abre o site num Chromium sem janela, pede o plano, e desenha cada
+peça com o código do Estúdio, quadro a quadro. Assim o que se vê no Registro é
+exatamente o que sai no DaVinci.
 
 Precisa de ferramentas/ffmpeg e do Chromium do Playwright em
 ferramentas/ms-playwright (ver docs/pacote-de-midias.md).
@@ -39,14 +46,19 @@ import glob
 import http.server
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
+import time
+import unicodedata
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FERRAMENTAS = os.path.join(RAIZ, "ferramentas")
 FFMPEG = os.path.join(FERRAMENTAS, "ffmpeg", "ffmpeg.exe")
 MIDIAS = os.path.join(RAIZ, "midias")
+REGRAS = os.path.join(RAIZ, "dados", "regras-pacote.json")
+AREAS = os.path.join(RAIZ, "dados", "areas-artes.json")
 
 # O Playwright baixaria o navegador para a pasta do usuário; com esta variável
 # ele procura dentro do projeto, onde foi instalado.
@@ -56,37 +68,11 @@ os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", os.path.join(FERRAMENTAS, "ms-
 # arte e quadro de vídeo andam juntos, sem o Resolve reamostrar nada.
 FPS = 24
 
-# O que cada lance vira, em que trilha, quando entra e quanto dura: tudo em
-# dados/regras-pacote.json. É o mesmo arquivo que o Registro mostra ao lado de
-# cada lance, para o que se vê na marcação ser o que sai no vídeo.
-REGRAS = os.path.join(RAIZ, "dados", "regras-pacote.json")
-
 # Abaixo disto ficam as câmeras: nenhuma peça pode cair ali, mesmo que o
 # arquivo de regras diga outra coisa. O script do DaVinci confere de novo.
 MENOR_TRILHA_GRAFICA = 4
 
-
-def carrega_regras():
-    """Lê as regras e traduz camada gráfica em trilha do DaVinci.
-
-    Quem edita as regras pensa em camadas (1 = placar, 2 = GOL tela cheia…);
-    a trilha é conta: camada 1 = primeira_trilha. Essa conta mora só aqui, e
-    o resto do gerador trabalha com a trilha já calculada."""
-    regras = json.load(open(REGRAS, encoding="utf-8"))
-    cam = regras.get("camadas", {})
-    primeira = int(cam.get("primeira_trilha", MENOR_TRILHA_GRAFICA))
-    if primeira < MENOR_TRILHA_GRAFICA:
-        sys.exit(f"regras-pacote.json: primeira_trilha = {primeira}, mas as trilhas abaixo da "
-                 f"V{MENOR_TRILHA_GRAFICA} são das câmeras")
-    nomes = {int(k): v for k, v in cam.get("nomes", {}).items()}
-    todas = [r for lista in regras["lances"].values() for r in lista] + regras.get("jogo", [])
-    for r in todas:
-        if "camada" not in r:
-            sys.exit(f"regras-pacote.json: a peça {r.get('peca')} está sem camada")
-        r["trilha"] = primeira + int(r["camada"]) - 1
-    regras["_primeira_trilha"] = primeira
-    regras["_nomes"] = nomes
-    return regras
+FORMATOS = ("copa-revoada-lances/1", "copa-revoada-lances/2")
 
 
 def servidor():
@@ -120,20 +106,20 @@ def abre_estudio(navegador, porta):
     return pg
 
 
-def prepara(pg, prepara_js, segundos):
-    """Deixa o Estúdio com os campos que a peça pede e espera as fotos."""
-    erro = pg.evaluate(f"""async () => {{
-        const erro = ({prepara_js})(F);
+def prepara(pg, peca, lances):
+    """Deixa o Estúdio pronto para desenhar a peça (PACOTE.prepara, no site) e
+    espera as fotos. Devolve '' ou o motivo de não dar."""
+    return pg.evaluate("""async a => {
+        const erro = PACOTE.prepara(a.p, a.L);
         if(erro) return erro;
         syncFields();
-        F.dur.value = {segundos};
+        F.dur.value = a.p.dura;
         // fotos chegam depois do primeiro desenho; espera todas
         await Promise.all([...document.images].filter(i=>!i.complete)
-          .map(i=>new Promise(r=>{{ i.onload=i.onerror=r; }})));
-        await new Promise(r=>setTimeout(r,200));
+          .map(i=>new Promise(r=>{ i.onload=i.onerror=r; })));
+        await new Promise(r=>setTimeout(r,150));
         return '';
-    }}""")
-    return erro
+    }""", {"p": peca, "L": lances})
 
 
 def quadro_png(pg, u):
@@ -149,10 +135,10 @@ def quadro_png(pg, u):
     return base64.b64decode(url.split(",", 1)[1])
 
 
-def grava_mov(pg, segundos, saida):
+def grava_mov(pg, quadros, saida):
     """Desenha a peça quadro a quadro e entrega ao ffmpeg. Cada quadro é
     desenhado no seu instante exato da animação (i/(total-1))."""
-    total = max(2, round(segundos * FPS))
+    total = max(2, int(quadros))
     cmd = [FFMPEG, "-hide_banner", "-loglevel", "error", "-y",
            "-f", "image2pipe", "-framerate", str(FPS), "-c:v", "png", "-i", "-",
            # ProRes 4444 com alfa: abre no Resolve gratuito no Windows
@@ -180,240 +166,9 @@ def timecode(quadro, inicio_h=1):
 
 
 def mmss(seg):
-    seg = int(round(seg))
-    return f"{seg // 60}:{seg % 60:02d}"
-
-
-# --------------------------------------------------------------------------
-# o que gerar
-
-
-# Peça que chega com a trilha ocupada espera a anterior sair. Esperar mais do
-# que isto já não faz sentido: o lance passou, e a peça fica de fora.
-ESPERA_MAXIMA = 8.0
-
-
-class Trilhas:
-    """Quem ocupa cada trilha. Peças da mesma trilha aparecem no mesmo lugar
-    da tela, então duas ao mesmo tempo ficariam uma por cima da outra — subir
-    a segunda para outra trilha não resolve isso. Ela entra em fila: começa
-    quando a anterior termina."""
-
-    def __init__(self):
-        self.ocupado = {}
-
-    def reserva(self, trilha, quadro, dur):
-        self.ocupado.setdefault(trilha, []).append((quadro, quadro + dur))
-
-    def encaixa(self, trilha, quadro, dur):
-        """Devolve o quadro em que a peça entra, ou None se a espera passar
-        do limite."""
-        pedido = quadro
-        mexeu = True
-        while mexeu:
-            mexeu = False
-            for i, f in self.ocupado.get(trilha, []):
-                if quadro < f and quadro + dur > i:
-                    quadro, mexeu = f, True
-        if quadro - pedido > ESPERA_MAXIMA * FPS:
-            return None
-        self.reserva(trilha, quadro, dur)
-        return quadro
-
-
-def planeja(dados, regras, inicio, fim):
-    """Transforma os lances em peças: cada uma com arquivo, trilha, quadro de
-    entrada e duração em quadros. O placar é calculado gol a gol, na ordem do
-    tempo do vídeo."""
-    avisos = []
-    lances = [e for e in dados["eventos"] if regras["lances"].get(e.get("tipo"))]
-    sem_tempo = [e for e in lances if e.get("seg") is None]
-    if any(e["tipo"] == "gol" for e in sem_tempo):
-        sys.exit("Há gol sem o tempo do vídeo. Sem ele não há onde pôr a peça, e o placar "
-                 "sairia errado: marque de novo com o vídeo carregado no Registro.")
-    if sem_tempo:
-        avisos.append(f"{len(sem_tempo)} lance(s) sem o tempo do vídeo ficaram de fora")
-    lances = sorted((e for e in lances if e.get("seg") is not None), key=lambda e: float(e["seg"]))
-
-    do_jogo = {r["peca"]: r for r in regras.get("jogo", [])}
-    fixo = do_jogo.get("placar-fixo")
-    trilhas = Trilhas()
-    if fixo:      # a trilha do placar é dele o jogo inteiro
-        trilhas.reserva(fixo["trilha"], round(inicio * FPS), round((fim - inicio) * FPS))
-
-    pecas, gols = [], []
-    gc = gf = 0
-    q_cursor = round(inicio * FPS)
-    q_fim = round(fim * FPS)
-
-    # abertura, artilheiro e fim têm hora marcada: reservam o lugar antes, e os
-    # lances é que esperam por eles
-    lugar = {}
-    for nome in ("abertura", "artilheiro", "fim"):
-        r = do_jogo.get(nome)
-        if not r:
-            continue
-        dur = round(r["dura"] * FPS)
-        if "antes_do_fim" in r:
-            quadro = round((fim - r["antes_do_fim"]) * FPS)
-        else:
-            quadro = round((inicio + r.get("entra", 0)) * FPS)
-        if quadro < round(inicio * FPS) or quadro + dur > q_fim:
-            avisos.append(f"sem {nome}: não cabe entre {mmss(inicio)} e {mmss(fim)}")
-            continue
-        trilhas.reserva(r["trilha"], quadro, dur)
-        lugar[nome] = (r["trilha"], quadro, dur)
-    conta = {}
-    for e in lances:
-        seg = float(e["seg"])
-        conta[e["tipo"]] = conta.get(e["tipo"], 0) + 1
-        lance = f"{e['tipo'].lower()}-{conta[e['tipo']]:02d}"
-        eh_gol = e["tipo"] == "gol"
-        if eh_gol:
-            if e["t"] == "A":
-                gc += 1
-            else:
-                gf += 1
-            e["placar_depois"] = (gc, gf)
-            gols.append(e)
-        for r in regras["lances"][e["tipo"]]:
-            dur = round(r["dura"] * FPS)
-            quadro = round((seg + r.get("entra", 0)) * FPS)
-            if r["peca"] == "placar":
-                if not eh_gol:
-                    continue
-                if quadro < q_cursor:
-                    avisos.append(f"{lance} aos {mmss(seg)} veio colado no gol anterior: a animação "
-                                  f"do placar começa {(q_cursor - quadro) / FPS:.1f} s depois")
-                    quadro = q_cursor
-                antes = (gc - (e["t"] == "A"), gf - (e["t"] != "A"))
-                if fixo and quadro > q_cursor:
-                    pecas.append(dict(lance=f"placar-{antes[0]}x{antes[1]}", peca="placar-fixo",
-                                      arquivo=f"placar-fixo-{antes[0]}x{antes[1]}.png", tipo="imagem",
-                                      quadro=q_cursor, duracao=quadro - q_cursor,
-                                      trilha=fixo["trilha"], gc=antes[0], gf=antes[1]))
-                pecas.append(dict(lance=lance, peca="placar", arquivo=f"{lance}-placar.mov",
-                                  tipo="video", quadro=quadro, duracao=dur,
-                                  trilha=fixo["trilha"] if fixo else r["trilha"],
-                                  gc=gc, gf=gf, seg=seg,
-                                  evento="golCasa" if e["t"] == "A" else "golFora"))
-                q_cursor = quadro + dur
-                continue
-            titulo = r.get("titulo", "")
-            if dados.get("conta_na_copa", True) and r.get("titulo_copa"):
-                titulo = r["titulo_copa"]
-            if not e.get("j"):
-                avisos.append(f"sem {r['peca']} no {lance} ({mmss(seg)}): o lance foi marcado sem jogador")
-                continue
-            entra = trilhas.encaixa(r["trilha"], quadro, dur)
-            if entra is None:
-                avisos.append(f"sem {r['peca']} no {lance} ({mmss(seg)}): a tela ainda estava ocupada "
-                              f"por outra peça {ESPERA_MAXIMA:.0f} s depois")
-                continue
-            if entra != quadro:
-                avisos.append(f"{r['peca']} do {lance} ({mmss(seg)}) entra {(entra - quadro) / FPS:.1f} s "
-                              "depois, esperando a peça anterior sair")
-            pecas.append(dict(lance=lance, peca=r["peca"], arquivo=f"{lance}-{r['peca']}.mov",
-                              tipo="video", quadro=entra, duracao=dur, trilha=r["trilha"],
-                              jogador=e["j"], lado=e["t"], minuto=e.get("min"),
-                              seg=seg, titulo=titulo))
-
-    if fixo and q_fim > q_cursor:
-        pecas.append(dict(lance=f"placar-{gc}x{gf}", peca="placar-fixo",
-                          arquivo=f"placar-fixo-{gc}x{gf}.png", tipo="imagem",
-                          quadro=q_cursor, duracao=q_fim - q_cursor,
-                          trilha=fixo["trilha"], gc=gc, gf=gf))
-
-    # ---- peças do jogo, nos lugares reservados lá em cima
-    if "abertura" in lugar:
-        t, q, dur = lugar["abertura"]
-        pecas.append(dict(lance="jogo", peca="abertura", arquivo="jogo-abertura.mov", tipo="video",
-                          quadro=q, duracao=dur, trilha=t))
-    if "fim" in lugar:
-        t, q, dur = lugar["fim"]
-        pecas.append(dict(lance="jogo", peca="fim", arquivo="jogo-fim.mov", tipo="video",
-                          quadro=q, duracao=dur, trilha=t, gc=gc, gf=gf))
-    if "artilheiro" in lugar and gols:
-        # Artilheiro só sai quando é fato: todo gol com jogador, e um só na frente.
-        # Empate ou gol sem dono não se decide aqui.
-        if any(not g.get("j") for g in gols):
-            avisos.append("sem artilheiro do dia: há gol marcado sem jogador")
-        else:
-            soma = {}
-            for g in gols:
-                soma[(g["j"], g["t"])] = soma.get((g["j"], g["t"]), 0) + 1
-            topo = max(soma.values())
-            lideres = [k for k, v in soma.items() if v == topo]
-            if len(lideres) > 1:
-                avisos.append("sem artilheiro do dia: empate entre "
-                              + ", ".join(k[0] for k in lideres) + f" ({topo} cada)")
-            else:
-                t, q, dur = lugar["artilheiro"]
-                pecas.append(dict(lance="jogo", peca="artilheiro", arquivo="jogo-artilheiro.mov",
-                                  tipo="video", quadro=q, duracao=dur, trilha=t,
-                                  jogador=lideres[0][0], lado=lideres[0][1], gols=topo))
-    return gols, pecas, avisos
-
-
-def competicao(dados):
-    if dados.get("conta_na_copa", True):
-        return "COPA REVOADA"
-    return (dados.get("nome") or dados["jogo"]).upper()
-
-
-def time_de(dados, lado):
-    return dados["casa"]["id"] if lado == "A" else dados["fora"]["id"]
-
-
-def js_placar(dados, p, segundos):
-    """Campos do placar de transmissão. Sem relógio: o placar parado fica no
-    ar o jogo inteiro, e um relógio congelado ali seria mentira."""
-    return f"""F => {{
-        const P = LANCES.estado.placar;
-        const casa = {json.dumps(dados['casa']['id'])}, fora = {json.dumps(dados['fora']['id'])};
-        if(!tById[casa] || !tById[fora]) return 'time desconhecido no site: '+casa+' ou '+fora;
-        Object.assign(P, {{modo:'jogo', casa, fora, gc:{p['gc']}, gf:{p['gf']},
-          relogio:'', acrescimo:0, competicao:{json.dumps(competicao(dados))}, fase:'',
-          pos:'topo-esq', escala:1, evento:{json.dumps(p.get('evento', 'nenhum'))},
-          dur:{segundos}}});
-        F.tipo.value = 'placar2';
-        return '';
-    }}"""
-
-
-def js_jogador(dados, p, arte):
-    """Peças com um jogador: barra, GOL em tela cheia, artilheiro do dia."""
-    time = time_de(dados, p["lado"])
-    minuto = "" if p.get("minuto") is None else f"{p['minuto']}'"
-    return f"""F => {{
-        const quem = jog.find(x=>x.apelido === {json.dumps(p['jogador'])});
-        if(!quem) return 'jogador ' + {json.dumps(p['jogador'])} + ' não está no site';
-        if(!tById[{json.dumps(time)}]) return 'time desconhecido no site: ' + {json.dumps(time)};
-        F.tipo.value = {json.dumps(arte)};
-        F.p1.value = quem.id;
-        F.time.value = {json.dumps(time)};
-        F.min.value = {json.dumps(minuto)};
-        TITULO_GOL = {json.dumps(p.get('titulo') or 'GOL')};
-        GOLS_DO_DIA = {json.dumps(p.get('gols'))};
-        return '';
-    }}"""
-
-
-def js_cartao_do_jogo(dados, p):
-    """Abertura (os dois escudos) e fim de jogo (com o placar final)."""
-    return f"""F => {{
-        const casa = {json.dumps(dados['casa']['id'])}, fora = {json.dumps(dados['fora']['id'])};
-        if(!tById[casa] || !tById[fora]) return 'time desconhecido no site: '+casa+' ou '+fora;
-        F.tipo.value = {json.dumps('fim' if p['peca'] == 'fim' else 'placar')};
-        F.time.value = casa; F.time2.value = fora;
-        F.ga.value = {p.get('gc', 0)}; F.gb.value = {p.get('gf', 0)};
-        F.min.value = '';
-        TITULO_PLACAR = {json.dumps(competicao(dados))};
-        return '';
-    }}"""
-
-
-ARTE_DA_PECA = {"barra": "gol", "golaco": "golaco", "artilheiro": "artilheiro"}
+    seg = int(round(float(seg)))
+    h, m, s = seg // 3600, seg % 3600 // 60, seg % 60
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
 
 
 def mais_recente_nos_downloads():
@@ -427,10 +182,11 @@ def mais_recente_nos_downloads():
 
 
 def garante_site():
-    """As peças são desenhadas pelo index.html. Se o template, as regras ou o
-    build mudaram depois dele, refaz — lendo a planilha, quando o gh deixa."""
+    """As peças e o plano saem do index.html. Se o template, as regras, as
+    áreas ou o build mudaram depois dele, refaz — lendo a planilha, quando o
+    gh deixa."""
     site = os.path.join(RAIZ, "index.html")
-    fontes = [os.path.join(RAIZ, "src", "app.template.html"), REGRAS,
+    fontes = [os.path.join(RAIZ, "src", "app.template.html"), REGRAS, AREAS,
               os.path.join(RAIZ, "scripts", "build.py")]
     if os.path.isfile(site) and all(os.path.getmtime(site) >= os.path.getmtime(f) for f in fontes):
         return
@@ -470,6 +226,10 @@ def duracao_do_video(caminho):
         sys.exit(f"não consegui ler a duração de {caminho}: {r.stderr.strip()[:200]}")
 
 
+# --------------------------------------------------------------------------
+# gerar
+
+
 def gerar(arquivo=None, inicio=0.0, fim=None):
     from playwright.sync_api import sync_playwright
     if not os.path.isfile(FFMPEG):
@@ -477,96 +237,109 @@ def gerar(arquivo=None, inicio=0.0, fim=None):
     if not arquivo:
         arquivo = mais_recente_nos_downloads()
     print(f"lances: {arquivo}")
-    dados = json.load(open(arquivo, encoding="utf-8"))
-    if dados.get("formato") != "copa-revoada-lances/1":
+    lances = json.load(open(arquivo, encoding="utf-8"))
+    if lances.get("formato") not in FORMATOS:
         sys.exit(f"{arquivo} não é um arquivo de lances do Registro")
-    regras = carrega_regras()
     garante_site()
-    if fim is None:
-        if dados.get("duracao_video"):
-            fim = float(dados["duracao_video"])
-        else:
-            segs = [float(e["seg"]) for e in dados["eventos"] if e.get("seg") is not None]
-            fim = (max(segs) if segs else 0) + 30
-            print(f"  ! o arquivo não traz a duração do vídeo: o jogo vai até {mmss(fim)}"
-                  " (30 s depois do último lance). Use --fim para mudar.")
+    comeco = time.time()
 
-    gols, pecas, avisos = planeja(dados, regras, inicio, fim)
-    print(f"{dados.get('nome') or dados['jogo']}: {dados['casa']['nome']} × {dados['fora']['nome']}")
-    for n, g in enumerate(gols, 1):
-        lado = dados["casa"]["nome"] if g["t"] == "A" else dados["fora"]["nome"]
-        print(f"  gol {n:2d}  {mmss(float(g['seg'])):>6}  {lado:<14} {g.get('j') or '(sem jogador)':<14}"
-              f"  {g['placar_depois'][0]} × {g['placar_depois'][1]}")
-
-    pasta = os.path.join(MIDIAS, dados["jogo"])
-    os.makedirs(pasta, exist_ok=True)
-    # pasta gerada: o que sobrou de uma rodada anterior sairia no manifesto errado
-    for velho in glob.glob(os.path.join(pasta, "*.mov")) + glob.glob(os.path.join(pasta, "*.png")):
-        os.remove(velho)
-
-    feitas, puladas = [], []
     srv = servidor()
     try:
-        with sync_playwright() as p:
-            nav = p.chromium.launch()
+        with sync_playwright() as pw:
+            nav = pw.chromium.launch()
             pg = abre_estudio(nav, srv.server_address[1])
-            for n, peca in enumerate(pecas, 1):
-                destino = os.path.join(pasta, peca["arquivo"])
-                seg_dur = peca["duracao"] / FPS
-                if peca["peca"] == "placar-fixo":
-                    if not os.path.exists(destino):     # mesmo placar já desenhado
-                        erro = prepara(pg, js_placar(dados, peca, 1), 1)
-                        if erro:
-                            sys.exit(erro)
-                        open(destino, "wb").write(quadro_png(pg, None))
-                    feitas.append(peca)
+            plano = pg.evaluate("a => PACOTE.planeja(a.L, a.op)",
+                                {"L": lances, "op": {"inicio": inicio, "fim": fim}})
+            if plano["camadas"]["primeira"] < MENOR_TRILHA_GRAFICA:
+                sys.exit(f"regras-pacote.json: primeira_trilha = {plano['camadas']['primeira']}, mas as "
+                         f"trilhas abaixo da V{MENOR_TRILHA_GRAFICA} são das câmeras")
+            mostra_cabecalho(lances, plano)
+
+            pasta = os.path.join(MIDIAS, lances["jogo"])
+            os.makedirs(pasta, exist_ok=True)
+            # pasta gerada: o que sobrou de uma rodada anterior sairia no manifesto errado
+            for velho in glob.glob(os.path.join(pasta, "*.mov")) + glob.glob(os.path.join(pasta, "*.png")):
+                os.remove(velho)
+
+            vivas = [p for p in plano["pecas"] if p["status"] != "fora"]
+            feitas, falhas = [], []
+            for n, p in enumerate(vivas, 1):
+                destino = os.path.join(pasta, p["arquivo"])
+                if p["peca"] == "placar-fixo" and os.path.exists(destino):
+                    feitas.append(p)          # mesmo placar parado, já desenhado
                     continue
-                if peca["peca"] == "placar":
-                    js = js_placar(dados, peca, seg_dur)
-                elif peca["peca"] in ("abertura", "fim"):
-                    js = js_cartao_do_jogo(dados, peca)
-                else:
-                    js = js_jogador(dados, peca, ARTE_DA_PECA[peca["peca"]])
-                erro = prepara(pg, js, seg_dur)
+                erro = prepara(pg, p, lances)
                 if erro:
-                    if peca["peca"] in ("placar", "abertura", "fim"):
-                        sys.exit(erro)
-                    puladas.append((peca, erro))
+                    falhas.append((p, erro))
                     continue
-                grava_mov(pg, seg_dur, destino)
-                feitas.append(peca)
-                print(f"  {n:3d}/{len(pecas)}  {peca['arquivo']}")
+                if p["peca"] == "placar-fixo":
+                    open(destino, "wb").write(quadro_png(pg, None))
+                else:
+                    grava_mov(pg, p["duracao"], destino)
+                feitas.append(p)
+                print(f"  {n:3d}/{len(vivas)}  {p['arquivo']}")
             nav.close()
     finally:
         srv.shutdown()
 
-    manifesto = os.path.join(pasta, "manifesto.tsv")
-    primeira, nomes = regras["_primeira_trilha"], regras["_nomes"]
-    with open(manifesto, "w", encoding="utf-8", newline="\n") as f:
-        f.write("lance\tpeca\tarquivo\ttipo\tquadro\tduracao\ttrilha\tcamada\tcamada_nome"
-                "\ttimecode\tseg_video\n")
-        for p in sorted(feitas, key=lambda x: (x["trilha"], x["quadro"])):
-            camada = p["trilha"] - primeira + 1
-            f.write(f"{p['lance']}\t{p['peca']}\t{p['arquivo']}\t{p['tipo']}\t{p['quadro']}\t"
-                    f"{p['duracao']}\t{p['trilha']}\t{camada}\t{nomes.get(camada, '')}\t"
-                    f"{timecode(p['quadro'])}\t{p['quadro'] / FPS:.2f}\n")
+    escreve_manifesto(pasta, feitas)
     # é por aqui que o script do DaVinci acha o pacote mais recente
     open(os.path.join(MIDIAS, "ultimo-pacote.txt"), "w", encoding="utf-8").write(pasta)
+    mostra_resumo(pasta, plano, feitas, falhas, time.time() - comeco)
+    return pasta
 
-    por_trilha = {}
+
+def mostra_cabecalho(lances, plano):
+    casa, fora = lances["casa"]["nome"], lances["fora"]["nome"]
+    print(f"{lances.get('nome') or lances['jogo']}: {casa} × {fora} · até {mmss(plano['fim'])}")
+    gc = gf = 0
+    for n, g in enumerate(plano["gols"], 1):
+        if g["t"] == "A":
+            gc += 1
+        else:
+            gf += 1
+        lado = casa if g["t"] == "A" else fora
+        assist = f" (assist. {g['a']})" if g.get("a") else ""
+        print(f"  gol {n:2d}  {mmss(g['seg']):>7}  {lado:<14} {(g['j'] or '(sem jogador)') + assist:<26}"
+              f"  {gc} × {gf}")
+
+
+def escreve_manifesto(pasta, feitas):
+    with open(os.path.join(pasta, "manifesto.tsv"), "w", encoding="utf-8", newline="\n") as f:
+        f.write("lance\tpeca\tarquivo\ttipo\tquadro\tduracao\ttrilha\tcamada\tcamada_nome"
+                "\ttimecode\tseg_video\torigem\tesperou\n")
+        for p in sorted(feitas, key=lambda x: (x["trilha"], x["quadro"])):
+            tipo = "imagem" if p["peca"] == "placar-fixo" else "video"
+            f.write(f"{p.get('lance') or p.get('momento') or p['id']}\t{p['peca']}\t{p['arquivo']}\t{tipo}\t"
+                    f"{p['quadro']}\t{p['duracao']}\t{p['trilha']}\t{p['camada']}\t{p['nomeCamada']}\t"
+                    f"{timecode(p['quadro'])}\t{p['quadro'] / FPS:.2f}\t{p['origem']}\t"
+                    f"{p.get('esperou', 0):.1f}\n")
+
+
+def mostra_resumo(pasta, plano, feitas, falhas, segundos):
+    """O que o briefing pede no fim: geradas, as que esperaram, as de fora e o
+    motivo, e o tempo."""
+    por_camada = {}
     for p in feitas:
-        por_trilha[p["trilha"]] = por_trilha.get(p["trilha"], 0) + 1
-    print(f"\n{pasta}\n  {len(feitas)} peças no manifesto")
-    for t, n in sorted(por_trilha.items()):
-        c = t - primeira + 1
-        print(f"    camada {c} ({nomes.get(c, '?')}) = V{t}: {n} peça(s)")
-    for peca, motivo in puladas:
-        quando = f" ({mmss(peca['seg'])})" if peca.get("seg") is not None else ""
-        print(f"  ! sem {peca['peca']} no {peca['lance']}{quando}: {motivo}")
-    for a in avisos:
+        por_camada.setdefault((p["camada"], p["nomeCamada"], p["trilha"]), []).append(p)
+    print(f"\n{pasta}\n  {len(feitas)} peças no manifesto, em {segundos / 60:.1f} min")
+    for (c, nome, t), ps in sorted(por_camada.items()):
+        print(f"    camada {c:2d} ({nome}) = V{t}: {len(ps)}")
+    esperaram = [p for p in feitas if p["status"] == "espera"]
+    if esperaram:
+        print(f"\n  esperaram na fila ({len(esperaram)}):")
+        for p in esperaram:
+            print(f"    {p['nome']} ({mmss(p['pedido'])} → {mmss(p['seg'])}): {p['motivo']}")
+    de_fora = [p for p in plano["pecas"] if p["status"] == "fora"]
+    if de_fora or falhas:
+        print(f"\n  de fora ({len(de_fora) + len(falhas)}):")
+        for p in de_fora:
+            print(f"    {p['nome']} ({mmss(p['pedido'])}): {p['motivo']}")
+        for p, erro in falhas:
+            print(f"    {p['nome']} ({mmss(p['seg'])}): não deu para desenhar — {erro}")
+    for a in plano["avisos"]:
         print(f"  ! {a}")
     print("\nNo DaVinci: Workspace > Scripts > Copa Revoada - importar pacote")
-    return pasta
 
 
 def teste():
@@ -578,11 +351,11 @@ def teste():
     os.makedirs(os.path.dirname(saida), exist_ok=True)
     srv = servidor()
     try:
-        with sync_playwright() as p:
-            nav = p.chromium.launch()
+        with sync_playwright() as pw:
+            nav = pw.chromium.launch()
             pg = abre_estudio(nav, srv.server_address[1])
-            prepara(pg, "F => { F.tipo.value = 'gol'; F.min.value = \"11'\"; return ''; }", 2)
-            n = grava_mov(pg, 2, saida)
+            pg.evaluate("() => { F.tipo.value = 'gol'; F.min.value = \"11'\"; syncFields(); }")
+            n = grava_mov(pg, 2 * FPS, saida)
             nav.close()
     finally:
         srv.shutdown()
@@ -618,12 +391,21 @@ def _salva_lances(nome_arquivo, pacote):
     return destino
 
 
+def sem_acento(t):
+    t = unicodedata.normalize("NFKD", str(t or ""))
+    return "".join(c for c in t if not unicodedata.combining(c)).strip().lower()
+
+
 def da_sumula(jogo):
     """Converte a súmula minuto a minuto (dados/sumulas/) num arquivo de lances
     igual ao que o Registro baixa. Nada é inventado: cada lance sai de uma
-    linha da súmula, com o tempo dela. Defesa comum de goleiro NÃO vira
-    "defesaça" — a súmula não diz qual defesa foi difícil, e isso é escolha
-    de quem edita."""
+    linha da súmula, com o tempo dela.
+
+    - Defesa comum de goleiro NÃO vira "defesaça": a súmula não diz qual
+      defesa foi difícil, e isso é escolha de quem edita.
+    - Assistência sai do texto do lance ("Gol Zaga + Assistência Letti").
+    - O fim do 1º tempo é o marco "2T" da súmula: no vídeo de tempos jogados,
+      o 1º tempo acaba onde o 2º começa."""
     D = dados_do_site()
     sumula = D.get("sumulas", {}).get(jogo)
     if not sumula:
@@ -632,6 +414,12 @@ def da_sumula(jogo):
     if not g:
         sys.exit(f"o jogo {jogo} não está na aba JOGOS")
     apelido = {x["id"]: x["apelido"] for x in D["jogadores"]}
+    por_nome = {}
+    for x in D["jogadores"]:
+        por_nome[sem_acento(x["apelido"])] = x["apelido"]
+    for x in sumula.get("elenco", []):
+        if x.get("pid") in apelido:
+            por_nome[sem_acento(x["nome"])] = apelido[x["pid"]]
     lado = {g["casa"]: "A", g["fora"]: "B"}
 
     eventos, fora_da_conta = [], {}
@@ -650,9 +438,18 @@ def da_sumula(jogo):
         if not t:
             fora_da_conta["sem time"] = fora_da_conta.get("sem time", 0) + 1
             continue
-        j = apelido.get(e.get("j"), "") if e.get("j") else ""
-        eventos.append({"seg": e["t"], "min": e["t"] // 60, "t": t, "tipo": tipo, "j": j, "xg": 0,
-                        "origem": e.get("txt", "")})
+        ev = {"seg": e["t"], "min": e["t"] // 60, "t": t, "tipo": tipo,
+              "j": apelido.get(e.get("j"), "") if e.get("j") else "", "xg": 0, "origem": e.get("txt", "")}
+        if tipo == "gol":
+            m = re.search(r"assist[eê]ncia\s+(?:de\s+|do\s+)?([^\s,+]+)", e.get("txt", ""), re.I)
+            if m and por_nome.get(sem_acento(m.group(1))):
+                ev["a"] = por_nome[sem_acento(m.group(1))]
+        eventos.append(ev)
+    if sumula.get("inicio2t") is not None:
+        s = sumula["inicio2t"]
+        eventos.append({"seg": s, "min": s // 60, "t": "J", "tipo": "intervalo", "j": "", "xg": 0,
+                        "origem": "marco 2T da súmula"})
+    eventos.sort(key=lambda e: e["seg"])
     gols = [e for e in eventos if e["tipo"] == "gol"]
     gc = sum(1 for e in gols if e["t"] == "A")
     gf = len(gols) - gc
@@ -660,14 +457,15 @@ def da_sumula(jogo):
         print(f"  ! os gols da súmula somam {gc} × {gf}, e a aba JOGOS diz {g.get('gc')} × {g.get('gf')}")
 
     destino = _salva_lances(f"lances-{jogo}-sumula.json", {
-        "formato": "copa-revoada-lances/1", "jogo": jogo,
+        "formato": "copa-revoada-lances/2", "jogo": jogo,
         "nome": f"{g.get('mes', '')} {g.get('temporada', '')}".strip() or jogo,
-        "conta_na_copa": True,
+        "conta_na_copa": True, "sumula": jogo,
         "casa": _time(D, g["casa"]), "fora": _time(D, g["fora"]),
         "video": f"https://youtu.be/{g['video']}" if g.get("video") else "",
         "duracao_video": None,
         "exportado_em": f"convertido da súmula dados/sumulas/{jogo}-lances.csv",
         "eventos": eventos,
+        "plano": {"ajustes": {}, "manuais": []},
     })
     por_tipo = {}
     for e in eventos:
@@ -675,7 +473,10 @@ def da_sumula(jogo):
     print(f"{destino}\n  {len(eventos)} lances: "
           + ", ".join(f"{n} {k}" for k, n in sorted(por_tipo.items())))
     for e in gols:
-        print(f"  gol {mmss(e['seg']):>6}  {e['j'] or '(sem jogador)':<12} {e['origem']}")
+        print(f"  gol {mmss(e['seg']):>7}  {e['j'] or '(sem jogador)':<12}"
+              f"{' assist. ' + e['a'] if e.get('a') else '':<18} {e['origem']}")
+    if sumula.get("inicio2t") is not None:
+        print(f"  fim do 1º tempo: {mmss(sumula['inicio2t'])} (marco 2T da súmula)")
     if fora_da_conta:
         print("  fora do arquivo: " + ", ".join(f"{n} {k}" for k, n in fora_da_conta.items())
               + " (defesa comum não vira defesaça)")
@@ -683,10 +484,16 @@ def da_sumula(jogo):
 
 
 def bateria(jogo, fim):
-    """Lances DE TESTE, para ver todas as peças no DaVinci de uma vez: o mesmo
-    bloco no começo, no meio e no fim do vídeo, com lances colados para
-    exercitar a fila. Não é o que aconteceu no jogo — o arquivo e o placar
-    dizem BATERIA DE TESTE, e ele não conta para a copa."""
+    """Lances DE TESTE, para ver todas as peças no DaVinci de uma vez, cada uma
+    no seu contexto: abertura, lances, replay, intervalo com estatísticas, fim
+    com estatísticas, artilheiro e fim de jogo. Três blocos (começo, meio e
+    fim), com lances colados para forçar a fila e sobreposições propositais
+    entre camadas: um gol durante a abertura, um bloco encostado no intervalo
+    e um gol no meio das estatísticas do fim.
+
+    Não é o que aconteceu no jogo: o placar diz BATERIA DE TESTE. As
+    estatísticas (comparativo, corrida, quem mais apareceu) vêm da súmula
+    verdadeira do jogo, porque não há como inventar súmula."""
     D = dados_do_site()
     sumula = D.get("sumulas", {}).get(jogo) or {}
     g = next((x for x in D["jogos"] + D.get("amistosos", []) if x["id"] == jogo), None)
@@ -694,39 +501,111 @@ def bateria(jogo, fim):
         sys.exit(f"o jogo {jogo} não está na aba JOGOS")
     apelido = {x["id"]: x["apelido"] for x in D["jogadores"]}
     goleiros = set((sumula.get("goleiros") or {}).values())
-    elenco = {"A": [], "B": []}
+    linha, goleiro = {"A": [], "B": []}, {}
     for x in sumula.get("elenco", []):
         lado = "A" if x.get("time") == g["casa"] else "B" if x.get("time") == g["fora"] else None
-        if lado and x.get("pid") in apelido:
-            elenco[lado].append((apelido[x["pid"]], x["pid"] in goleiros))
-    if not elenco["A"] or not elenco["B"]:
-        sys.exit(f"não achei o elenco dos dois times na súmula de {jogo}")
-    linha = lambda l, i: [n for n, gk in elenco[l] if not gk][i % max(1, len([1 for _, gk in elenco[l] if not gk]))]
-    goleiro = lambda l: next((n for n, gk in elenco[l] if gk), elenco[l][0][0])
+        if not lado or x.get("pid") not in apelido:
+            continue
+        if x["pid"] in goleiros:
+            goleiro[lado] = apelido[x["pid"]]
+        else:
+            linha[lado].append(apelido[x["pid"]])
+    if len(linha["A"]) < 3 or len(linha["B"]) < 3 or len(goleiro) < 2:
+        sys.exit(f"o elenco da súmula de {jogo} não tem gente suficiente para a bateria")
+    A, B = linha["A"], linha["B"]
+    E = lambda s, t, tipo, j="", **x: dict({"seg": round(s, 1), "min": int(s // 60), "t": t,
+                                           "tipo": tipo, "j": j, "xg": 0}, **x)
 
     def bloco(t0, k):
-        E = lambda dt, t, tipo, j: {"seg": t0 + dt, "min": int((t0 + dt) // 60), "t": t,
-                                    "tipo": tipo, "j": j, "xg": 0}
-        return [E(0, "A", "gol", linha("A", k)),
-                E(2, "B", "cagada", linha("B", k)),
-                E(3, "A", "cartao", linha("A", k + 1)),
-                E(6, "B", "defesa", goleiro("B")),
-                E(25, "B", "gol", linha("B", k + 1)),
-                E(27, "A", "gol", linha("A", k))]          # colado: testa a fila do placar
+        """Um bloco de ~95 s. Lances espaçados para cada arte aparecer, com
+        duas colisões de propósito: o cartão 3 s depois da cagada (as duas no
+        rodapé: o cartão espera) e dois gols colados (a fila do placar)."""
+        b1, b2, b3 = B[k % len(B)], B[(k + 1) % len(B)], B[(k + 2) % len(B)]
+        return [
+            E(t0, "A", "gol", A[0], a=A[1]),                    # o artilheiro: 2 por bloco
+            E(t0 + 20, "B", "cagada", b1),
+            E(t0 + 23, "A", "cartao", A[1], cor="amarelo"),     # colado na cagada
+            E(t0 + 34, "B", "defesa", goleiro["B"]),
+            E(t0 + 44, "A", "falta", A[2]),                     # desligada no jogo; a bateria liga
+            E(t0 + 54, "B", "sub", b3, sai=b2),
+            E(t0 + 64, "J", "replay", fim=t0 + 76),
+            E(t0 + 70, "B", "gol", b1),
+            E(t0 + 72, "A", "gol", A[0]),                       # colado: fila do placar
+            E(t0 + 96, "B", "cartao", b2, cor="vermelho"),
+        ]
 
-    eventos = bloco(60, 0) + bloco(fim / 2, 1) + bloco(fim - 75, 2)
+    meio = fim / 2
+    eventos = (bloco(5, 0)                     # gol aos 5 s: em cima da abertura
+               + bloco(meio - 125, 1)          # o fim do bloco encosta no intervalo
+               + [E(meio, "J", "intervalo")]
+               + bloco(fim - 230, 2)
+               + [E(fim - 40, "B", "gol", B[0])])  # no meio das estatísticas do fim
+    eventos.sort(key=lambda e: e["seg"])
+    manuais = [
+        {"id": "manual-ficha-jogador", "peca": "stat", "seg": 150, "dura": 8, "jogador": A[0]},
+        {"id": "manual-desempenho", "peca": "estjogador", "seg": 400, "dura": 9, "jogador": B[0]},
+        {"id": "manual-historico", "peca": "historico", "seg": 600, "dura": 7, "jogador": A[0]},
+        {"id": "manual-cagadas", "peca": "cagadas", "seg": meio + 120, "dura": 8},
+        {"id": "manual-analise", "peca": "ficha", "seg": meio + 200, "dura": 8},
+    ]
     destino = _salva_lances(f"lances-{jogo}-bateria.json", {
-        "formato": "copa-revoada-lances/1", "jogo": f"{jogo}-bateria",
-        "nome": "Bateria de teste", "conta_na_copa": False,
+        "formato": "copa-revoada-lances/2", "jogo": f"{jogo}-bateria",
+        "nome": "Bateria de teste", "competicao": "BATERIA DE TESTE",
+        "conta_na_copa": True, "sumula": jogo, "perfil": "bateria",
         "casa": _time(D, g["casa"]), "fora": _time(D, g["fora"]),
         "video": f"https://youtu.be/{g['video']}" if g.get("video") else "",
         "duracao_video": fim,
         "exportado_em": "lances de teste gerados por scripts/pacote.py bateria — não são do jogo",
         "eventos": eventos,
+        "plano": {"ajustes": {}, "manuais": manuais},
     })
-    print(f"{destino}\n  {len(eventos)} lances de teste em 3 blocos: "
-          f"{mmss(60)}, {mmss(fim / 2)} e {mmss(fim - 75)}")
+    print(f"{destino}\n  {len(eventos)} lances de teste e {len(manuais)} peças à mão; blocos em "
+          f"{mmss(5)}, {mmss(meio - 125)} e {mmss(fim - 230)}; fim do 1º tempo em {mmss(meio)}")
     return destino
+
+
+# --------------------------------------------------------------------------
+# manutenção
+
+
+def mede_artes():
+    """Desenha cada arte do Estúdio e lê do canvas a área que ela ocupa de
+    verdade. O plano usa essas áreas para a fila. Rode de novo quando uma arte
+    mudar de tamanho ou de lugar."""
+    from playwright.sync_api import sync_playwright
+    garante_site()
+    srv = servidor()
+    try:
+        with sync_playwright() as pw:
+            nav = pw.chromium.launch()
+            pg = abre_estudio(nav, srv.server_address[1])
+            res = pg.evaluate("""async () => {
+              // o ranking de cagadas cresce com a lista: mede no tamanho máximo
+              const antes = LANCES.estado.analise.eventos;
+              LANCES.estado.analise.eventos = jog.slice(0,6).map((p,i)=>({tipo:'cagada', j:p.apelido, t:'A', seg:i}));
+              const out = {};
+              for(const o of [...F.tipo.querySelectorAll('option')]){
+                F.tipo.value = o.value; syncFields();
+                await new Promise(r=>setTimeout(r,120));
+                animandoLance = false; draw(1);
+                const d = ctx.getImageData(0,0,1920,1080).data;
+                let x0=1920,y0=1080,x1=0,y1=0;
+                for(let y=0;y<1080;y+=4) for(let x=0;x<1920;x+=4){
+                  if(d[(y*1920+x)*4+3]>6){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
+                }
+                if(x1>x0) out[o.value] = [x0,y0,x1,y1];
+              }
+              LANCES.estado.analise.eventos = antes;
+              return out;
+            }""")
+            nav.close()
+    finally:
+        srv.shutdown()
+    dados = json.load(open(AREAS, encoding="utf-8"))
+    dados["areas"] = res
+    dados["medido_em"] = time.strftime("%Y-%m-%d")
+    json.dump(dados, open(AREAS, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    print(f"{AREAS}\n  {len(res)} artes medidas")
 
 
 def opcao(nome, padrao=None):
@@ -735,26 +614,29 @@ def opcao(nome, padrao=None):
     return padrao
 
 
+def fim_das_opcoes():
+    if "--video" in sys.argv:
+        fim = duracao_do_video(sys.argv[sys.argv.index("--video") + 1])
+        print(f"duração do vídeo: {mmss(fim)}")
+        return fim
+    return opcao("--fim")
+
+
 if __name__ == "__main__":
     acao = sys.argv[1] if len(sys.argv) > 1 else ""
     if acao == "teste":
         teste()
     elif acao == "gerar":
         arq = sys.argv[2] if len(sys.argv) > 2 and not sys.argv[2].startswith("--") else None
-        fim = opcao("--fim")
-        if "--video" in sys.argv:
-            fim = duracao_do_video(sys.argv[sys.argv.index("--video") + 1])
-            print(f"duração do vídeo: {mmss(fim)}")
-        gerar(arq, inicio=opcao("--inicio", 0.0), fim=fim)
+        gerar(arq, inicio=opcao("--inicio", 0.0), fim=fim_das_opcoes())
     elif acao == "da-sumula" and len(sys.argv) > 2:
         da_sumula(sys.argv[2])
     elif acao == "bateria" and len(sys.argv) > 2:
-        if "--video" in sys.argv:
-            fim = duracao_do_video(sys.argv[sys.argv.index("--video") + 1])
-        else:
-            fim = opcao("--fim")
+        fim = fim_das_opcoes()
         if not fim:
             sys.exit("diga a duração: --video arquivo.mp4  ou  --fim segundos")
         bateria(sys.argv[2], fim)
+    elif acao == "mede-artes":
+        mede_artes()
     else:
         sys.exit(__doc__)

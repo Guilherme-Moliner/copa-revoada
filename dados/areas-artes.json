@@ -1,0 +1,232 @@
+{
+ "_leia": [
+  "Área que cada arte do Estúdio ocupa na tela, em pixels de 1920x1080: [x0, y0, x1, y1].",
+  "Medida desenhando a arte e lendo o canvas (scripts/pacote.py mede-artes), não estimada.",
+  "O plano do pacote usa isto: duas peças que ocupam a mesma área ao mesmo tempo entram em fila, mesmo em camadas diferentes."
+ ],
+ "medido_em": "2026-11-18",
+ "areas": {
+  "gol": [
+   80,
+   772,
+   1136,
+   1008
+  ],
+  "golaco": [
+   564,
+   120,
+   1356,
+   788
+  ],
+  "historico": [
+   292,
+   344,
+   1628,
+   840
+  ],
+  "artilheiro": [
+   372,
+   292,
+   1548,
+   768
+  ],
+  "falta": [
+   80,
+   772,
+   1196,
+   1008
+  ],
+  "var": [
+   440,
+   212,
+   1476,
+   828
+  ],
+  "penalti": [
+   480,
+   92,
+   1848,
+   828
+  ],
+  "cartao": [
+   80,
+   784,
+   1036,
+   1008
+  ],
+  "penaltis": [
+   292,
+   268,
+   1628,
+   796
+  ],
+  "batedor": [
+   392,
+   324,
+   1528,
+   820
+  ],
+  "placar": [
+   340,
+   268,
+   1576,
+   756
+  ],
+  "fim": [
+   340,
+   268,
+   1576,
+   756
+  ],
+  "intervalo": [
+   180,
+   632,
+   1736,
+   1076
+  ],
+  "escalacao": [
+   92,
+   112,
+   1176,
+   1076
+  ],
+  "formacao": [
+   140,
+   52,
+   1612,
+   1052
+  ],
+  "sub": [
+   80,
+   684,
+   896,
+   1012
+  ],
+  "mapa": [
+   0,
+   0,
+   1916,
+   1076
+  ],
+  "chance": [
+   0,
+   0,
+   1916,
+   1076
+  ],
+  "jogada": [
+   0,
+   0,
+   1916,
+   1076
+  ],
+  "ficha": [
+   0,
+   0,
+   1916,
+   1076
+  ],
+  "estresumo": [
+   232,
+   124,
+   1688,
+   980
+  ],
+  "estcorrida": [
+   152,
+   104,
+   1768,
+   1000
+  ],
+  "estcraques": [
+   272,
+   104,
+   1648,
+   1000
+  ],
+  "estjogador": [
+   252,
+   244,
+   1668,
+   860
+  ],
+  "estelenco": [
+   52,
+   80,
+   1868,
+   1020
+  ],
+  "cagadas": [
+   372,
+   152,
+   1548,
+   952
+  ],
+  "placar2": [
+   72,
+   40,
+   1120,
+   236
+  ],
+  "clima": [
+   0,
+   0,
+   1916,
+   1076
+  ],
+  "marco": [
+   312,
+   244,
+   1608,
+   860
+  ],
+  "marcos": [
+   292,
+   204,
+   1628,
+   900
+  ],
+  "premiacao": [
+   180,
+   144,
+   1740,
+   960
+  ],
+  "campeao": [
+   52,
+   44,
+   1868,
+   1060
+  ],
+  "proxima": [
+   0,
+   0,
+   1916,
+   1076
+  ],
+  "arbitragem": [
+   420,
+   236,
+   1500,
+   868
+  ],
+  "varsala": [
+   420,
+   332,
+   1500,
+   772
+  ],
+  "replay": [
+   1360,
+   72,
+   1848,
+   256
+  ],
+  "stat": [
+   252,
+   244,
+   1668,
+   860
+  ]
+ }
+}

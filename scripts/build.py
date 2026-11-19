@@ -39,6 +39,9 @@ PLANILHA = os.path.join(RAIZ, "dados", "COPA_REVOADA_planilha.xlsx")
 LEGADO = os.path.join(RAIZ, "dados", "ranking-legado.json")
 # O que cada lance do Registro vira no vídeo. O site mostra, o pacote gera.
 REGRAS_PACOTE = os.path.join(RAIZ, "dados", "regras-pacote.json")
+# Área que cada arte do Estúdio ocupa na tela, medida: é o que a fila do pacote
+# usa para não pôr uma peça em cima da outra.
+AREAS_ARTES = os.path.join(RAIZ, "dados", "areas-artes.json")
 TEMPLATE = os.path.join(RAIZ, "src", "app.template.html")
 LOGO = os.path.join(RAIZ, "assets", "logo.png")
 FOTOS = os.path.join(RAIZ, "fotos")
@@ -959,6 +962,7 @@ def main():
         "amistosos": amistosos, "mistos": MISTOS,
         "regrasPacote": {k: v for k, v in json.load(
             open(REGRAS_PACOTE, encoding="utf-8")).items() if not k.startswith("_")},
+        "areasArtes": json.load(open(AREAS_ARTES, encoding="utf-8"))["areas"],
         "trofeus": trofeus, "escalacoes": escalacoes, "desempenho": desempenho,
         "premiacoes": premiacoes, "clipes": clipes,
         # Súmulas minuto a minuto, quando existirem: o site recebe os lances
