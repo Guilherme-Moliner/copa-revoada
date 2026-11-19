@@ -1,6 +1,6 @@
 # Continuar a Copa Revoada em outro computador
 
-Atualizado em 18/11/2026.
+Atualizado em 19/11/2026.
 
 **O projeto inteiro já está no GitHub.** Não precisa copiar pasta, pendrive nem
 o `.rar`: no computador novo você baixa direto de lá. O que fica para trás nesta
@@ -187,6 +187,12 @@ Já decidido:
   `pacote.py bateria 2026-08 --video jogo.mp4` gera lances de teste com todas
   as peças. Falta: baixar o vídeo, montar a timeline a 24 fps e rodar no
   DaVinci.
+- **Primeira execução real do script do DaVinci** (19/11, Resolve 19.0 beta,
+  projeto "Teste Edição Cloud"): os tempos da súmula de Agosto bateram com o
+  vídeo baixado (37:02 e 1:03:49) e o gerador fez as 18 peças, mas o script
+  parou na linha 104: a 19.0 beta devolve listas com números misturados aos
+  objetos. Corrigido (só objetos passam), junto com dois erros que viriam
+  logo depois. Falta rodar de novo e conferir na timeline.
 - **Próximo passo**: rodar o script no DaVinci com o pacote do gabarito
   (`midias/avulso-gabarito-20-09`) e conferir contra os marcadores. Depois, a
   equipe marca os gols com jogador e gera o pacote de verdade.
