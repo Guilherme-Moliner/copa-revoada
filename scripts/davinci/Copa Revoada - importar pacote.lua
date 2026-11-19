@@ -28,7 +28,18 @@ local FPS = 24
 local MENOR_TRILHA_GRAFICA = 4
 
 local function fala(...) print("[Copa Revoada] " .. string.format(...)) end
-local function para(...) fala(...); fala("nada foi alterado na timeline."); error("parado", 0) end
+local feito = {}       -- o que já mudou no projeto, para contar se parar no meio
+local function relata()
+  if #feito == 0 and not feito.postas then
+    fala("nada foi mudado no projeto até aqui.")
+    return
+  end
+  fala("o que já tinha sido feito:")
+  for _, f in ipairs(feito) do print("    - " .. f) end
+  if feito.postas then print("    - pôs " .. feito.postas .. " peças na timeline") end
+  fala("rodar de novo é seguro: o que já está no lugar é pulado.")
+end
+local function para(...) fala(...); relata(); error("parado", 0) end
 
 local function le(caminho)
   local f = io.open(caminho, "r")
@@ -45,11 +56,31 @@ local function divide(linha, sep)
   return out
 end
 
+-- As funções do Resolve que devolvem lista trazem, em algumas versões (a
+-- 19.0 beta, por exemplo), números misturados aos objetos na mesma tabela. Ler
+-- a tabela inteira fazia o script tratar um desses números como pasta e parar
+-- ("attempt to index local 'f' (a number value)"). Toda lista vinda do Resolve
+-- passa por aqui, e só os objetos seguem.
+local function objetos(t)
+  local out = {}
+  if type(t) ~= "table" then return out end
+  for _, v in pairs(t) do
+    if type(v) == "userdata" or type(v) == "table" then out[#out + 1] = v end
+  end
+  return out
+end
+
+-- Em que ponto o script está, e o que já mudou no projeto: se algo der errado,
+-- é isso que aparece no Console, em vez de um erro de Lua.
+local etapa = "começo"
+local postas = 0
+
 local ok, erro = pcall(function()
   local resolve = resolve or Resolve()
   if not resolve then para("não achei o Resolve. Rode por Workspace > Scripts.") end
 
   -- 1. o pacote
+  etapa = "ler o pacote (midias\\ultimo-pacote.txt e manifesto.tsv)"
   local ponteiro = le(RAIZ .. [[\midias\ultimo-pacote.txt]])
   if not ponteiro then para("não achei midias\\ultimo-pacote.txt: gere o pacote antes (scripts\\pacote.py gerar).") end
   local pasta = apara(ponteiro)
@@ -76,6 +107,7 @@ local ok, erro = pcall(function()
   if #linhas == 0 then para("o manifesto de %s está vazio.", jogo) end
 
   -- 2. a timeline
+  etapa = "conferir o projeto e a timeline abertos"
   local projeto = resolve:GetProjectManager():GetCurrentProject()
   if not projeto then para("abra o projeto antes de rodar o script.") end
   local tl = projeto:GetCurrentTimeline()
@@ -98,19 +130,29 @@ local ok, erro = pcall(function()
   end
 
   -- 3. Media Pool: IA > Pacote <jogo>
+  etapa = "achar ou criar a pasta IA > Pacote " .. jogo .. " no Media Pool"
   local mp = projeto:GetMediaPool()
+  if not mp then para("o Resolve não devolveu o Media Pool do projeto.") end
   local function subpasta(mae, nome)
-    for _, f in pairs(mae:GetSubFolderList() or {}) do
+    for _, f in ipairs(objetos(mae:GetSubFolderList())) do
       if f:GetName() == nome then return f end
     end
-    return mp:AddSubFolder(mae, nome)
+    local nova = mp:AddSubFolder(mae, nome)
+    if type(nova) ~= "userdata" and type(nova) ~= "table" then
+      para("o Resolve não criou a pasta \"%s\" no Media Pool.", nome)
+    end
+    feito[#feito + 1] = "criou a pasta \"" .. nome .. "\" no Media Pool"
+    return nova
   end
-  local ia = subpasta(mp:GetRootFolder(), "IA")
+  local raiz = mp:GetRootFolder()
+  if not raiz then para("o Resolve não devolveu a pasta raiz do Media Pool.") end
+  local ia = subpasta(raiz, "IA")
   local destino = subpasta(ia, "Pacote " .. jogo)
   mp:SetCurrentFolder(destino)
 
+  etapa = "importar as peças para o Media Pool"
   local itens = {}
-  for _, it in pairs(destino:GetClipList() or {}) do itens[it:GetName()] = it end
+  for _, it in ipairs(objetos(destino:GetClipList())) do itens[it:GetName()] = it end
   local faltam, vistos = {}, {}
   for _, l in ipairs(linhas) do
     if not itens[l.arquivo] and not vistos[l.arquivo] then
@@ -119,11 +161,22 @@ local ok, erro = pcall(function()
     end
   end
   if #faltam > 0 then
-    for _, it in pairs(mp:ImportMedia(faltam) or {}) do itens[it:GetName()] = it end
+    local vindos = objetos(mp:ImportMedia(faltam))
+    for _, it in ipairs(vindos) do itens[it:GetName()] = it end
+    feito[#feito + 1] = "importou " .. #vindos .. " de " .. #faltam .. " arquivos para o Media Pool"
   end
 
   -- 4. trilhas e posições
-  while tl:GetTrackCount("video") < maior do tl:AddTrack("video") end
+  etapa = "criar e nomear as trilhas de gráfico"
+  local antes = tl:GetTrackCount("video")
+  while tl:GetTrackCount("video") < maior do
+    local n = tl:GetTrackCount("video")
+    tl:AddTrack("video")
+    if tl:GetTrackCount("video") <= n then para("o Resolve não criou a trilha V%d.", n + 1) end
+  end
+  if tl:GetTrackCount("video") > antes then
+    feito[#feito + 1] = "criou as trilhas V" .. (antes + 1) .. " a V" .. maior
+  end
 
   -- nome nas trilhas de gráfico; trilha que alguém já batizou não é renomeada
   local nomeDe = {}
@@ -139,20 +192,21 @@ local ok, erro = pcall(function()
     end
   end
 
+  etapa = "pôr as peças na timeline"
   local ja = {}
   for t = MENOR_TRILHA_GRAFICA, maior do
-    for _, it in pairs(tl:GetItemListInTrack("video", t) or {}) do
+    for _, it in ipairs(objetos(tl:GetItemListInTrack("video", t))) do
       ja[t .. ":" .. it:GetStart()] = true
     end
   end
 
-  local postas, puladas, curtas = 0, 0, 0
+  local puladas, curtas, fora_do_lugar = 0, 0, 0
   local function poe(item, trilha, quadro, dur)
     local r = mp:AppendToTimeline({{
       mediaPoolItem = item, startFrame = 0, endFrame = dur - 1,
       trackIndex = trilha, recordFrame = quadro, mediaType = 1,
     }})
-    return r and r[1]
+    return objetos(r)[1]
   end
 
   for _, l in ipairs(linhas) do
@@ -166,19 +220,29 @@ local ok, erro = pcall(function()
       local posta = poe(item, l.trilha, quadro, l.duracao)
       if not posta then
         fala("! o Resolve recusou %s em V%d, %s", l.arquivo, l.trilha, l.timecode)
+      elseif posta:GetStart() ~= quadro then
+        -- versão do Resolve que ignora a posição pedida: a peça foi parar em
+        -- outro lugar. Não segue empilhando peças erradas.
+        fora_do_lugar = fora_do_lugar + 1
+        postas = postas + 1
+        feito.postas = postas
+        para("o Resolve pôs %s no quadro %d, e o pedido era %d (%s). Esta versão não respeita a "
+             .. "posição pedida: apague essa peça da V%d e me mande estas linhas.",
+             l.arquivo, posta:GetStart(), quadro, l.timecode, l.trilha)
       else
         -- imagem parada: se o Resolve limitar a duração, completa emendando
         -- cópias até cobrir o trecho inteiro
-        local feito = posta:GetDuration()
-        if feito < l.duracao then
+        local cobre = posta:GetDuration()
+        if cobre < l.duracao then
           curtas = curtas + 1
-          while feito < l.duracao do
-            local p = poe(item, l.trilha, quadro + feito, math.min(feito > 0 and feito or l.duracao, l.duracao - feito))
+          while cobre < l.duracao do
+            local p = poe(item, l.trilha, quadro + cobre, math.min(cobre > 0 and cobre or l.duracao, l.duracao - cobre))
             if not p or p:GetDuration() <= 0 then break end
-            feito = feito + p:GetDuration()
+            cobre = cobre + p:GetDuration()
           end
         end
         postas = postas + 1
+        feito.postas = postas
       end
     end
   end
@@ -190,5 +254,8 @@ local ok, erro = pcall(function()
 end)
 
 if not ok and erro ~= "parado" then
-  print("[Copa Revoada] erro inesperado: " .. tostring(erro))
+  print("[Copa Revoada] parou com um erro na etapa: " .. etapa .. ".")
+  print("[Copa Revoada] o que o Resolve respondeu: " .. tostring(erro))
+  relata()
+  print("[Copa Revoada] copie estas linhas e mande para o Claude.")
 end
